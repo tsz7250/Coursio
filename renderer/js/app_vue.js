@@ -157,6 +157,8 @@ const app = Vue.createApp({
 
 								// 顯示首頁
 								showSectionById("Main")
+								// 顯示首頁
+								showSectionById("Main")
 
 							}, 2000)
 						});
