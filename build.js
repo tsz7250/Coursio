@@ -15,7 +15,10 @@ builder.build({
         },
         "win": {
             "icon": path.resolve(__dirname, 'icon-512x512.png'),
-        }
+        },
+        "buildDependenciesFromSource": false,
+        "nodeGypRebuild": false,
+        "npmRebuild": false
     },
 })
     .then(

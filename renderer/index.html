@@ -25,9 +25,8 @@
     <!-- MH Modal -->
     <link rel="stylesheet" href="./css/MHModal.css">
 
-
     <!-- YZU Backend api module -->
-    <script type="module" src="./js/yzu_backend.js"></script>
+    <script src="./js/yzu_backend.js"></script>
 
     <!-- Simple Scrollbar -->
     <script src="./js/simple-scrollbar.js"></script>
@@ -48,7 +47,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
 
     <!-- Import Linq -->
-    <script defer type="text/javascript" src="./js/linq.js"></script>
+    <script src="./js/linq.js"></script>
 
 
 </head>
@@ -123,6 +122,10 @@
                         <img src="../assets/ion-home-outline.svg" alt="">
                         <span>首頁</span>
                     </div>
+                    <div @click="showSection('Schedule')" id="Schedule-sidebar-item" class="sidebar-item point-it">
+                        <img src="../assets/ion-schedule-outline.svg" alt="">
+                        <span>📅 我的課表</span>
+                    </div>
                     <div @click="showSection('School-timetable-Query')" id="School-timetable-Query-sidebar-item"
                         class="sidebar-item point-it">
                         <img src="../assets/ion-search-outline.svg" alt="">
@@ -172,6 +175,61 @@
                         </div>
                     </div>
                 </div><!-- End of Main ( 首頁 ) -->
+
+                <!-- 課表 -->
+                <div ss-container id="section-Schedule" class="inner-section">
+                    <div class="page-header">
+                        <h2>📅 我的課表</h2>
+                        <p>114學年度第1學期課程時間表</p>
+                    </div>
+                    
+                    <div class="schedule-controls" style="margin: 20px 0;">
+                        <button id="refresh-schedule" class="btn btn-primary" onclick="refreshSchedule()">
+                            🔄 重新載入課表
+                        </button>
+                    </div>
+
+                    <div id="schedule-loading" style="text-align: center; padding: 40px; display: none;">
+                        <div class="loading-spinner"></div>
+                        <p>正在載入課表資料...</p>
+                    </div>
+
+                    <div id="schedule-content">
+                        <div class="schedule-table-container">
+                            <table class="schedule-table">
+                                <thead>
+                                    <tr>
+                                        <th>時間</th>
+                                        <th>週一</th>
+                                        <th>週二</th>
+                                        <th>週三</th>
+                                        <th>週四</th>
+                                        <th>週五</th>
+                                        <th>週六</th>
+                                        <th>週日</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="schedule-tbody">
+                                    <!-- 課表內容將由 JavaScript 動態生成 -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div id="schedule-error" style="display: none; text-align: center; padding: 40px;">
+                        <p style="color: #e74c3c;">❌ 無法載入課表資料</p>
+                        <button onclick="refreshSchedule()" class="btn btn-secondary">重試</button>
+                    </div>
+
+                    <div class="schedule-info" style="margin-top: 30px; padding: 20px; background: #f8f9fa; border-radius: 8px;">
+                        <h4>📋 課表說明</h4>
+                        <ul>
+                            <li>點擊「重新載入課表」可更新最新的課程資料</li>
+                            <li>課表會顯示課程名稱、教室位置和授課教師</li>
+                            <li>如果沒有課程資料，請確認已正確登入系統</li>
+                        </ul>
+                    </div>
+                </div><!-- End of Schedule ( 課表 ) -->
 
                 <!-- 查詢課程 -->
                 <div ss-container id="section-School-timetable-Query" class="inner-section">
@@ -549,7 +607,7 @@
     <!-- Import js -->
     <script src="./js/navigate.js"></script>
     <script defer type="text/javascript" src="./js/query.js"></script>
-    <script type="module" src="./js/app_vue.js"></script>
+    <script src="./js/app_vue.js"></script>
     <script src="./js/landing.js"></script>
     <script src="./js/content.js"></script>
 </body>

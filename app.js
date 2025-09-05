@@ -35,14 +35,15 @@ function createWindow() {
         frame: true, // 控制有沒有外框
         webPreferences: {
             nodeIntegration: true,
-            contextIsolation: false, // 預設為 true 必須設為 false
-            // preload: path.join(renderer_dirpath, "js", "preload_main.html"),
+            contextIsolation: false,
+            webSecurity: false, // 關閉網頁安全性以允許跨域請求
+            // preload: path.join(renderer_dirpath, "js", "preload.js"),
         }
     })
 
     MainWindow.setMenuBarVisibility(false)
     MainWindow.loadFile(path.join(renderer_dirpath, "index.html"))
-    // MainWindow.webContents.openDevTools();
+    MainWindow.webContents.openDevTools();
 
 
 
@@ -55,7 +56,8 @@ function createWindow() {
         show: false,
         webPreferences: {
             nodeIntegration: true,
-            contextIsolation: false, // 預設為 true 必須設為 false
+            contextIsolation: false,
+            // preload: path.join(renderer_dirpath, "js", "preload.js"),
         }
     })
     SelectCourseWorkerWindow.loadFile(path.join(renderer_dirpath, "CourseSelWorker.html"))
