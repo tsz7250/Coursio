@@ -186,11 +186,11 @@ const app = Vue.createApp({
 				notify_list.value = service.notify_list;
 				var el = document.querySelector('.content-panel__notifylist');
 				if (el) SimpleScrollbar.initEl(el);
-				return Promise.resolve();
+				return;
 			}).catch((error) => {
 				console.error("通知列表載入失敗:", error);
 				// 通知載入失敗不影響登入流程，繼續執行
-				return Promise.resolve();
+				return;
 			});
 		}
 
