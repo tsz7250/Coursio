@@ -88,25 +88,38 @@ const app = Vue.createApp({
 						return service._getAppLoginccount()
 					}).then((service) => {
 						std_account_infomation.value = service.std_account_infomation[0]
-						getCourseList()
-						getNotifyList()
-
-
-						setTimeout(() => {
-							isLoading.value = false;
-							loading_text.value = "";
-							document.querySelector(".login-panel").classList.add("slide-up")
-
+						
+						// 依序載入課程資料和通知，確保載入狀態正確管理
+						return Promise.all([
+							getCourseListAsync(),
+							getNotifyListAsync()
+						]).then(() => {
+							// 所有資料載入完成後，等待2秒再切換到主畫面
 							setTimeout(() => {
-								document.querySelector(".login-panel").style.display = "none";
-								document.querySelector(".login-panel").classList.remove("slide-up")
-							}, 2000);
+								isLoading.value = false;
+								loading_text.value = "";
+								document.querySelector(".login-panel").classList.add("slide-up")
 
-							// 顯示首頁
-							showSectionById("Main")
+								setTimeout(() => {
+									document.querySelector(".login-panel").style.display = "none";
+									document.querySelector(".login-panel").classList.remove("slide-up")
+								}, 2000);
 
-						}, 2000)
+								// 顯示首頁
+								showSectionById("Main")
 
+							}, 2000)
+						});
+					}).catch((error) => {
+						// 確保登入失敗時清除載入狀態
+						console.error("登入失敗:", error);
+						isLoading.value = false;
+						loading_text.value = "登入失敗，請檢查帳號密碼";
+						
+						// 2秒後清除錯誤訊息
+						setTimeout(() => {
+							loading_text.value = "";
+						}, 2000);
 					})
 			}
 		}
@@ -126,8 +139,34 @@ const app = Vue.createApp({
 
 				loading_text.value = "下載完成";
 				isLoading.value = false;
+			}).catch((error) => {
+				// 確保下載失敗時清除載入狀態
+				console.error("課程資料下載失敗:", error);
+				isLoading.value = false;
+				loading_text.value = "課程資料下載失敗";
+				
+				// 2秒後清除錯誤訊息
+				setTimeout(() => {
+					loading_text.value = "";
+				}, 2000);
 			})
 
+		}
+
+		// 異步版本的 getCourseList，用於登入流程中
+		function getCourseListAsync() {
+			loading_text.value = "下載課程資料中~";
+			
+			return apibackend.getCourseListFromYZUApi(`${querySelectQueryYear.value}`, `${querySelectQuerySmt.value}`).then((data) => {
+				CourseList = data.course_list;
+				dept_list.value = data.dept_list;
+				loading_text.value = "課程資料下載完成";
+				return Promise.resolve();
+			}).catch((error) => {
+				console.error("課程資料下載失敗:", error);
+				loading_text.value = "課程資料下載失敗";
+				return Promise.reject(error);
+			});
 		}
 
 		function getNotifyList() {
@@ -135,7 +174,24 @@ const app = Vue.createApp({
 				notify_list.value = service.notify_list;
 				var el = document.querySelector('.content-panel__notifylist');
 				SimpleScrollbar.initEl(el);
+			}).catch((error) => {
+				console.error("通知列表載入失敗:", error);
+				// 如果通知載入失敗，不影響主要功能，只記錄錯誤
 			})
+		}
+
+		// 異步版本的 getNotifyList，用於登入流程中
+		function getNotifyListAsync() {
+			return apibackend.getNotifyList().then((service) => {
+				notify_list.value = service.notify_list;
+				var el = document.querySelector('.content-panel__notifylist');
+				if (el) SimpleScrollbar.initEl(el);
+				return;
+			}).catch((error) => {
+				console.error("通知列表載入失敗:", error);
+				// 通知載入失敗不影響登入流程，繼續執行
+				return;
+			});
 		}
 
 		function query(qtype, ...args) {

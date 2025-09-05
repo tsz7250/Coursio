@@ -114,7 +114,8 @@ class BackendService {
             })
 
         }).catch((error) => {
-            // console.error(error)
+            console.error("RSA Key 取得失敗:", error);
+            return Promise.reject(error);
         })
 
 
@@ -169,7 +170,7 @@ class BackendService {
         }).then((response) => {
 
             if (response.data.Result.includes("失敗")) {
-                return Promise.reject(new Error("解密失敗"))
+                return Promise.reject(new Error("登入失敗"))
             }
 
             this.login_infomation = response.data;
@@ -185,6 +186,9 @@ class BackendService {
                 return resolve(that)
             })
 
+        }).catch((error) => {
+            console.error("取得存取權杖失敗:", error);
+            return Promise.reject(error);
         })
 
     }
@@ -247,6 +251,9 @@ class BackendService {
                 return resolve(that)
             })
 
+        }).catch((error) => {
+            console.error("取得帳戶資訊失敗:", error);
+            return Promise.reject(error);
         })
     }
 
