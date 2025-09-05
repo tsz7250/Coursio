@@ -107,6 +107,16 @@ const app = Vue.createApp({
 
 						}, 2000)
 
+					}).catch((error) => {
+						// 確保登入失敗時清除載入狀態
+						console.error("登入失敗:", error);
+						isLoading.value = false;
+						loading_text.value = "登入失敗，請檢查帳號密碼";
+						
+						// 2秒後清除錯誤訊息
+						setTimeout(() => {
+							loading_text.value = "";
+						}, 2000);
 					})
 			}
 		}
@@ -126,6 +136,16 @@ const app = Vue.createApp({
 
 				loading_text.value = "下載完成";
 				isLoading.value = false;
+			}).catch((error) => {
+				// 確保下載失敗時清除載入狀態
+				console.error("課程資料下載失敗:", error);
+				isLoading.value = false;
+				loading_text.value = "課程資料下載失敗";
+				
+				// 2秒後清除錯誤訊息
+				setTimeout(() => {
+					loading_text.value = "";
+				}, 2000);
 			})
 
 		}
@@ -135,6 +155,9 @@ const app = Vue.createApp({
 				notify_list.value = service.notify_list;
 				var el = document.querySelector('.content-panel__notifylist');
 				SimpleScrollbar.initEl(el);
+			}).catch((error) => {
+				console.error("通知列表載入失敗:", error);
+				// 如果通知載入失敗，不影響主要功能，只記錄錯誤
 			})
 		}
 
