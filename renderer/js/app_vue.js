@@ -17,6 +17,9 @@ try {
 
 var apibackend = new BackendService()
 
+// 讓 apibackend 全域可用
+window.apibackend = apibackend;
+
 var sqlite3 = require('sqlite3').verbose();
 const database = new sqlite3.Database('db.sqlite');
 
@@ -179,6 +182,24 @@ const app = Vue.createApp({
 
 		function showSection(id) {
 			showSectionById(id)
+			
+			// 當切換到課表頁面時，自動載入課表資料
+			if (id === 'Schedule') {
+				console.log("切換到課表頁面，檢查課表資料...");
+				// 使用 setTimeout 確保頁面完全顯示後再載入課表
+				setTimeout(() => {
+					// 如果已經有課表資料，直接生成課表；否則重新載入
+					if (window.apibackend && window.apibackend.course_schedule_data && 
+						window.apibackend.course_schedule_data.course_list && 
+						window.apibackend.course_schedule_data.course_list.length > 0) {
+						console.log("使用已載入的課表資料生成課表");
+						window.generateScheduleTable();
+					} else {
+						console.log("重新載入課表資料");
+						window.refreshSchedule();
+					}
+				}, 100);
+			}
 		}
 
 		function getCourseList() {
@@ -404,11 +425,21 @@ window.refreshSchedule = async function() {
 	scheduleError.style.display = 'none';
 	
 	try {
-		// 使用當前學年學期 (114學年度第1學期)
+		// 檢查是否已經有課表資料
+		if (window.apibackend && window.apibackend.course_schedule_data) {
+			console.log("使用已載入的課表資料");
+			generateScheduleTable();
+			
+			scheduleLoading.style.display = 'none';
+			scheduleContent.style.display = 'block';
+			return;
+		}
+		
+		// 如果沒有資料，重新載入
 		const currentYear = "114";
 		const currentSemester = "1";
 		
-		console.log(`載入 ${currentYear} 學年度第 ${currentSemester} 學期課表`);
+		console.log(`重新載入 ${currentYear} 學年度第 ${currentSemester} 學期課表`);
 		
 		// 取得課表資料（現在會嘗試個人課表）
 		await apibackend.getCourseSchedule(currentYear, currentSemester).then((service) => {
@@ -439,8 +470,9 @@ window.generateScheduleTable = function() {
 		scheduleInfo = createScheduleInfoElement();
 	}
 	
-	if (apibackend.course_schedule_data) {
-		const data = apibackend.course_schedule_data;
+	// 檢查課表資料
+	if (window.apibackend && window.apibackend.course_schedule_data) {
+		const data = window.apibackend.course_schedule_data;
 		
 		// 更新標題和說明
 		if (data.is_personal) {
@@ -487,6 +519,15 @@ window.generateScheduleTable = function() {
 				</div>
 			`;
 		}
+	} else {
+		// 沒有課表資料
+		if (scheduleTitle) scheduleTitle.textContent = '📅 我的課表';
+		scheduleInfo.innerHTML = `
+			<div class="alert alert-warning">
+				<strong>⏳ 正在準備課表資料</strong>
+				<br><small>💡 請稍候或點擊「重新載入課表」按鈕</small>
+			</div>
+		`;
 	}
 	
 	// 時間段定義
@@ -524,8 +565,8 @@ window.generateScheduleTable = function() {
 	console.log("課表基本結構建立完成");
 	
 	// 檢查是否有個人課表資料
-	if (apibackend.course_schedule_data && apibackend.course_schedule_data.is_personal) {
-		const data = apibackend.course_schedule_data;
+	if (window.apibackend && window.apibackend.course_schedule_data && window.apibackend.course_schedule_data.is_personal) {
+		const data = window.apibackend.course_schedule_data;
 		
 		if (data.course_list && data.course_list.length > 0) {
 			console.log("找到個人課表資料，開始分析課程時間...");
