@@ -157,8 +157,6 @@ const app = Vue.createApp({
 
 								// 顯示首頁
 								showSectionById("Main")
-								// 顯示首頁
-								showSectionById("Main")
 
 							}, 2000)
 						});
@@ -447,17 +445,45 @@ window.generateScheduleTable = function() {
 		// 更新標題和說明
 		if (data.is_personal) {
 			if (scheduleTitle) scheduleTitle.textContent = '📋 我的課表';
-			scheduleInfo.innerHTML = `
-				<div class="alert alert-success">
-					<strong>✅ 個人課表</strong> - 資料來源：${data.source}
-				</div>
-			`;
+			
+			if (data.course_list && data.course_list.length > 0) {
+				// 有個人課表資料
+				let infoHtml = `
+					<div class="alert alert-success">
+						<strong>✅ 個人課表</strong> - 資料來源：${data.source}
+						<br><small>📚 共 ${data.course_list.length} 門課程</small>
+				`;
+				
+				// 如果有 label1 資訊，顯示出來
+				if (data.label1_info) {
+					infoHtml += `<br><small>📋 課表資訊：${data.label1_info}</small>`;
+				}
+				
+				infoHtml += `</div>`;
+				scheduleInfo.innerHTML = infoHtml;
+			} else {
+				// 個人課表為空
+				let infoHtml = `
+					<div class="alert alert-info">
+						<strong>📝 個人課表（空白）</strong>
+						<br><small>⚠️ ${data.warning || '目前沒有個人課表資料'}</small>
+				`;
+				
+				// 如果有 label1 資訊，顯示出來
+				if (data.label1_info) {
+					infoHtml += `<br><small>📋 課表資訊：${data.label1_info}</small>`;
+				}
+				
+				infoHtml += `<br><small>💡 提示：請確認已登入並且有選修課程</small></div>`;
+				scheduleInfo.innerHTML = infoHtml;
+			}
 		} else {
-			if (scheduleTitle) scheduleTitle.textContent = '📚 課程瀏覽';
+			// 這個分支現在不應該被執行到，因為已移除回退機制
+			if (scheduleTitle) scheduleTitle.textContent = '❌ 課表載入失敗';
 			scheduleInfo.innerHTML = `
-				<div class="alert alert-warning">
-					<strong>⚠️ 公開課程資料</strong> - ${data.warning || '顯示全校課程，非個人課表'}
-					<br><small>💡 提示：登入後可嘗試取得個人課表</small>
+				<div class="alert alert-danger">
+					<strong>❌ 無法載入課表</strong>
+					<br><small>${data.warning || '課表載入失敗'}</small>
 				</div>
 			`;
 		}
@@ -497,77 +523,75 @@ window.generateScheduleTable = function() {
 	
 	console.log("課表基本結構建立完成");
 	
-	// 如果有課程資料，嘗試解析並填入課表
-	if (apibackend.course_schedule_data && apibackend.course_schedule_data.course_list) {
-		console.log("找到課程資料，開始分析課程時間...");
+	// 檢查是否有個人課表資料
+	if (apibackend.course_schedule_data && apibackend.course_schedule_data.is_personal) {
+		const data = apibackend.course_schedule_data;
 		
-		const courses = apibackend.course_schedule_data.course_list;
-		const isPersonal = apibackend.course_schedule_data.is_personal;
-		
-		// 如果是個人課表，只顯示已選課程
-		const coursesToShow = isPersonal ? 
-			courses.filter(course => course.is_selected) : 
-			courses.slice(0, 50); // 公開資料只顯示前50門課避免過載
-		
-		console.log(`處理 ${coursesToShow.length} 門課程 (${isPersonal ? '個人課表' : '公開課程'})`);
-		
-		coursesToShow.forEach(course => {
-			if (course.time && course.time !== "無課程資料") {
-				console.log(`處理課程: ${course.name}, 時間: ${course.time}`);
-				
-				// 解析課程時間 (格式類似: "123,145" 代表週一第2,3節，週一第4,5節)
-				const timeInfo = course.time.split(',');
-				timeInfo.forEach(timeSlot => {
-					if (timeSlot && timeSlot.length >= 3) {
-						try {
-							const day = parseInt(timeSlot.charAt(0)); // 星期幾 (1-7)
-							const periods = timeSlot.substring(1); // 節次
-							
-							// 為每個節次添加課程
-							for (let i = 0; i < periods.length; i++) {
-								const period = parseInt(periods.charAt(i));
-								if (period >= 1 && period <= 13 && day >= 1 && day <= 7) {
-									const targetCell = tbody.children[period - 1]?.children[day];
-									
-									if (targetCell) {
-										// 根據是否為個人課表選擇不同的顏色
-										const courseColor = isPersonal ? 
-											'linear-gradient(135deg, #00b894 0%, #00a085 100%)' : // 綠色系表示個人課程
-											'linear-gradient(135deg, #74b9ff 0%, #0984e3 100%)'; // 藍色系表示公開課程
+		if (data.course_list && data.course_list.length > 0) {
+			console.log("找到個人課表資料，開始分析課程時間...");
+			
+			const courses = data.course_list;
+			
+			console.log(`處理 ${courses.length} 門個人課程`);
+			
+			courses.forEach(course => {
+				if (course.time && course.time !== "無課程資料" && course.time !== "時間待確認") {
+					console.log(`處理課程: ${course.name}, 時間: ${course.time}`);
+					
+					// 解析課程時間 (格式類似: "123,145" 代表週一第2,3節，週一第4,5節)
+					const timeInfo = course.time.split(',');
+					timeInfo.forEach(timeSlot => {
+						if (timeSlot && timeSlot.length >= 3) {
+							try {
+								const day = parseInt(timeSlot.charAt(0)); // 星期幾 (1-7)
+								const periods = timeSlot.substring(1); // 節次
+								
+								// 為每個節次添加課程
+								for (let i = 0; i < periods.length; i++) {
+									const period = parseInt(periods.charAt(i));
+									if (period >= 1 && period <= 13 && day >= 1 && day <= 7) {
+										const targetCell = tbody.children[period - 1]?.children[day];
 										
-										const statusIcon = isPersonal ? '✅' : '📚';
-										
-										targetCell.innerHTML = `
-											<div class="course-item" style="
-												background: ${courseColor};
-												color: white;
-												padding: 6px;
-												border-radius: 4px;
-												font-size: 11px;
-												line-height: 1.2;
-												font-weight: 500;
-												cursor: pointer;
-												box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-											">
-												<div style="font-weight: bold;">${statusIcon} ${course.name.substring(0, 8)}${course.name.length > 8 ? '...' : ''}</div>
-												<div style="font-size: 9px; opacity: 0.9;">${course.teacher_name || '未知教師'}</div>
-												<div style="font-size: 9px; opacity: 0.8;">${course.room || '未知教室'}</div>
-											</div>
-										`;
+										if (targetCell) {
+											// 個人課表使用綠色系
+											const courseColor = 'linear-gradient(135deg, #00b894 0%, #00a085 100%)';
+											
+											targetCell.innerHTML = `
+												<div class="course-item" style="
+													background: ${courseColor};
+													color: white;
+													padding: 6px;
+													border-radius: 4px;
+													font-size: 11px;
+													line-height: 1.2;
+													font-weight: 500;
+													cursor: pointer;
+													box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+												">
+													<div style="font-weight: bold;">✅ ${course.name.substring(0, 8)}${course.name.length > 8 ? '...' : ''}</div>
+													<div style="font-size: 9px; opacity: 0.9;">${course.teacher_name || '未知教師'}</div>
+													<div style="font-size: 9px; opacity: 0.8;">${course.room || '未知教室'}</div>
+												</div>
+											`;
+										}
 									}
 								}
+							} catch (error) {
+								console.warn(`無法解析時間資訊: ${timeSlot}`, error);
 							}
-						} catch (error) {
-							console.warn(`無法解析時間資訊: ${timeSlot}`, error);
 						}
-					}
-				});
-			}
-		});
-		
-		console.log("課程資料填入完成");
+					});
+				}
+			});
+			
+			console.log("個人課表資料填入完成");
+		} else {
+			console.log("個人課表為空，顯示空白課表");
+			// 不填入任何課程，保持空白課表
+		}
 	} else {
-		console.log("沒有課程資料，顯示空白課表");
+		console.log("沒有個人課表資料，顯示空白課表");
+		// 不填入任何課程，保持空白課表
 	}
 }
 

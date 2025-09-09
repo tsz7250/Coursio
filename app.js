@@ -16,7 +16,7 @@ function readOrcreateSettingJson() {
     } catch (error) {
         fs.writeFile(settingFilePath, JSON.stringify(initConfigSettingJson), "utf-8", function (err, data) {})
     }
-}
+}``
 
 
 function createWindow() {

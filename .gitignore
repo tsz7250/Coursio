@@ -1,5 +1,6 @@
 note.md
 dev.js
+# 注意: test_schedule.js 包含認證信息，提交前請確保移除真實的 Token 和 Authorization
 build/*
 *.sqlite
 config/settings.json
