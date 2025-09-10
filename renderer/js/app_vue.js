@@ -159,6 +159,40 @@ const app = Vue.createApp({
 			return found ? found.text : "";
 		}
 
+		// 系所代碼對應 cos_id 模式的對照表，用於解決部分系所查詢不到的問題
+		const deptCosIdMapping = {
+			// 電機通訊學院各組別，根據 cos_id 前綴匹配
+			"311": "EEA", // 電機系甲組 -> EEA{數字}
+			"312": "EEB", // 電機系乙組 -> EEB{數字} 
+			"313": "EEC", // 電機系丙組 -> EEC{數字}
+			"331": "EEA", // 電機碩甲組 -> EEA{數字}
+			"332": "EEB", // 電機碩乙組 -> EEB{數字}
+			"333": "EEC", // 電機碩丙組 -> EEC{數字}
+			"359": "EEA", // 電機博甲組 -> EEA{數字}
+			"360": "EEB", // 電機博乙組 -> EEB{數字}
+			"361": "EEC", // 電機博丙組 -> EEC{數字}
+			// 舊制系所（106學年以前）
+			"301": "EE",  // (106學年以前)電機工程學系學士班 -> EE{數字}
+			"307": "COM", // (106學年以前)通訊工程學系學士班 -> COM{數字}
+			"308": "OE",  // (106學年以前)光電工程學系學士班 -> OE{數字}
+			"327": "COM", // (106學年以前)通訊工程學系碩士班 -> COM{數字}
+			"328": "OE",  // (106學年以前)光電工程學系碩士班 -> OE{數字}
+			"356": "EE",  // (106學年以前)電機工程學系博士班 -> EE{數字}
+			"357": "COM", // (106學年以前)通訊工程學系博士班 -> COM{數字}
+			"358": "OE",  // (106學年以前)光電工程學系博士班 -> OE{數字}
+		};
+
+		function getDeptQueryStrategy(deptValue) {
+			const deptName = getDeptTextByValue(deptValue);
+			const cosIdPattern = deptCosIdMapping[deptValue];
+			
+			return {
+				deptName: deptName,
+				cosIdPattern: cosIdPattern,
+				usePattern: !!cosIdPattern
+			};
+		}
+
 
 		// School Timetable Query
 		const queryType = ref("dept")  // 欲搜尋的類型
@@ -453,13 +487,30 @@ const app = Vue.createApp({
 			if (qtype == "dept") {
 				const year = normalizeText(args[0]);
 				const smt  = normalizeText(args[1]);
-				const dept = normalizeText(args[2]);
-				var a = CourseList.filter(x =>
-					normalizeText(x.year) === year &&
-					normalizeText(x.smtr) === smt &&
-					normalizeText(x.dept_name) === dept
-				);
-				queryResultForList.value = a;
+				const deptStrategy = args[2]; // 新的查詢策略物件
+				
+				let results = [];
+				
+				if (deptStrategy.usePattern && deptStrategy.cosIdPattern) {
+					// 使用 cos_id 模式匹配
+					console.log(`使用 cos_id 模式查詢: ${deptStrategy.cosIdPattern}`);
+					results = CourseList.filter(x =>
+						normalizeText(x.year) === year &&
+						normalizeText(x.smtr) === smt &&
+						x.cos_id && x.cos_id.startsWith(deptStrategy.cosIdPattern)
+					);
+				} else if (deptStrategy.deptName) {
+					// 使用傳統的 dept_name 匹配
+					console.log(`使用 dept_name 查詢: ${deptStrategy.deptName}`);
+					results = CourseList.filter(x =>
+						normalizeText(x.year) === year &&
+						normalizeText(x.smtr) === smt &&
+						normalizeText(x.dept_name) === normalizeText(deptStrategy.deptName)
+					);
+				}
+				
+				console.log(`查詢結果: 找到 ${results.length} 門課程`);
+				queryResultForList.value = results;
 			} else if (qtype == "courseName") {
 				var a = CourseList.filter(x => x.name == args[0]);
 				queryResultForList.value = a;
@@ -477,8 +528,8 @@ const app = Vue.createApp({
 			getCourseList()
 		})
 		watch(querySelectQueryDept, (newDeptValue, prevDeptValue) => {
-			const deptName = getDeptTextByValue(newDeptValue);
-			query(queryType.value, querySelectQueryYear.value, querySelectQuerySmt.value, deptName)
+			const queryStrategy = getDeptQueryStrategy(newDeptValue);
+			query(queryType.value, querySelectQueryYear.value, querySelectQuerySmt.value, queryStrategy)
 		})
 		watch([querySelectQueryDay, querySelectQueryPeriod,], ([newDay, newPeriod], [prevDay, prevPeriod]) => {
 			query(queryType.value, newDay, newPeriod)
