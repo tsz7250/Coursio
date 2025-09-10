@@ -1,7 +1,7 @@
 document.addEventListener("DOMContentLoaded", (event)=>{
     
 
-    // Landing page cta button 
+    // Landing page cta button - now hidden by default since login form is shown directly
     const cta = document.querySelector(".login-panel .cta")
 
     // Hero text and image
@@ -30,29 +30,31 @@ document.addEventListener("DOMContentLoaded", (event)=>{
         
     ]
     var heroImageIndex = 0;
-    setInterval(() => {
-        heroImageIndex = (heroImageIndex + 1) % 3;
-        heroImage.setAttribute("src", heroImageData[heroImageIndex].src)
-        heroHeader.textContent = heroImageData[heroImageIndex].header
-        heroDesc.textContent = heroImageData[heroImageIndex].content
-    }, 4000)
+    // Only start the image carousel if the hero image is visible
+    if (heroImage && !document.querySelector(".login-panel .hero-image").classList.contains("move-to-hidden")) {
+        setInterval(() => {
+            heroImageIndex = (heroImageIndex + 1) % 3;
+            heroImage.setAttribute("src", heroImageData[heroImageIndex].src)
+            if (heroHeader) heroHeader.textContent = heroImageData[heroImageIndex].header
+            if (heroDesc) heroDesc.textContent = heroImageData[heroImageIndex].content
+        }, 4000)
+    }
 
 
+    // Login panel - CTA functionality for toggling between hero and login (if needed)
+    if (cta) {
+        cta.onclick = function () {
+            document.querySelector(".login-panel .hero-image").classList.toggle("move-to-hidden");
+            document.querySelector(".login-panel .hero-text").classList.toggle("move-to-hidden");
+            document.querySelector(".login-panel .login-block").classList.toggle("move-to-hidden");
 
-    // Login panel
-
-
-    cta.onclick = function () {
-        document.querySelector(".login-panel .hero-image").classList.toggle("move-to-hidden");
-        document.querySelector(".login-panel .hero-text").classList.toggle("move-to-hidden");
-        document.querySelector(".login-panel .login-block").classList.toggle("move-to-hidden");
-
-        if (cta.querySelector("i").classList.contains("fa-arrow-right")) {
-            cta.querySelector("span").textContent = "返回首頁"
-        } else {
-            cta.querySelector("span").textContent = "開始使用"
+            if (cta.querySelector("i").classList.contains("fa-arrow-right")) {
+                cta.querySelector("span").textContent = "返回首頁"
+            } else {
+                cta.querySelector("span").textContent = "開始使用"
+            }
+            cta.querySelector("i").classList.toggle("fa-arrow-right")
+            cta.querySelector("i").classList.toggle("fa-arrow-left")
         }
-        cta.querySelector("i").classList.toggle("fa-arrow-right")
-        cta.querySelector("i").classList.toggle("fa-arrow-left")
     }
 })

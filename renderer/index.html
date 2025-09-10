@@ -61,11 +61,11 @@
                 <img style="height: 100px;" src="../assets/icon.png" alt="ICON">
             </div>
             <div class="middle wc-container">
-                <div class="hero-image">
+                <div class="hero-image move-to-hidden">
                     <img class="" src="../assets/undraw_programming_2svr.svg" alt="">
 
                 </div>
-                <div class="hero-text">
+                <div class="hero-text move-to-hidden">
                     <h2>半夜依舊在電腦前守著?</h2>
                     <span class="hero-desc">黑眼圈熬出來也不一定搶得到課R?</span>
                     <span>專屬於元智人的搶課程式幫助妳/你！</span>
@@ -73,7 +73,7 @@
 
                     <span class="cta"><span>開始使用</span><i class="fas fa-arrow-right"></i></span>
                 </div>
-                <div class="login-block move-to-hidden">
+                <div class="login-block">
                     <div class="login-block-inner wc-container">
                         <h2>登入</h2>
                         <div class="login-block-inner-input-group">
@@ -82,6 +82,7 @@
                             <input v-model="spwd" class="login-block-input-element" placeholder="密碼" type="password"
                                 id="student_pwd" required>
                             <button @click="login" class="login-block-input-element" id="login-btn">開始搶課！</button>
+                            <button @click="browseAsGuest" class="login-block-input-element" id="guest-btn" style="background: #6c757d;">訪客瀏覽課程</button>
                         </div>
 
                         <div class="login-block-lockimg"><i class="fas fa-user-lock"></i></div>
@@ -110,11 +111,11 @@
                 </div>
 
                 <div class="sidebar-funcitonal-items point-it">
-                    <div @click="showSection('Main')" id="Main-sidebar-item" class="sidebar-item">
+                    <div @click="showSection('Main')" id="Main-sidebar-item" class="sidebar-item" v-show="isLoggedIn">
                         <img src="../assets/ion-home-outline.svg" alt="">
                         <span>首頁</span>
                     </div>
-                    <div @click="showSection('Schedule')" id="Schedule-sidebar-item" class="sidebar-item point-it">
+                    <div @click="showSection('Schedule')" id="Schedule-sidebar-item" class="sidebar-item point-it" v-show="isLoggedIn">
                         <img src="../assets/ion-schedule-outline.svg" alt="">
                         <span>我的課表</span>
                     </div>
@@ -123,19 +124,24 @@
                         <img src="../assets/ion-search-outline.svg" alt="">
                         <span>課程查詢</span>
                     </div>
-                    <div @click="showSection('Task-List')" id="Task-List-sidebar-item" class="sidebar-item point-it">
+                    <div @click="showSection('Task-List')" id="Task-List-sidebar-item" class="sidebar-item point-it" v-show="isLoggedIn">
                         <img src="../assets/ion-list-outline.svg" alt="">
                         <span>選課任務列表</span>
                     </div>
-                    <div @click="showSection('Settings')" id="Settings-sidebar-item" class="sidebar-item point-it">
+                    <div @click="showSection('Settings')" id="Settings-sidebar-item" class="sidebar-item point-it" v-show="isLoggedIn">
                         <img src="../assets/ion-settings-outline.svg" alt="">
                         <span>設定</span>
                     </div>
                 </div>
 
-                <div id="author-sidebar-item" class="sidebar-item point-it">
+                <div id="author-sidebar-item" class="sidebar-item point-it" v-show="isLoggedIn">
                     <img src="../assets/ion-settings-outline.svg" alt="">
                     <span><a id="author-sidebar-item-href" class="modal-trigger" href="#about-modal">Author</a></span>
+                </div>
+
+                <div id="guest-login-sidebar-item" class="sidebar-item point-it" v-show="!isLoggedIn" @click="returnToLogin">
+                    <img src="../assets/ion-home-outline.svg" alt="">
+                    <span>返回登入</span>
                 </div>
 
 
@@ -447,8 +453,11 @@
                                         <td class="point-it">{{course.cos_type_name}}</td>
                                         <td class="point-it">{{course.credit}}</td>
                                         <td class="point-it">{{course.dept_name}}</td>
-                                        <td class="point-it"><span @click.capture.self="addToSchedule($event, course)"
-                                                class="btn hvr-bounce-to-right">加入選課清單</span> </td>
+                                        <td class="point-it">
+                                            <span v-if="isLoggedIn" @click.capture.self="addToSchedule($event, course)"
+                                                class="btn hvr-bounce-to-right">加入選課清單</span>
+                                            <span v-else class="btn disabled" style="background: #ccc; cursor: not-allowed;">需登入</span>
+                                        </td>
                                     </tr>
 
                                 </tbody>

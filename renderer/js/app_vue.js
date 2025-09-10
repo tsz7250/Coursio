@@ -65,6 +65,7 @@ const app = Vue.createApp({
 		const spwd = ref("");
 
 		const greetings = ref("")
+		const isLoggedIn = ref(false);  // 追蹤登入狀態
 
 		const isLoading = ref(false);  // 是否
 		const loading_text = ref("");
@@ -139,6 +140,7 @@ const app = Vue.createApp({
 						});
 					}).then((service) => {
 						std_account_infomation.value = service.std_account_infomation[0]
+						isLoggedIn.value = true;  // 設置登入狀態
 						
 						console.log("登入流程完成，準備載入課程資料...");
 						
@@ -156,6 +158,7 @@ const app = Vue.createApp({
 								setTimeout(() => {
 									document.querySelector(".login-panel").style.display = "none";
 									document.querySelector(".login-panel").classList.remove("slide-up")
+									document.querySelector(".content-panel").style.display = "flex";
 								}, 2000);
 
 								// 顯示首頁
@@ -180,7 +183,60 @@ const app = Vue.createApp({
 			}
 		}
 
+		// 訪客瀏覽功能
+		function browseAsGuest() {
+			console.log("訪客瀏覽模式");
+			loading_text.value = "載入課程資料中";
+			isLoading.value = true;
+			isLoggedIn.value = false;  // 確保訪客狀態
+			
+			// 設置基本的訪客資訊
+			std_account_infomation.value = {
+				CName: "訪客",
+				StdNo: "guest",
+				Department: "訪客模式"
+			};
+			
+			// 載入課程資料（不需要登入）
+			getCourseList();
+			
+			setTimeout(() => {
+				isLoading.value = false;
+				loading_text.value = "";
+				document.querySelector(".login-panel").classList.add("slide-up")
+
+				setTimeout(() => {
+					document.querySelector(".login-panel").style.display = "none";
+					document.querySelector(".login-panel").classList.remove("slide-up")
+					document.querySelector(".content-panel").style.display = "flex";
+				}, 2000);
+
+				// 直接顯示課程查詢頁面
+				showSectionById("School-timetable-Query")
+			}, 2000);
+		}
+
+		// 返回登入頁面
+		function returnToLogin() {
+			// 重置狀態
+			isLoggedIn.value = false;
+			sid.value = "";
+			spwd.value = "";
+			login_infomation.value = {};
+			std_account_infomation.value = {};
+			
+			// 顯示登入面板
+			document.querySelector(".login-panel").style.display = "flex";
+			document.querySelector(".content-panel").style.display = "none";
+		}
+
 		function showSection(id) {
+			// 檢查是否訪客，如果是訪客只允許訪問課程查詢
+			if (!isLoggedIn.value && id !== 'School-timetable-Query') {
+				console.log("訪客只能訪問課程查詢功能");
+				return;
+			}
+			
 			showSectionById(id)
 			
 			// 當切換到課表頁面時，自動載入課表資料
@@ -391,7 +447,7 @@ const app = Vue.createApp({
 			// Util UI variable 
 			greetings,
 			// student login infomation
-			sid, spwd, login,
+			sid, spwd, login, browseAsGuest, returnToLogin, isLoggedIn,
 			// student infomation
 			std_account_infomation,
 			notify_list,
