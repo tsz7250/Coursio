@@ -6,7 +6,9 @@
   "scripts": {
     "start": "electron .",
     "build": "node build.js",
-    "build:win": "electron-builder --win"
+    "build:win": "electron-builder --win",
+    "build:css": "sass renderer/scss/wannaclass.scss renderer/css/wannaclass.css --style=compressed --source-map",
+    "watch:css": "sass renderer/scss/wannaclass.scss renderer/css/wannaclass.css --watch --style=expanded --source-map"
   },
   "keywords": [
     "electron"
@@ -24,7 +26,8 @@
   "devDependencies": {
     "electron": "^38.0.0",
     "electron-builder": "^26.0.12",
-    "electron-rebuild": "^3.2.9"
+    "electron-rebuild": "^3.2.9",
+    "sass": "^1.92.1"
   },
   "dependencies": {
     "@fortawesome/fontawesome-svg-core": "^1.2.30",
