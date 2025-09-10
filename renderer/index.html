@@ -286,7 +286,7 @@
                                             class="form-control" :disabled="isCourseDataLoading">
                                             <option v-if="isCourseDataLoading" value="" selected disabled>載入中...</option>
                                             <option v-else value="" selected disabled>選擇系所...</option>
-                                            <option v-for="d in dept_list" :value="d">{{d}}</option>
+                                            <option v-for="d in deptOptions" :key="d.value" :value="d.value">{{ d.text }}</option>
                                         </select>
                                     </div>
 

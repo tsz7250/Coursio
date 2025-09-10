@@ -75,6 +75,90 @@ const app = Vue.createApp({
 		const notify_list = ref([]);
 		const dept_list = ref([]); // 總學校系級
 
+		// 靜態系所清單（依使用者提供順序，去重保留首次）
+		const deptOptions = ref([
+			{ value: "300", text: "工程學院                      " },
+			{ value: "302", text: "　　機械工程學系學士班" },
+			{ value: "303", text: "　　化學工程與材料科學學系學士班" },
+			{ value: "305", text: "　　工業工程與管理學系學士班" },
+			{ value: "309", text: "　　工程學院英語學士班" },
+			{ value: "320", text: "　　淨零碳排永續發展學士後專班" },
+			{ value: "322", text: "　　機械工程學系碩士班" },
+			{ value: "323", text: "　　化學工程與材料科學學系碩士班" },
+			{ value: "325", text: "　　工業工程與管理學系碩士班" },
+			{ value: "330", text: "　　先進能源碩士學位學程" },
+			{ value: "340", text: "　　智慧電子產品製造碩士產學專班" },
+			{ value: "352", text: "　　機械工程學系博士班" },
+			{ value: "353", text: "　　化學工程與材料科學學系博士班" },
+			{ value: "355", text: "　　工業工程與管理學系博士班" },
+			{ value: "500", text: "管理學院                      " },
+			{ value: "505", text: "　　管理學院學士班" },
+			{ value: "530", text: "　　管理學院經營管理碩士班" },
+			{ value: "531", text: "　　管理學院財務金融暨會計碩士班" },
+			{ value: "532", text: "　　管理學院管理碩士在職專班" },
+			{ value: "554", text: "　　管理學院博士班" },
+			{ value: "600", text: "人文社會學院                  " },
+			{ value: "601", text: "　　應用外語學系學士班" },
+			{ value: "602", text: "　　中國語文學系學士班" },
+			{ value: "603", text: "　　藝術與設計學系學士班" },
+			{ value: "604", text: "　　社會暨政策科學學系學士班" },
+			{ value: "608", text: "　　人文社會學院英語學士班" },
+			{ value: "621", text: "　　應用外語學系碩士班" },
+			{ value: "622", text: "　　中國語文學系碩士班" },
+			{ value: "623", text: "　　藝術與設計學系(藝術與設計管理碩士班)" },
+			{ value: "624", text: "　　社會暨政策科學學系碩士班" },
+			{ value: "656", text: "　　文化產業與文化政策博士學位學程" },
+			{ value: "700", text: "資訊學院                      " },
+			{ value: "304", text: "　　資訊工程學系學士班" },
+			{ value: "701", text: "　　資訊管理學系學士班" },
+			{ value: "702", text: "　　資訊傳播學系學士班" },
+			{ value: "705", text: "　　資訊學院英語學士班" },
+			{ value: "721", text: "　　資訊管理學系碩士班" },
+			{ value: "722", text: "　　資訊傳播學系碩士班" },
+			{ value: "723", text: "　　資訊社會學碩士學位學程" },
+			{ value: "724", text: "　　資訊工程學系碩士班" },
+			{ value: "725", text: "　　生物與醫學資訊碩士學位學程" },
+			{ value: "751", text: "　　資訊管理學系博士班" },
+			{ value: "754", text: "　　資訊工程學系博士班" },
+			{ value: "800", text: "電機通訊學院" },
+			{ value: "310", text: "　　電機通訊學院英語學士班" },
+			{ value: "311", text: "　　電機系甲組" },
+			{ value: "312", text: "　　電機系乙組" },
+			{ value: "313", text: "　　電機系丙組" },
+			{ value: "326", text: "　　(113學年起碩專課程)電機工程學系碩士班" },
+			{ value: "331", text: "　　電機碩甲組" },
+			{ value: "332", text: "　　電機碩乙組" },
+			{ value: "333", text: "　　電機碩丙組" },
+			{ value: "359", text: "　　電機博甲組" },
+			{ value: "360", text: "　　電機博乙組" },
+			{ value: "361", text: "　　電機博丙組" },
+			{ value: "301", text: "　　(106學年以前)電機工程學系學士班" },
+			{ value: "307", text: "　　(106學年以前)通訊工程學系學士班" },
+			{ value: "308", text: "　　(106學年以前)光電工程學系學士班" },
+			{ value: "327", text: "　　(106學年以前)通訊工程學系碩士班" },
+			{ value: "328", text: "　　(106學年以前)光電工程學系碩士班" },
+			{ value: "356", text: "　　(106學年以前)電機工程學系博士班" },
+			{ value: "357", text: "　　(106學年以前)通訊工程學系博士班" },
+			{ value: "358", text: "　　(106學年以前)光電工程學系博士班" },
+			{ value: "A00", text: "醫護學院" },
+			{ value: "329", text: "　　生物科技與工程研究所碩士班" },
+			{ value: "A11", text: "　　護理學系學士班" },
+			{ value: "A21", text: "　　醫學研究所碩士班" },
+			{ value: "901", text: "通識教學部" },
+			{ value: "903", text: "軍訓室                        " },
+			{ value: "904", text: "體育室                        " },
+			{ value: "906", text: "國際語言文化中心" },
+			{ value: "907", text: "全球事務處" },
+			{ value: "908", text: "磨課師" },
+			{ value: "910", text: "大專院校人工智慧學程聯盟" },
+			{ value: "909", text: "探索跨域" },
+		]);
+
+		function getDeptTextByValue(val) {
+			const found = deptOptions.value.find(d => d.value === val);
+			return found ? found.text : "";
+		}
+
 
 		// School Timetable Query
 		const queryType = ref("dept")  // 欲搜尋的類型
@@ -235,7 +319,6 @@ const app = Vue.createApp({
 			
 			apibackend.getCourseListFromYZUApi(`${querySelectQueryYear.value}`, `${querySelectQuerySmt.value}`).then((data) => {
 				CourseList = data.course_list;
-				dept_list.value = data.dept_list;
 				isCourseListLoading = false;
 				isCourseDataLoading.value = false; // 清除UI載入狀態
 				console.log("課程資料載入完成（靜默模式）");
@@ -295,7 +378,6 @@ const app = Vue.createApp({
 
 			apibackend.getCourseListFromYZUApi(`${querySelectQueryYear.value}`, `${querySelectQuerySmt.value}`).then((data) => {
 				CourseList = data.course_list;
-				dept_list.value = data.dept_list;
 
 				loading_text.value = "下載完成";
 				isLoading.value = false;
@@ -369,7 +451,14 @@ const app = Vue.createApp({
 
 		function query(qtype, ...args) {
 			if (qtype == "dept") {
-				var a = CourseList.filter(x => x.year == args[0] && x.smtr == args[1] && x.dept_name.includes(args[2]));
+				const year = normalizeText(args[0]);
+				const smt  = normalizeText(args[1]);
+				const dept = normalizeText(args[2]);
+				var a = CourseList.filter(x =>
+					normalizeText(x.year) === year &&
+					normalizeText(x.smtr) === smt &&
+					normalizeText(x.dept_name) === dept
+				);
 				queryResultForList.value = a;
 			} else if (qtype == "courseName") {
 				var a = CourseList.filter(x => x.name == args[0]);
@@ -387,8 +476,9 @@ const app = Vue.createApp({
 		watch([querySelectQueryYear, querySelectQuerySmt], ([newYear, newSmt], [prevYear, prevSmt]) => {
 			getCourseList()
 		})
-		watch(querySelectQueryDept, (newDept, prevDept) => {
-			query(queryType.value, querySelectQueryYear.value, querySelectQuerySmt.value, newDept)
+		watch(querySelectQueryDept, (newDeptValue, prevDeptValue) => {
+			const deptName = getDeptTextByValue(newDeptValue);
+			query(queryType.value, querySelectQueryYear.value, querySelectQuerySmt.value, deptName)
 		})
 		watch([querySelectQueryDay, querySelectQueryPeriod,], ([newDay, newPeriod], [prevDay, prevPeriod]) => {
 			query(queryType.value, newDay, newPeriod)
@@ -435,6 +525,14 @@ const app = Vue.createApp({
 			console.log(course_obj);
 			ipcRenderer.send("addTaskCourse", course_obj)
 
+		}
+
+		function normalizeText(str) {
+			return String(str || "")
+				.replace(/\u00A0/g, ' ')
+				.replace(/\u3000/g, ' ')
+				.replace(/\s+/g, ' ')
+				.trim();
 		}
 
 		function showCourseInfo(course) {
@@ -489,7 +587,7 @@ const app = Vue.createApp({
 			notify_list,
 			// UI controlling
 			isLoading, loading_text, isCourseDataLoading,
-			dept_list,
+			dept_list, deptOptions,
 			showSection,
 			// School Timetable Query
 			addToSchedule, showCourseInfo,
