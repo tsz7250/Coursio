@@ -186,8 +186,6 @@ const app = Vue.createApp({
 		// 訪客瀏覽功能
 		function browseAsGuest() {
 			console.log("訪客瀏覽模式");
-			loading_text.value = "載入課程資料中";
-			isLoading.value = true;
 			isLoggedIn.value = false;  // 確保訪客狀態
 			
 			// 設置基本的訪客資訊
@@ -197,23 +195,32 @@ const app = Vue.createApp({
 				Department: "訪客模式"
 			};
 			
-			// 載入課程資料（不需要登入）
-			getCourseList();
-			
+			// 立即開始滑動動畫，不顯示載入狀態
+			document.querySelector(".login-panel").classList.add("slide-up")
+
+			// 根據動畫時間調整延遲（slide-up 動畫是 0.8s）
 			setTimeout(() => {
-				isLoading.value = false;
-				loading_text.value = "";
-				document.querySelector(".login-panel").classList.add("slide-up")
-
-				setTimeout(() => {
-					document.querySelector(".login-panel").style.display = "none";
-					document.querySelector(".login-panel").classList.remove("slide-up")
-					document.querySelector(".content-panel").style.display = "flex";
-				}, 2000);
-
+				document.querySelector(".login-panel").style.display = "none";
+				document.querySelector(".login-panel").classList.remove("slide-up")
+				document.querySelector(".content-panel").style.display = "flex";
+				
 				// 直接顯示課程查詢頁面
 				showSectionById("School-timetable-Query")
-			}, 2000);
+			}, 800); // 0.8 秒，配合動畫時間
+
+			// 在背景載入課程資料（不顯示載入狀態）
+			getCourseListSilent();
+		}
+
+		// 靜默載入課程資料（不顯示載入動畫）
+		function getCourseListSilent() {
+			apibackend.getCourseListFromYZUApi(`${querySelectQueryYear.value}`, `${querySelectQuerySmt.value}`).then((data) => {
+				CourseList = data.course_list;
+				dept_list.value = data.dept_list;
+				console.log("課程資料載入完成（靜默模式）");
+			}).catch((error) => {
+				console.error("課程資料下載失敗:", error);
+			})
 		}
 
 		// 返回登入頁面
