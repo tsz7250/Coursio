@@ -159,38 +159,139 @@ const app = Vue.createApp({
 			return found ? found.text : "";
 		}
 
-		// 系所代碼對應 cos_id 模式的對照表，用於解決部分系所查詢不到的問題
+		// 系所代碼對應 cos_id 模式的對照表，支援學士/碩士/博士分離查詢
 		const deptCosIdMapping = {
-			// 電機通訊學院各組別，根據 cos_id 前綴匹配
-			"311": "EEA", // 電機系甲組 -> EEA{數字}
-			"312": "EEB", // 電機系乙組 -> EEB{數字} 
-			"313": "EEC", // 電機系丙組 -> EEC{數字}
-			"331": "EEA", // 電機碩甲組 -> EEA{數字}
-			"332": "EEB", // 電機碩乙組 -> EEB{數字}
-			"333": "EEC", // 電機碩丙組 -> EEC{數字}
-			"359": "EEA", // 電機博甲組 -> EEA{數字}
-			"360": "EEB", // 電機博乙組 -> EEB{數字}
-			"361": "EEC", // 電機博丙組 -> EEC{數字}
-			// 舊制系所（106學年以前）
-			"301": "EE",  // (106學年以前)電機工程學系學士班 -> EE{數字}
-			"307": "COM", // (106學年以前)通訊工程學系學士班 -> COM{數字}
-			"308": "OE",  // (106學年以前)光電工程學系學士班 -> OE{數字}
-			"327": "COM", // (106學年以前)通訊工程學系碩士班 -> COM{數字}
-			"328": "OE",  // (106學年以前)光電工程學系碩士班 -> OE{數字}
-			"356": "EE",  // (106學年以前)電機工程學系博士班 -> EE{數字}
-			"357": "COM", // (106學年以前)通訊工程學系博士班 -> COM{數字}
-			"358": "OE",  // (106學年以前)光電工程學系博士班 -> OE{數字}
+			// 電機通訊學院各組別，支援度階層級區分
+			// 學士班 (推測使用 1xx-4xx 範圍)
+			"311": { prefix: "EEA", level: "bachelor" }, // 電機系甲組
+			"312": { prefix: "EEB", level: "bachelor" }, // 電機系乙組  
+			"313": { prefix: "EEC", level: "bachelor" }, // 電機系丙組
+			
+			// 碩士班 (推測使用 5xx-7xx 範圍)
+			"331": { prefix: "EEA", level: "master" },   // 電機碩甲組
+			"332": { prefix: "EEB", level: "master" },   // 電機碩乙組
+			"333": { prefix: "EEC", level: "master" },   // 電機碩丙組
+			
+			// 博士班 (推測使用 8xx-9xx 範圍)
+			"359": { prefix: "EEA", level: "doctoral" }, // 電機博甲組
+			"360": { prefix: "EEB", level: "doctoral" }, // 電機博乙組
+			"361": { prefix: "EEC", level: "doctoral" }, // 電機博丙組
+			
+			// 舊制系所（106學年以前），按學制分類
+			"301": { prefix: "EE",  level: "bachelor" }, // (106學年以前)電機工程學系學士班
+			"307": { prefix: "COM", level: "bachelor" }, // (106學年以前)通訊工程學系學士班
+			"308": { prefix: "OE",  level: "bachelor" }, // (106學年以前)光電工程學系學士班
+			"327": { prefix: "COM", level: "master" },   // (106學年以前)通訊工程學系碩士班
+			"328": { prefix: "OE",  level: "master" },   // (106學年以前)光電工程學系碩士班
+			"356": { prefix: "EE",  level: "doctoral" }, // (106學年以前)電機工程學系博士班
+			"357": { prefix: "COM", level: "doctoral" }, // (106學年以前)通訊工程學系博士班
+			"358": { prefix: "OE",  level: "doctoral" }, // (106學年以前)光電工程學系博士班
 		};
+
+		// 根據學制定義課程編號範圍規則（保守策略，根據實際資料調整）
+		const degreeRangeRules = {
+			bachelor: (cosId) => {
+				// 學士班課程通常編號為較低的數字範圍
+				const match = cosId.match(/(\d+)$/);
+				if (match) {
+					const num = parseInt(match[1]);
+					// 使用保守範圍，避免過濾掉正確的課程
+					return num >= 1 && num <= 599;
+				}
+				return false;
+			},
+			master: (cosId) => {
+				// 碩士班課程通常編號為中等數字範圍  
+				const match = cosId.match(/(\d+)$/);
+				if (match) {
+					const num = parseInt(match[1]);
+					// 與學士班有重疊，需要更精確的規則
+					return num >= 400 && num <= 899;
+				}
+				return false;
+			},
+			doctoral: (cosId) => {
+				// 博士班課程通常編號為較高的數字範圍
+				const match = cosId.match(/(\d+)$/);
+				if (match) {
+					const num = parseInt(match[1]);
+					return num >= 700 && num <= 999;
+				}
+				return false;
+			}
+		};
+
+		// 更智能的學制判斷函數，考慮課程名稱中的關鍵字
+		function isCourseLevelMatch(course, targetLevel) {
+			const cosId = course.cos_id;
+			const courseName = course.name || course.cos_name || '';
+			
+			// 首先檢查課程名稱中的明確指示
+			if (courseName.includes('專題') || courseName.includes('畢業') || courseName.includes('實習')) {
+				// 這些通常是學士班課程
+				return targetLevel === 'bachelor';
+			}
+			
+			if (courseName.includes('碩士') || courseName.includes('進階') || courseName.includes('高等')) {
+				return targetLevel === 'master';
+			}
+			
+			if (courseName.includes('博士') || courseName.includes('論文')) {
+				return targetLevel === 'doctoral';
+			}
+			
+			// 如果課程名稱沒有明確指示，使用數字範圍規則
+			if (degreeRangeRules[targetLevel]) {
+				return degreeRangeRules[targetLevel](cosId);
+			}
+			
+			return true; // 如果無法判斷，則包含該課程
+		}
+
+		// 分析課程資料以確定實際的學制編號模式
+		function analyzeCoursePatterns() {
+			if (!CourseList || CourseList.length === 0) {
+				console.log("課程資料尚未載入，無法分析學制模式");
+				return;
+			}
+
+			const patterns = {};
+			
+			// 針對電機系各組別分析 cos_id 模式
+			["EEA", "EEB", "EEC"].forEach(prefix => {
+				const courses = CourseList.filter(x => x.cos_id && x.cos_id.startsWith(prefix));
+				if (courses.length > 0) {
+					patterns[prefix] = courses.map(x => ({
+						cos_id: x.cos_id,
+						name: x.name || x.cos_name,
+						dept_name: x.dept_name
+					}));
+					console.log(`${prefix} 課程範例:`, patterns[prefix].slice(0, 5));
+				}
+			});
+
+			return patterns;
+		}
 
 		function getDeptQueryStrategy(deptValue) {
 			const deptName = getDeptTextByValue(deptValue);
-			const cosIdPattern = deptCosIdMapping[deptValue];
+			const mappingInfo = deptCosIdMapping[deptValue];
 			
-			return {
-				deptName: deptName,
-				cosIdPattern: cosIdPattern,
-				usePattern: !!cosIdPattern
-			};
+			if (mappingInfo) {
+				return {
+					deptName: deptName,
+					cosIdPrefix: mappingInfo.prefix,
+					degreeLevel: mappingInfo.level,
+					usePattern: true
+				};
+			} else {
+				return {
+					deptName: deptName,
+					cosIdPrefix: null,
+					degreeLevel: null,
+					usePattern: false
+				};
+			}
 		}
 
 
@@ -491,14 +592,26 @@ const app = Vue.createApp({
 				
 				let results = [];
 				
-				if (deptStrategy.usePattern && deptStrategy.cosIdPattern) {
-					// 使用 cos_id 模式匹配
-					console.log(`使用 cos_id 模式查詢: ${deptStrategy.cosIdPattern}`);
-					results = CourseList.filter(x =>
-						normalizeText(x.year) === year &&
-						normalizeText(x.smtr) === smt &&
-						x.cos_id && x.cos_id.startsWith(deptStrategy.cosIdPattern)
-					);
+				if (deptStrategy.usePattern && deptStrategy.cosIdPrefix) {
+					// 使用 cos_id 模式匹配並根據學制過濾
+					console.log(`使用 cos_id 模式查詢: ${deptStrategy.cosIdPrefix}, 學制: ${deptStrategy.degreeLevel}`);
+					
+					results = CourseList.filter(x => {
+						// 基本條件：年度、學期、前綴匹配
+						if (!(normalizeText(x.year) === year &&
+							  normalizeText(x.smtr) === smt &&
+							  x.cos_id && x.cos_id.startsWith(deptStrategy.cosIdPrefix))) {
+							return false;
+						}
+						
+						// 根據學制進一步過濾
+						if (deptStrategy.degreeLevel) {
+							return isCourseLevelMatch(x, deptStrategy.degreeLevel);
+						}
+						
+						// 如果沒有學制資訊，則返回所有匹配前綴的課程
+						return true;
+					});
 				} else if (deptStrategy.deptName) {
 					// 使用傳統的 dept_name 匹配
 					console.log(`使用 dept_name 查詢: ${deptStrategy.deptName}`);
@@ -510,6 +623,9 @@ const app = Vue.createApp({
 				}
 				
 				console.log(`查詢結果: 找到 ${results.length} 門課程`);
+				if (deptStrategy.degreeLevel) {
+					console.log(`已依據學制 ${deptStrategy.degreeLevel} 進行過濾`);
+				}
 				queryResultForList.value = results;
 			} else if (qtype == "courseName") {
 				var a = CourseList.filter(x => x.name == args[0]);
@@ -648,6 +764,8 @@ const app = Vue.createApp({
 			tasks, status,
 			// Settings
 			StealCourseInterval, StealCourseStage,
+			// Debug functions
+			analyzeCoursePatterns, getDeptQueryStrategy, isCourseLevelMatch,
 		}
 	}
 });
