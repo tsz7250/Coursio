@@ -458,9 +458,18 @@ window.refreshSchedule = async function() {
 }
 
 window.generateScheduleTable = function() {
+	console.log("=== generateScheduleTable 函數開始執行 ===");
+	
 	// 顯示課表類型和資料來源
 	const scheduleTitle = document.querySelector('.page-header h2');
 	let scheduleInfo = document.querySelector('.schedule-info');
+	
+	// 先檢查基本的 DOM 元素
+	console.log("檢查 DOM 元素:");
+	console.log("- scheduleTitle:", scheduleTitle ? "找到" : "未找到");
+	console.log("- scheduleInfo:", scheduleInfo ? "找到" : "未找到");
+	console.log("- #schedule-content:", document.getElementById('schedule-content') ? "找到" : "未找到");
+	console.log("- #schedule-tbody:", document.getElementById('schedule-tbody') ? "找到" : "未找到");
 	
 	// 如果找不到 schedule-info，創建一個
 	if (!scheduleInfo) {
@@ -583,89 +592,93 @@ window.generateScheduleTable = function() {
 		}
 	}
 	
-	// 生成完整的 HTML 表格
-	let tableHTML = `
-		<div class="schedule-table-container">
-			<table class="schedule-table">
-				<thead>
-					<tr>
-						<th>時間</th>
-						<th>週一</th>
-						<th>週二</th>
-						<th>週三</th>
-						<th>週四</th>
-						<th>週五</th>
-						<th>週六</th>
-						<th>週日</th>
-					</tr>
-				</thead>
-				<tbody>
-	`;
+	// 找到現有的表格元素
+	const scheduleContent = document.getElementById('schedule-content');
+	const existingTbody = document.getElementById('schedule-tbody');
 	
-	// 生成每一行
+	if (!scheduleContent) {
+		console.error("找不到 #schedule-content 元素");
+		return;
+	}
+	
+	if (!existingTbody) {
+		console.error("找不到 #schedule-tbody 元素");
+		return;
+	}
+	
+	// 清空現有的 tbody 內容
+	existingTbody.innerHTML = '';
+	
+	// 生成每一行並插入到現有的 tbody
 	timeSlots.forEach((time, timeIndex) => {
-		tableHTML += `<tr>`;
+		const row = document.createElement('tr');
 		
 		// 時間欄
-		tableHTML += `
-			<td style="background-color: #f8f9fa; font-weight: bold; white-space: pre-line; text-align: center;">
-				第${timeIndex + 1}節\n${time}
-			</td>
-		`;
+		const timeCell = document.createElement('td');
+		timeCell.style.backgroundColor = '#f8f9fa';
+		timeCell.style.fontWeight = 'bold';
+		timeCell.style.whiteSpace = 'pre-line';
+		timeCell.style.textAlign = 'center';
+		timeCell.textContent = `第${timeIndex + 1}節\n${time}`;
+		row.appendChild(timeCell);
 		
 		// 週一到週日
 		for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
 			const courseData = scheduleGrid[timeIndex][dayIndex];
+			const cell = document.createElement('td');
+			cell.className = 'schedule-cell';
 			
 			if (courseData) {
 				// 有課程
-				const courseColor = 'linear-gradient(135deg, #00b894 0%, #00a085 100%)';
-				tableHTML += `
-					<td class="schedule-cell">
-						<div class="course-item" style="
-							background: ${courseColor};
-							color: white;
-							padding: 6px;
-							border-radius: 4px;
-							font-size: 11px;
-							line-height: 1.2;
-							font-weight: 500;
-							cursor: pointer;
-							box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-						">
-							<div style="font-weight: bold;">✅ ${courseData.name.substring(0, 8)}${courseData.name.length > 8 ? '...' : ''}</div>
-							<div style="font-size: 9px; opacity: 0.9;">${courseData.teacher}</div>
-							<div style="font-size: 9px; opacity: 0.8;">${courseData.room}</div>
-						</div>
-					</td>
-				`;
+				const courseDiv = document.createElement('div');
+				courseDiv.className = 'course-item';
+				courseDiv.style.background = 'linear-gradient(135deg, #00b894 0%, #00a085 100%)';
+				courseDiv.style.color = 'white';
+				courseDiv.style.padding = '6px';
+				courseDiv.style.borderRadius = '4px';
+				courseDiv.style.fontSize = '11px';
+				courseDiv.style.lineHeight = '1.2';
+				courseDiv.style.fontWeight = '500';
+				courseDiv.style.cursor = 'pointer';
+				courseDiv.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+				
+				const nameDiv = document.createElement('div');
+				nameDiv.style.fontWeight = 'bold';
+				nameDiv.textContent = `✅ ${courseData.name.substring(0, 8)}${courseData.name.length > 8 ? '...' : ''}`;
+				
+				const teacherDiv = document.createElement('div');
+				teacherDiv.style.fontSize = '9px';
+				teacherDiv.style.opacity = '0.9';
+				teacherDiv.textContent = courseData.teacher;
+				
+				const roomDiv = document.createElement('div');
+				roomDiv.style.fontSize = '9px';
+				roomDiv.style.opacity = '0.8';
+				roomDiv.textContent = courseData.room;
+				
+				courseDiv.appendChild(nameDiv);
+				courseDiv.appendChild(teacherDiv);
+				courseDiv.appendChild(roomDiv);
+				cell.appendChild(courseDiv);
 			} else {
 				// 沒課程
-				tableHTML += `
-					<td class="schedule-cell">
-						<div class="course-slot" style="padding: 8px; text-align: center; color: #999;">-</div>
-					</td>
-				`;
+				const emptyDiv = document.createElement('div');
+				emptyDiv.className = 'course-slot';
+				emptyDiv.style.padding = '8px';
+				emptyDiv.style.textAlign = 'center';
+				emptyDiv.style.color = '#999';
+				emptyDiv.textContent = '-';
+				cell.appendChild(emptyDiv);
 			}
+			
+			row.appendChild(cell);
 		}
 		
-		tableHTML += `</tr>`;
+		existingTbody.appendChild(row);
 	});
 	
-	tableHTML += `
-				</tbody>
-			</table>
-		</div>
-	`;
-	
-	// 將生成的表格插入到 #schedule-content
-	const scheduleContent = document.getElementById('schedule-content');
-	if (scheduleContent) {
-		scheduleContent.innerHTML = tableHTML;
-		console.log("完整課表 HTML 已生成並插入到 DOM");
-	} else {
-		console.error("找不到 #schedule-content 元素");
-	}
+	console.log("課表資料已填入現有的表格結構");
+	console.log("表格行數:", existingTbody.children.length);
 }
 
 // 建立課表資訊顯示元素的輔助函數
