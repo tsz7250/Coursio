@@ -764,6 +764,22 @@ const app = Vue.createApp({
 			document.querySelector("#MHmodal").checked = true;
 		}
 
+		function showCourseDetail(event, course) {
+			event.preventDefault();
+			event.stopPropagation();
+			
+			// 開啟外部課程詳細頁面
+			const courseDetailData = {
+				year: querySelectQueryYear.value,
+				smtr: querySelectQuerySmt.value,
+				cos_id: course.cos_id,
+				cos_class: course.cos_class || 'A'
+			};
+			
+			console.log("Opening course detail for:", courseDetailData);
+			ipcRenderer.send("openCourseDetail", courseDetailData);
+		}
+
 		function status(s) {
 			if (s == 0) {
 				return "尚未選到"
@@ -814,7 +830,7 @@ const app = Vue.createApp({
 			dept_list, deptOptions,
 			showSection,
 			// School Timetable Query
-			addToSchedule, showCourseInfo,
+			addToSchedule, showCourseInfo, showCourseDetail,
 			queryType, querySelectQueryYear, querySelectQuerySmt, querySelectQueryDept, queryInputQueryCourseName,
 			queryInputQueryTeacherName, querySelectQueryDay, querySelectQueryPeriod, queryResultForList, modalCourse,
 			// Task List 

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Main } = require("electron");
+const { app, BrowserWindow, ipcMain, shell } = require("electron");
 const path = require("path");
 const fs = require("fs")
 
@@ -123,4 +123,11 @@ ipcMain.on("addTaskCourse", (event, data)=>{
 // IPC 重讀設定檔
 ipcMain.on("regetSettings", (event, data)=>{
     SelectCourseWorkerWindow.webContents.send("regetSettings", data);
+})
+// IPC 開啟外部課程詳細頁面
+ipcMain.on("openCourseDetail", (event, data)=>{
+    const { year, smtr, cos_id, cos_class } = data;
+    const url = `https://portalfun.yzu.edu.tw/cosSelect/Cos_Plan.aspx?y=${year}&s=${smtr}&id=${cos_id}&c=${cos_class}`;
+    console.log("Opening course detail URL:", url);
+    shell.openExternal(url);
 })

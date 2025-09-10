@@ -498,23 +498,22 @@
                                 </thead>
                                 <tbody>
                                     <tr :key="'course-list'+course.hashid" v-for="(course, index) in queryResultForList"
-                                        @click="showCourseInfo(course)" data-toggle="collapse"
-                                        :data-target="'#demo-' +course.hashid" :data-hashid="course.hashid"
-                                        class="accordion-toggle point-it">
-                                        <td class="point-it code-cell">{{ (course.cos_id || '').trim() }}{{ (course.cos_class || '').trim() }}</td>
-                                        <td class="point-it name-cell" :title="course.name">{{course.name}}</td>
-                                        <td class="point-it type-cell">{{course.cos_type_name}}</td>
-                                        <td class="point-it time-room-cell">
+                                        :data-hashid="course.hashid"
+                                        class="accordion-toggle">
+                                        <td class="code-cell">{{ (course.cos_id || '').trim() }}{{ (course.cos_class || '').trim() }}</td>
+                                        <td class="point-it name-cell" :title="course.name" @click="showCourseDetail($event, course)">{{course.name}}</td>
+                                        <td class="type-cell">{{course.cos_type_name}}</td>
+                                        <td class="time-room-cell">
                                             <div class="time">{{course.time}}</div>
                                             <div class="room">{{course.room}}</div>
                                         </td>
-                                        <td class="point-it teacher-cell">
+                                        <td class="teacher-cell">
                                             <span class="name">{{ (course.teacher_name || '').split('(')[0] }}</span><span class="meta" v-if="(course.teacher_name || '').includes('(')">{{ '(' + (course.teacher_name || '').split('(').slice(1).join('(') }}</span>
                                         </td>
-                                        <td class="point-it credit-cell">{{course.credit}}</td>
-                                        <td class="point-it">
+                                        <td class="credit-cell">{{course.credit}}</td>
+                                        <td>
                                             <span v-if="isLoggedIn" @click.capture.self="addToSchedule($event, course)"
-                                                class="btn hvr-bounce-to-right">加入選課清單</span>
+                                                class="btn hvr-bounce-to-right point-it">加入選課清單</span>
                                             <span v-else class="btn disabled" style="background: #ccc; cursor: not-allowed;">需登入</span>
                                         </td>
                                     </tr>
