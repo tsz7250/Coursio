@@ -256,6 +256,57 @@ const app = Vue.createApp({
 			return patterns;
 		}
 
+		// 詳細分析特定系所的查詢結果（除錯用）
+		function debugDeptQuery(deptValue) {
+			if (!CourseList || CourseList.length === 0) {
+				console.log("課程資料尚未載入，無法進行除錯分析");
+				return;
+			}
+
+			const strategy = getDeptQueryStrategy(deptValue);
+			console.log("=== 系所查詢除錯分析 ===");
+			console.log("選擇的系所代碼:", deptValue);
+			console.log("查詢策略:", strategy);
+
+			if (strategy.usePattern && strategy.cosIdPrefix) {
+				const allPrefixCourses = CourseList.filter(x => 
+					x.cos_id && x.cos_id.startsWith(strategy.cosIdPrefix)
+				);
+				console.log(`所有 ${strategy.cosIdPrefix} 前綴課程:`, allPrefixCourses.length, "門");
+
+				// 按系所名稱分組
+				const byDept = {};
+				allPrefixCourses.forEach(course => {
+					const deptName = course.dept_name || 'Unknown';
+					if (!byDept[deptName]) byDept[deptName] = [];
+					byDept[deptName].push(course);
+				});
+
+				Object.keys(byDept).forEach(deptName => {
+					console.log(`  ${deptName}: ${byDept[deptName].length} 門課程`);
+					const numbers = byDept[deptName].map(c => {
+						const match = c.cos_id.match(/(\d+)$/);
+						return match ? parseInt(match[1]) : 0;
+					}).filter(n => n > 0).sort((a, b) => a - b);
+					console.log(`    編號範圍: ${numbers[0]} - ${numbers[numbers.length - 1]}`);
+				});
+
+				// 測試學制過濾
+				if (strategy.degreeLevel) {
+					const filtered = allPrefixCourses.filter(x => isCourseLevelMatch(x, strategy.degreeLevel));
+					console.log(`學制過濾後 (${strategy.degreeLevel}):`, filtered.length, "門課程");
+					
+					// 顯示過濾後的課程範例
+					console.log("過濾後課程範例:");
+					filtered.slice(0, 10).forEach(course => {
+						console.log(`  ${course.cos_id} - ${course.name} (${course.dept_name})`);
+					});
+				}
+			}
+			
+			return strategy;
+		}
+
 		function getDeptQueryStrategy(deptValue) {
 			const deptName = getDeptTextByValue(deptValue);
 			const mappingInfo = deptCosIdMapping[deptValue];
@@ -748,7 +799,7 @@ const app = Vue.createApp({
 			// Settings
 			StealCourseInterval, StealCourseStage,
 			// Debug functions
-			analyzeCoursePatterns, getDeptQueryStrategy, isCourseLevelMatch,
+			analyzeCoursePatterns, getDeptQueryStrategy, isCourseLevelMatch, debugDeptQuery,
 		}
 	}
 });
