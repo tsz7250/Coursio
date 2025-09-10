@@ -458,9 +458,6 @@ window.refreshSchedule = async function() {
 }
 
 window.generateScheduleTable = function() {
-	const tbody = document.getElementById('schedule-tbody');
-	tbody.innerHTML = '';
-	
 	// 顯示課表類型和資料來源
 	const scheduleTitle = document.querySelector('.page-header h2');
 	let scheduleInfo = document.querySelector('.schedule-info');
@@ -538,33 +535,10 @@ window.generateScheduleTable = function() {
 		'20:20-21:10'
 	];
 	
-	// 建立基本課表結構
-	timeSlots.forEach((time, index) => {
-		const row = document.createElement('tr');
-		
-		// 時間欄
-		const timeCell = document.createElement('td');
-		timeCell.textContent = `第${index + 1}節\n${time}`;
-		timeCell.style.backgroundColor = '#f8f9fa';
-		timeCell.style.fontWeight = 'bold';
-		timeCell.style.whiteSpace = 'pre-line';
-		timeCell.style.textAlign = 'center';
-		row.appendChild(timeCell);
-		
-		// 週一到週日
-		for (let day = 1; day <= 7; day++) {
-			const dayCell = document.createElement('td');
-			dayCell.className = 'schedule-cell';
-			dayCell.innerHTML = '<div class="course-slot" style="padding: 8px; text-align: center; color: #999;">-</div>';
-			row.appendChild(dayCell);
-		}
-		
-		tbody.appendChild(row);
-	});
+	// 建立課表資料結構 (13個時段 x 7天)
+	const scheduleGrid = Array(13).fill(null).map(() => Array(7).fill(null));
 	
-	console.log("課表基本結構建立完成");
-	
-	// 檢查是否有個人課表資料
+	// 檢查是否有個人課表資料並填入網格
 	if (window.apibackend && window.apibackend.course_schedule_data && window.apibackend.course_schedule_data.is_personal) {
 		const data = window.apibackend.course_schedule_data;
 		
@@ -572,7 +546,6 @@ window.generateScheduleTable = function() {
 			console.log("找到個人課表資料，開始分析課程時間...");
 			
 			const courses = data.course_list;
-			
 			console.log(`處理 ${courses.length} 門個人課程`);
 			
 			courses.forEach(course => {
@@ -591,30 +564,11 @@ window.generateScheduleTable = function() {
 								for (let i = 0; i < periods.length; i++) {
 									const period = parseInt(periods.charAt(i));
 									if (period >= 1 && period <= 13 && day >= 1 && day <= 7) {
-										const targetCell = tbody.children[period - 1]?.children[day];
-										
-										if (targetCell) {
-											// 個人課表使用綠色系
-											const courseColor = 'linear-gradient(135deg, #00b894 0%, #00a085 100%)';
-											
-											targetCell.innerHTML = `
-												<div class="course-item" style="
-													background: ${courseColor};
-													color: white;
-													padding: 6px;
-													border-radius: 4px;
-													font-size: 11px;
-													line-height: 1.2;
-													font-weight: 500;
-													cursor: pointer;
-													box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-												">
-													<div style="font-weight: bold;">✅ ${course.name.substring(0, 8)}${course.name.length > 8 ? '...' : ''}</div>
-													<div style="font-size: 9px; opacity: 0.9;">${course.teacher_name || '未知教師'}</div>
-													<div style="font-size: 9px; opacity: 0.8;">${course.room || '未知教室'}</div>
-												</div>
-											`;
-										}
+										scheduleGrid[period - 1][day - 1] = {
+											name: course.name,
+											teacher: course.teacher_name || '未知教師',
+											room: course.room || '未知教室'
+										};
 									}
 								}
 							} catch (error) {
@@ -625,14 +579,92 @@ window.generateScheduleTable = function() {
 				}
 			});
 			
-			console.log("個人課表資料填入完成");
-		} else {
-			console.log("個人課表為空，顯示空白課表");
-			// 不填入任何課程，保持空白課表
+			console.log("個人課表資料分析完成");
 		}
+	}
+	
+	// 生成完整的 HTML 表格
+	let tableHTML = `
+		<div class="schedule-table-container">
+			<table class="schedule-table">
+				<thead>
+					<tr>
+						<th>時間</th>
+						<th>週一</th>
+						<th>週二</th>
+						<th>週三</th>
+						<th>週四</th>
+						<th>週五</th>
+						<th>週六</th>
+						<th>週日</th>
+					</tr>
+				</thead>
+				<tbody>
+	`;
+	
+	// 生成每一行
+	timeSlots.forEach((time, timeIndex) => {
+		tableHTML += `<tr>`;
+		
+		// 時間欄
+		tableHTML += `
+			<td style="background-color: #f8f9fa; font-weight: bold; white-space: pre-line; text-align: center;">
+				第${timeIndex + 1}節\n${time}
+			</td>
+		`;
+		
+		// 週一到週日
+		for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
+			const courseData = scheduleGrid[timeIndex][dayIndex];
+			
+			if (courseData) {
+				// 有課程
+				const courseColor = 'linear-gradient(135deg, #00b894 0%, #00a085 100%)';
+				tableHTML += `
+					<td class="schedule-cell">
+						<div class="course-item" style="
+							background: ${courseColor};
+							color: white;
+							padding: 6px;
+							border-radius: 4px;
+							font-size: 11px;
+							line-height: 1.2;
+							font-weight: 500;
+							cursor: pointer;
+							box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+						">
+							<div style="font-weight: bold;">✅ ${courseData.name.substring(0, 8)}${courseData.name.length > 8 ? '...' : ''}</div>
+							<div style="font-size: 9px; opacity: 0.9;">${courseData.teacher}</div>
+							<div style="font-size: 9px; opacity: 0.8;">${courseData.room}</div>
+						</div>
+					</td>
+				`;
+			} else {
+				// 沒課程
+				tableHTML += `
+					<td class="schedule-cell">
+						<div class="course-slot" style="padding: 8px; text-align: center; color: #999;">-</div>
+					</td>
+				`;
+			}
+		}
+		
+		tableHTML += `</tr>`;
+	});
+	
+	tableHTML += `
+				</tbody>
+			</table>
+		</div>
+	`;
+	
+	// 將生成的表格插入到 #schedule-content
+	const scheduleContent = document.getElementById('schedule-content');
+	if (scheduleContent) {
+		scheduleContent.innerHTML = tableHTML;
+		console.log("完整課表 HTML 已生成並插入到 DOM");
 	} else {
-		console.log("沒有個人課表資料，顯示空白課表");
-		// 不填入任何課程，保持空白課表
+		console.error("找不到 #schedule-content 元素");
 	}
 }
 
