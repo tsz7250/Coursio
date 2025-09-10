@@ -144,7 +144,7 @@ const app = Vue.createApp({
 			{ value: "329", text: "　　生物科技與工程研究所碩士班" },
 			{ value: "A11", text: "　　護理學系學士班" },
 			{ value: "A21", text: "　　醫學研究所碩士班" },
-			{ value: "901", text: "通識教學部" },
+			{ value: "901", text: "通識教學部"},
 			{ value: "903", text: "軍訓室                        " },
 			{ value: "904", text: "體育室                        " },
 			{ value: "906", text: "國際語言文化中心" },

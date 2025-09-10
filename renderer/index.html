@@ -20,6 +20,33 @@
     <style>
     /* 視覺隱藏但保留可存取性（立即生效，避免快取與編譯延遲） */
     .sr-only { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0, 0, 0, 0) !important; white-space: nowrap !important; border: 0 !important; }
+
+    /* 課程列表樣式調整 */
+    #courses-list-data-table th { white-space: nowrap; }
+    #courses-list-data-table td { vertical-align: middle; }
+    #courses-list-data-table td.name-cell,
+    #courses-list-data-table td.code-cell,
+    #courses-list-data-table td.type-cell,
+    #courses-list-data-table td.teacher-cell,
+    #courses-list-data-table td.credit-cell {
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    /* 教師欄：若含括號允許在括號前換行，並縮小欄寬 */
+    #courses-list-data-table td.teacher-cell {
+        white-space: normal;
+        word-break: keep-all;
+    }
+    #courses-list-data-table td.teacher-cell .name,
+    #courses-list-data-table td.teacher-cell .meta {
+        display: inline;
+    }
+    #courses-list-data-table td.teacher-cell .meta::before {
+        content: "\A";
+        white-space: pre; /* 在 meta 前插入換行 */
+    }
+    #courses-list-data-table td.time-room-cell { white-space: normal; word-break: keep-all; line-height: 1.3; }
+    #courses-list-data-table td.time-room-cell .time { white-space: normal; }
+    #courses-list-data-table td.time-room-cell .room { white-space: normal; color: #555; }
     </style>
 
     <!-- YZU Backend api module -->
@@ -449,14 +476,23 @@
                         <div class="col-lg-12">
                             <table id="courses-list-data-table" class="table table-striped table-hover"
                                 style="border-collapse:collapse;">
+                                <colgroup>
+                                    <col style="width:110px">
+                                    <col>
+                                    <col style="width:80px">
+                                    <col style="width:240px">
+                                    <col style="width:90px">
+                                    <col style="width:60px">
+                                    <col style="width:140px">
+                                </colgroup>
                                 <thead>
                                     <tr>
+                                        <th>課號班別</th>
                                         <th>課程名稱</th>
+                                        <th>選別</th>
+                                        <th>時間,教室</th>
                                         <th>授課教師</th>
-                                        <th>課程類型</th>
                                         <th>學分數</th>
-                                        <th>學系</th>
-                                        <th>上課時間(教室)</th>
                                         <th>加入選課名單</th>
                                     </tr>
                                 </thead>
@@ -465,12 +501,17 @@
                                         @click="showCourseInfo(course)" data-toggle="collapse"
                                         :data-target="'#demo-' +course.hashid" :data-hashid="course.hashid"
                                         class="accordion-toggle point-it">
-                                        <td class="point-it">{{course.name}}</td>
-                                        <td class="point-it">{{course.teacher_name}}</td>
-                                        <td class="point-it">{{course.cos_type_name}}</td>
-                                        <td class="point-it">{{course.credit}}</td>
-                                        <td class="point-it">{{course.dept_name}}</td>
-                                        <td class="point-it">{{course.time}} ({{course.room}})</td>
+                                        <td class="point-it code-cell">{{ (course.cos_id || '').trim() }}{{ (course.cos_class || '').trim() }}</td>
+                                        <td class="point-it name-cell" :title="course.name">{{course.name}}</td>
+                                        <td class="point-it type-cell">{{course.cos_type_name}}</td>
+                                        <td class="point-it time-room-cell">
+                                            <div class="time">{{course.time}}</div>
+                                            <div class="room">{{course.room}}</div>
+                                        </td>
+                                        <td class="point-it teacher-cell">
+                                            <span class="name">{{ (course.teacher_name || '').split('(')[0] }}</span><span class="meta" v-if="(course.teacher_name || '').includes('(')">{{ '(' + (course.teacher_name || '').split('(').slice(1).join('(') }}</span>
+                                        </td>
+                                        <td class="point-it credit-cell">{{course.credit}}</td>
                                         <td class="point-it">
                                             <span v-if="isLoggedIn" @click.capture.self="addToSchedule($event, course)"
                                                 class="btn hvr-bounce-to-right">加入選課清單</span>
