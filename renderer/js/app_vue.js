@@ -670,27 +670,23 @@ window.generateScheduleTable = function() {
 				// 有課程
 				const courseDiv = document.createElement('div');
 				courseDiv.className = 'course-item';
-				courseDiv.style.background = 'linear-gradient(135deg, #00b894 0%, #00a085 100%)';
-				courseDiv.style.color = 'white';
 				courseDiv.style.padding = '6px';
 				courseDiv.style.borderRadius = '4px';
-				courseDiv.style.fontSize = '11px';
+				courseDiv.style.fontSize = '13px';
 				courseDiv.style.lineHeight = '1.2';
 				courseDiv.style.fontWeight = '500';
-				courseDiv.style.cursor = 'pointer';
-				courseDiv.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
 				
 				const nameDiv = document.createElement('div');
 				nameDiv.style.fontWeight = 'bold';
-				nameDiv.textContent = `✅ ${courseData.name.substring(0, 8)}${courseData.name.length > 8 ? '...' : ''}`;
+				nameDiv.textContent = `${courseData.name.substring(0, 8)}${courseData.name.length > 8 ? '...' : ''}`;
 				
 				const teacherDiv = document.createElement('div');
-				teacherDiv.style.fontSize = '9px';
+				teacherDiv.style.fontSize = '11px';
 				teacherDiv.style.opacity = '0.9';
 				teacherDiv.textContent = courseData.teacher;
 				
 				const roomDiv = document.createElement('div');
-				roomDiv.style.fontSize = '9px';
+				roomDiv.style.fontSize = '11px';
 				roomDiv.style.opacity = '0.8';
 				roomDiv.textContent = courseData.room;
 				

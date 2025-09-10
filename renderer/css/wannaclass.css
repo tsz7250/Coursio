@@ -1449,16 +1449,7 @@ body {
   transition-timing-function: ease-out;
 }
 
-.hvr-bounce-to-right:hover, .hvr-bounce-to-right:focus, .hvr-bounce-to-right:active {
-  color: white;
-}
-
-.hvr-bounce-to-right:hover:before, .hvr-bounce-to-right:focus:before, .hvr-bounce-to-right:active:before {
-  -webkit-transform: scaleX(1);
-  transform: scaleX(1);
-  -webkit-transition-timing-function: cubic-bezier(0.52, 1.64, 0.37, 0.66);
-  transition-timing-function: cubic-bezier(0.52, 1.64, 0.37, 0.66);
-}
+/* .hvr-bounce-to-right hover effects removed for better readability */
 
 /* 課表樣式 */
 .schedule-table-container {
@@ -1527,10 +1518,7 @@ body {
   transition: all 0.3s ease;
 }
 
-.course-item:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
-}
+/* .course-item:hover 效果已移除 */
 
 .schedule-controls {
   display: flex;
