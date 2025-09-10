@@ -188,59 +188,42 @@ const app = Vue.createApp({
 			"358": { prefix: "OE",  level: "doctoral" }, // (106學年以前)光電工程學系博士班
 		};
 
-		// 根據學制定義課程編號範圍規則（保守策略，根據實際資料調整）
+		// 根據學制定義課程編號範圍規則（基於實際資料分析）
 		const degreeRangeRules = {
 			bachelor: (cosId) => {
-				// 學士班課程通常編號為較低的數字範圍
+				// 學士班課程編號範圍
 				const match = cosId.match(/(\d+)$/);
 				if (match) {
 					const num = parseInt(match[1]);
-					// 使用保守範圍，避免過濾掉正確的課程
-					return num >= 1 && num <= 599;
+					return num >= 100 && num <= 499;
 				}
 				return false;
 			},
 			master: (cosId) => {
-				// 碩士班課程通常編號為中等數字範圍  
+				// 碩士班課程編號範圍  
 				const match = cosId.match(/(\d+)$/);
 				if (match) {
 					const num = parseInt(match[1]);
-					// 與學士班有重疊，需要更精確的規則
-					return num >= 400 && num <= 899;
+					return num >= 500 && num <= 799;
 				}
 				return false;
 			},
 			doctoral: (cosId) => {
-				// 博士班課程通常編號為較高的數字範圍
+				// 博士班課程編號範圍
 				const match = cosId.match(/(\d+)$/);
 				if (match) {
 					const num = parseInt(match[1]);
-					return num >= 700 && num <= 999;
+					return num >= 800 && num <= 999;
 				}
 				return false;
 			}
 		};
 
-		// 更智能的學制判斷函數，考慮課程名稱中的關鍵字
+		// 學制判斷函數，僅使用數字範圍規則
 		function isCourseLevelMatch(course, targetLevel) {
 			const cosId = course.cos_id;
-			const courseName = course.name || course.cos_name || '';
 			
-			// 首先檢查課程名稱中的明確指示
-			if (courseName.includes('專題') || courseName.includes('畢業') || courseName.includes('實習')) {
-				// 這些通常是學士班課程
-				return targetLevel === 'bachelor';
-			}
-			
-			if (courseName.includes('碩士') || courseName.includes('進階') || courseName.includes('高等')) {
-				return targetLevel === 'master';
-			}
-			
-			if (courseName.includes('博士') || courseName.includes('論文')) {
-				return targetLevel === 'doctoral';
-			}
-			
-			// 如果課程名稱沒有明確指示，使用數字範圍規則
+			// 使用數字範圍規則進行學制判斷
 			if (degreeRangeRules[targetLevel]) {
 				return degreeRangeRules[targetLevel](cosId);
 			}
