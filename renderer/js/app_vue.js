@@ -161,59 +161,77 @@ const app = Vue.createApp({
 
 		// 系所代碼對應 cos_id 模式的對照表，支援學士/碩士/博士分離查詢
 		const deptCosIdMapping = {
-			// 電機通訊學院各組別，支援度階層級區分
-			// 學士班 (推測使用 1xx-4xx 範圍)
+			// 工程學院各系所
+			"322": { prefix: "ME", level: "master" },    // 機械工程學系碩士班
+			"325": { prefix: "IE", level: "master" },    // 工業工程與管理學系碩士班
+			"352": { prefix: "ME", level: "doctoral" },  // 機械工程學系博士班
+			"353": { prefix: "CH", level: "doctoral" },  // 化學工程與材料科學學系博士班
+			"355": { prefix: "IE", level: "doctoral" },  // 工業工程與管理學系博士班
+			
+			// 人文社會學院各系所
+			"621": { prefix: "FL", level: "master" },    // 應用外語學系碩士班
+			
+			// 資訊學院各系所
+			"721": { prefix: "IM", level: "master" },    // 資訊管理學系碩士班
+			"722": { prefix: "GI", level: "master" },    // 資訊傳播學系碩士班
+			"724": { prefix: "CS", level: "master" },    // 資訊工程學系碩士班
+			"751": { prefix: "IM", level: "doctoral" },  // 資訊管理學系博士班
+			"754": { prefix: "CS", level: "doctoral" },  // 資訊工程學系博士班
+			
+			// 電機通訊學院各組別，支援學制層級區分
+			// 學士班
 			"311": { prefix: "EEA", level: "bachelor" }, // 電機系甲組
 			"312": { prefix: "EEB", level: "bachelor" }, // 電機系乙組  
 			"313": { prefix: "EEC", level: "bachelor" }, // 電機系丙組
 			
-			// 碩士班 (推測使用 5xx-7xx 範圍)
+			// 碩士班
 			"331": { prefix: "EEA", level: "master" },   // 電機碩甲組
 			"332": { prefix: "EEB", level: "master" },   // 電機碩乙組
 			"333": { prefix: "EEC", level: "master" },   // 電機碩丙組
 			
-			// 博士班 (推測使用 8xx-9xx 範圍)
+			// 博士班
 			"359": { prefix: "EEA", level: "doctoral" }, // 電機博甲組
 			"360": { prefix: "EEB", level: "doctoral" }, // 電機博乙組
 			"361": { prefix: "EEC", level: "doctoral" }, // 電機博丙組
 			
 			// 舊制系所（106學年以前），按學制分類
 			"301": { prefix: "EE",  level: "bachelor" }, // (106學年以前)電機工程學系學士班
-			"307": { prefix: "COM", level: "bachelor" }, // (106學年以前)通訊工程學系學士班
-			"308": { prefix: "OE",  level: "bachelor" }, // (106學年以前)光電工程學系學士班
-			"327": { prefix: "COM", level: "master" },   // (106學年以前)通訊工程學系碩士班
-			"328": { prefix: "OE",  level: "master" },   // (106學年以前)光電工程學系碩士班
 			"356": { prefix: "EE",  level: "doctoral" }, // (106學年以前)電機工程學系博士班
-			"357": { prefix: "COM", level: "doctoral" }, // (106學年以前)通訊工程學系博士班
-			"358": { prefix: "OE",  level: "doctoral" }, // (106學年以前)光電工程學系博士班
+			
+			// 服務單位
+			"903": { prefix: "MT", level: null },        // 軍訓室
+			"904": { prefix: "PL", level: null },        // 體育室
 		};
 
 		// 根據學制定義課程編號範圍規則（基於實際資料分析）
 		const degreeRangeRules = {
 			bachelor: (cosId) => {
-				// 學士班課程編號範圍
-				const match = cosId.match(/(\d+)$/);
+				// 學士班課程編號範圍，基於實際資料分析
+				const match = cosId.match(/[A-Z]+(\d+)/);
 				if (match) {
 					const num = parseInt(match[1]);
+					// 大部分學士班課程在100-499範圍，但允許一些彈性
 					return num >= 100 && num <= 499;
 				}
 				return false;
 			},
 			master: (cosId) => {
-				// 碩士班課程編號範圍  
-				const match = cosId.match(/(\d+)$/);
+				// 碩士班課程編號範圍，允許一些高編號的碩士課程
+				const match = cosId.match(/[A-Z]+(\d+)/);
 				if (match) {
 					const num = parseInt(match[1]);
-					return num >= 500 && num <= 799;
+					// 碩士班課程主要在500-799範圍，但部分可延伸到800+
+					return num >= 500 && num <= 899;
 				}
 				return false;
 			},
 			doctoral: (cosId) => {
-				// 博士班課程編號範圍
-				const match = cosId.match(/(\d+)$/);
+				// 博士班課程編號範圍，基於實際博士班資料
+				const match = cosId.match(/[A-Z]+(\d+)/);
 				if (match) {
 					const num = parseInt(match[1]);
-					return num >= 800 && num <= 999;
+					// 實際博士班課程範圍較廣，包含特殊低編號(IP)和高編號(CM)
+					return num >= 700 || num <= 50; // CM: 724-977, IP: 3-35
 				}
 				return false;
 			}
@@ -221,6 +239,11 @@ const app = Vue.createApp({
 
 		// 學制判斷函數，僅使用數字範圍規則
 		function isCourseLevelMatch(course, targetLevel) {
+			// 如果 targetLevel 為 null，表示該系所不需要學制過濾（如軍訓室、體育室）
+			if (targetLevel === null) {
+				return true;
+			}
+			
 			const cosId = course.cos_id;
 			
 			// 使用數字範圍規則進行學制判斷
