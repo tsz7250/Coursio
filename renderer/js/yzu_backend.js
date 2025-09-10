@@ -2081,7 +2081,10 @@ class BackendService {
         console.log("完整 URL:", url);
 
         return new Promise(function (resolve, reject) {
-            request.get(url, function (err, response, body) {
+            request.get({
+                url: url,
+                rejectUnauthorized: false  // 忽略 SSL 憑證驗證
+            }, function (err, response, body) {
                 if (!err && response.statusCode == 200) {
                     var dept_list = []; // 所有科系名稱
 
