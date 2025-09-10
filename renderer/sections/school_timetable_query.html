@@ -30,13 +30,13 @@
 
                     <div class="form-row">
                         <div class="form-group col-md-4">
-                            <label for="querySelectQueryYear">學年</label>
+                            <label for="querySelectQueryYear" class="sr-only">學年</label>
                             <select v-model="querySelectQueryYear" id="querySelectQueryYear" class="form-control">
                                 <option value="" selected disabled>選擇學年...</option>
                             </select>
                         </div>
                         <div class="form-group col-md-4">
-                            <label for="querySelectQuerySmt">學期</label>
+                            <label for="querySelectQuerySmt" class="sr-only">學期</label>
                             <select v-model="querySelectQuerySmt" id="querySelectQuerySmt" class="form-control">
                                 <option value="" selected disabled>選擇學期...</option>
                                 <option value="1">上學期</option>
@@ -45,7 +45,7 @@
                         </div>
 
                         <div class="form-group col-md-4">
-                            <label for="querySelectQueryDept">系所</label>
+                            <label for="querySelectQueryDept" class="sr-only">系所</label>
                             <select v-model="querySelectQueryDept" id="querySelectQueryDept" class="form-control">
                                 <option value="" selected disabled>選擇系所...</option>
                             </select>
@@ -150,20 +150,27 @@
                             <th>課程類型</th>
                             <th>學分數</th>
                             <th>學系</th>
+                            <th>上課時間(教室)</th>
                             <th>加入選課名單</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <template>
-                            <course-list-item 
-                                v-on:showcourseinfotoparent="showcourseinfomodal"
-                                v-for="(course, index) in queryResultForList" 
-                                v-bind:key="course.hashid" 
-                                v-bind:course="course" 
-                                v-bind:index="index">
-                            </course-list-item>
-                            
-                        </template>
+                        <tr :key="'course-list'+course.hashid" v-for="(course, index) in queryResultForList"
+                            @click="showCourseInfo(course)" data-toggle="collapse"
+                            :data-target="'#demo-' +course.hashid" :data-hashid="course.hashid"
+                            class="accordion-toggle point-it">
+                            <td class="point-it">{{course.name}}</td>
+                            <td class="point-it">{{course.teacher_name}}</td>
+                            <td class="point-it">{{course.cos_type_name}}</td>
+                            <td class="point-it">{{course.credit}}</td>
+                            <td class="point-it">{{course.dept_name}}</td>
+                            <td class="point-it">{{course.time}} ({{course.room}})</td>
+                            <td class="point-it">
+                                <span v-if="isLoggedIn" @click.capture.self="addToSchedule($event, course)"
+                                    class="btn hvr-bounce-to-right">加入選課清單</span>
+                                <span v-else class="btn disabled" style="background: #ccc; cursor: not-allowed;">需登入</span>
+                            </td>
+                        </tr>
                     </tbody>
                 </table>
             </div>

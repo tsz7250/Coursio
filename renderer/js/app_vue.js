@@ -92,6 +92,8 @@ const app = Vue.createApp({
 		const queryResultForList = ref([]) // 用於儲存已查詢到的課程列表
 		const modalCourse = ref({}) // 用於儲存點擊的 Course Info 並顯示於 Modal 中
 		var CourseList = []; // 總課程列表
+		var isCourseListLoading = false; // 追蹤課程資料載入狀態
+		const isCourseDataLoading = ref(false); // 用於UI顯示的載入狀態
 
 		// Task List
 		const tasks = ref([]);
@@ -208,17 +210,38 @@ const app = Vue.createApp({
 				showSectionById("School-timetable-Query")
 			}, 800); // 0.8 秒，配合動畫時間
 
-			// 在背景載入課程資料（不顯示載入狀態）
-			getCourseListSilent();
+			// 檢查課程資料是否已載入，如果沒有才重新載入
+			if (CourseList.length === 0 && !isCourseListLoading) {
+				console.log("課程資料尚未載入，開始載入...");
+				getCourseListSilent();
+			} else if (isCourseListLoading) {
+				console.log("課程資料正在載入中，請稍候...");
+			} else {
+				console.log("課程資料已預載入完成，直接使用");
+			}
 		}
 
 		// 靜默載入課程資料（不顯示載入動畫）
 		function getCourseListSilent() {
+			// 如果正在載入或已經載入完成，則不重複載入
+			if (isCourseListLoading || CourseList.length > 0) {
+				console.log("課程資料已載入或正在載入中，跳過重複載入");
+				return;
+			}
+			
+			isCourseListLoading = true;
+			isCourseDataLoading.value = true; // 設置UI載入狀態
+			console.log("開始載入課程資料...");
+			
 			apibackend.getCourseListFromYZUApi(`${querySelectQueryYear.value}`, `${querySelectQuerySmt.value}`).then((data) => {
 				CourseList = data.course_list;
 				dept_list.value = data.dept_list;
+				isCourseListLoading = false;
+				isCourseDataLoading.value = false; // 清除UI載入狀態
 				console.log("課程資料載入完成（靜默模式）");
 			}).catch((error) => {
+				isCourseListLoading = false;
+				isCourseDataLoading.value = false; // 清除UI載入狀態
 				console.error("課程資料下載失敗:", error);
 			})
 		}
@@ -448,6 +471,12 @@ const app = Vue.createApp({
 				var elems = document.querySelectorAll('.modal');
 				var instances = M.Modal.init(elems, options);
 			})
+
+			// 登入界面載入完成後，延遲一點時間再開始載入課程資料，避免影響界面顯示
+			setTimeout(() => {
+				console.log("登入界面載入完成，開始預載入課程資料...");
+				getCourseListSilent();
+			}, 1000); // 延遲1秒，讓登入界面完全顯示
 		})
 
 		return {
@@ -459,7 +488,7 @@ const app = Vue.createApp({
 			std_account_infomation,
 			notify_list,
 			// UI controlling
-			isLoading, loading_text,
+			isLoading, loading_text, isCourseDataLoading,
 			dept_list,
 			showSection,
 			// School Timetable Query
