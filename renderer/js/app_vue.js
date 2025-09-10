@@ -558,33 +558,71 @@ window.generateScheduleTable = function() {
 			console.log(`處理 ${courses.length} 門個人課程`);
 			
 			courses.forEach(course => {
-				if (course.time && course.time !== "無課程資料" && course.time !== "時間待確認") {
-					console.log(`處理課程: ${course.name}, 時間: ${course.time}`);
+				console.log(`處理課程: ${course.name}, 時間: ${course.time}`);
+				
+				// 優先使用 day 和 period 屬性（新版本後端提供）
+				if (course.day && course.period) {
+					const day = course.day;
+					const period = course.period;
 					
-					// 解析課程時間 (格式類似: "123,145" 代表週一第2,3節，週一第4,5節)
-					const timeInfo = course.time.split(',');
-					timeInfo.forEach(timeSlot => {
-						if (timeSlot && timeSlot.length >= 3) {
-							try {
-								const day = parseInt(timeSlot.charAt(0)); // 星期幾 (1-7)
-								const periods = timeSlot.substring(1); // 節次
-								
-								// 為每個節次添加課程
-								for (let i = 0; i < periods.length; i++) {
-									const period = parseInt(periods.charAt(i));
-									if (period >= 1 && period <= 13 && day >= 1 && day <= 7) {
-										scheduleGrid[period - 1][day - 1] = {
-											name: course.name,
-											teacher: course.teacher_name || '未知教師',
-											room: course.room || '未知教室'
-										};
-									}
-								}
-							} catch (error) {
-								console.warn(`無法解析時間資訊: ${timeSlot}`, error);
+					console.log(`使用後端解析的時間資訊: 星期${day} 第${period}節`);
+					
+					if (period >= 1 && period <= 13 && day >= 1 && day <= 7) {
+						scheduleGrid[period - 1][day - 1] = {
+							name: course.name,
+							teacher: course.teacher_name || '未知教師',
+							room: course.room || '未知教室'
+						};
+						console.log(`填入課程到網格 [${period-1}][${day-1}]: ${course.name}`);
+					}
+				} else if (course.time && course.time !== "無課程資料" && course.time !== "時間待確認") {
+					// 回退機制：解析時間字串
+					console.log(`使用時間字串解析: ${course.time}`);
+					
+					// 檢查是否是新格式 (如: "第  2  節\n09:10~10:00")
+					if (course.time.includes('第') && course.time.includes('節')) {
+						// 提取節次數字
+						const periodMatch = course.time.match(/第\s*(\d+)\s*節/);
+						if (periodMatch) {
+							const period = parseInt(periodMatch[1]);
+							const day = 1; // 預設週一，因為沒有星期資訊
+							
+							if (period >= 1 && period <= 13) {
+								scheduleGrid[period - 1][day - 1] = {
+									name: course.name,
+									teacher: course.teacher_name || '未知教師',
+									room: course.room || '未知教室'
+								};
+								console.log(`填入課程到網格 [${period-1}][${day-1}]: ${course.name} (預設週一)`);
 							}
 						}
-					});
+					} else {
+						// 原有格式 (如: "123,145" 代表週一第2,3節，週一第4,5節)
+						const timeInfo = course.time.split(',');
+						timeInfo.forEach(timeSlot => {
+							if (timeSlot && timeSlot.length >= 3) {
+								try {
+									const day = parseInt(timeSlot.charAt(0)); // 星期幾 (1-7)
+									const periods = timeSlot.substring(1); // 節次
+									
+									// 為每個節次添加課程
+									for (let i = 0; i < periods.length; i++) {
+										const period = parseInt(periods.charAt(i));
+										if (period >= 1 && period <= 13 && day >= 1 && day <= 7) {
+											scheduleGrid[period - 1][day - 1] = {
+												name: course.name,
+												teacher: course.teacher_name || '未知教師',
+												room: course.room || '未知教室'
+											};
+											console.log(`填入課程到網格 [${period-1}][${day-1}]: ${course.name}`);
+										}
+									}
+								} catch (error) {
+									console.warn(`無法解析時間資訊: ${timeSlot}`, error);
+								}
+							}
+						});
+					}
 				}
 			});
 			
