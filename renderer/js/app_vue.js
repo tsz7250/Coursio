@@ -422,10 +422,11 @@ const app = Vue.createApp({
 						
 						console.log("登入流程完成，準備載入課程資料...");
 						
-						// 依序載入課程資料和通知，確保載入狀態正確管理
+						// 依序載入個人課表、全校課程資料和通知，確保載入狀態正確管理
 						return Promise.all([
-							getCourseListAsync(),
-							getNotifyListAsync()
+							getCourseListAsync(),           // 載入個人課表
+							getCourseListForQueryAsync(),   // 載入全校課程資料用於查詢
+							getNotifyListAsync()            // 載入通知
 						]).then(() => {
 							// 所有資料載入完成後，等待2秒再切換到主畫面
 							setTimeout(() => {
@@ -495,6 +496,12 @@ const app = Vue.createApp({
 			} else {
 				console.log("課程資料已預載入完成，直接使用");
 			}
+			
+			// 訪客模式也需要預先載入全校課程資料用於查詢
+			if (!window.allCourseList || window.allCourseList.length === 0) {
+				console.log("訪客模式：開始預載入全校課程資料...");
+				getCourseListForQueryAsync();
+			}
 		}
 
 		// 靜默載入課程資料（不顯示載入動畫）
@@ -519,6 +526,62 @@ const app = Vue.createApp({
 				isCourseDataLoading.value = false; // 清除UI載入狀態
 				console.error("課程資料下載失敗:", error);
 			})
+		}
+
+		// 檢查是否為個人課表資料
+		function isPersonalScheduleData() {
+			// 如果 CourseList 中的課程數量很少（通常個人課表不會超過20門課），
+			// 且課程來源標記為個人課表，則判斷為個人課表資料
+			if (CourseList.length > 0 && CourseList.length < 20) {
+				// 檢查是否有個人課表的特徵
+				const hasPersonalFeatures = CourseList.some(course => 
+					course.source === "personal" || 
+					course.is_personal === true ||
+					(course.time && course.time.includes("第") && course.time.includes("節"))
+				);
+				return hasPersonalFeatures;
+			}
+			return false;
+		}
+
+		// 為課程查詢載入全校課程資料（同步版本，用於頁面切換時）
+		function getCourseListForQuery() {
+			// 如果正在載入，則不重複載入
+			if (isCourseListLoading) {
+				console.log("課程資料正在載入中，請稍候...");
+				return;
+			}
+			
+			isCourseListLoading = true;
+			isCourseDataLoading.value = true; // 設置UI載入狀態
+			console.log("開始載入全校課程資料用於查詢...");
+			
+			apibackend.getCourseListFromYZUApi(`${querySelectQueryYear.value}`, `${querySelectQuerySmt.value}`).then((data) => {
+				CourseList = data.course_list;
+				isCourseListLoading = false;
+				isCourseDataLoading.value = false; // 清除UI載入狀態
+				console.log("全校課程資料載入完成，共", CourseList.length, "門課程");
+			}).catch((error) => {
+				isCourseListLoading = false;
+				isCourseDataLoading.value = false; // 清除UI載入狀態
+				console.error("全校課程資料載入失敗:", error);
+			})
+		}
+
+		// 為課程查詢載入全校課程資料（異步版本，用於登入流程中）
+		function getCourseListForQueryAsync() {
+			console.log("開始載入全校課程資料用於查詢（登入流程）...");
+			
+			return apibackend.getCourseListFromYZUApi(`${querySelectQueryYear.value}`, `${querySelectQuerySmt.value}`).then((data) => {
+				// 將全校課程資料存儲到全域變數中，供課程查詢使用
+				window.allCourseList = data.course_list;
+				console.log("全校課程資料載入完成（登入流程），共", window.allCourseList.length, "門課程");
+				return Promise.resolve();
+			}).catch((error) => {
+				console.error("全校課程資料載入失敗（登入流程）:", error);
+				window.allCourseList = []; // 設置為空陣列，避免後續錯誤
+				return Promise.resolve(); // 不中斷登入流程
+			});
 		}
 
 		// 返回登入頁面
@@ -558,6 +621,24 @@ const app = Vue.createApp({
 					} else {
 						console.log("重新載入課表資料");
 						window.refreshSchedule();
+					}
+				}, 100);
+			}
+			
+			// 當切換到課程查詢頁面時，檢查並載入全校課程資料
+			if (id === 'School-timetable-Query') {
+				console.log("切換到課程查詢頁面，檢查課程資料...");
+				// 使用 setTimeout 確保頁面完全顯示後再檢查課程資料
+				setTimeout(() => {
+					// 優先使用預先載入的全校課程資料
+					if (window.allCourseList && window.allCourseList.length > 0) {
+						console.log("使用預先載入的全校課程資料，共", window.allCourseList.length, "門課程");
+						CourseList = window.allCourseList;
+					} else if (CourseList.length === 0 || isPersonalScheduleData()) {
+						console.log("預先載入的課程資料不可用，重新載入全校課程資料");
+						getCourseListForQuery();
+					} else {
+						console.log("課程資料已載入，可直接使用");
 					}
 				}, 100);
 			}
@@ -839,6 +920,8 @@ const app = Vue.createApp({
 			StealCourseInterval, StealCourseStage,
 			// Debug functions
 			analyzeCoursePatterns, getDeptQueryStrategy, isCourseLevelMatch, debugDeptQuery,
+			// Course loading functions
+			isPersonalScheduleData, getCourseListForQuery, getCourseListForQueryAsync,
 		}
 	}
 });
