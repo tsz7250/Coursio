@@ -352,22 +352,35 @@ const app = Vue.createApp({
 		}
 
 
-		// School Timetable Query
+		// School Timetable Query - New unified approach
 		const queryType = ref("dept")  // 欲搜尋的類型
-		const querySelectQueryYear = ref(`${year_now}`)  // 欲搜尋的學年
-		const querySelectQuerySmt = ref(`${smtr_now}`)  // 欲搜尋的學期
-		const querySelectQueryDept = ref("")  // 欲搜尋的系級
+		
+		// 系所查詢相關變數
+		const querySelectSemester = ref("")  // 學期 (DDL_YM 格式)
+		const querySelectQueryDept = ref("")  // 系所
+		const querySelectGrade = ref("")  // 年級 (DDL_Degree)
+		const queryDeptKeyword = ref("")  // 關鍵字篩選
 
-		const queryInputQueryCourseName = ref("")  // 欲搜尋的課程名稱
+		// 課程名稱查詢相關變數  
+		const querySelectSemesterForName = ref("")  // 學期
+		const querySelectDeptForName = ref("")  // 系所
+		const querySelectGradeForName = ref("")  // 年級  
+		const queryInputQueryCourseName = ref("")  // 課程名稱
 
-		const queryInputQueryTeacherName = ref("")  // 欲搜尋的教師名稱
+		// 教師姓名查詢相關變數
+		const querySelectSemesterForTeacher = ref("")  // 學期
+		const queryInputQueryTeacherName = ref("")  // 教師名稱
 
+		// 時間查詢相關變數
+		const querySelectSemesterForTime = ref("")  // 學期
+		const querySelectDeptForTime = ref("")  // 系所
+		const querySelectGradeForTime = ref("")  // 年級
 		const querySelectQueryDay = ref("1")   // 欲搜尋的星期
 		const querySelectQueryPeriod = ref("01")  // 欲搜尋的課堂時間
 
 		const queryResultForList = ref([]) // 用於儲存已查詢到的課程列表
 		const modalCourse = ref({}) // 用於儲存點擊的 Course Info 並顯示於 Modal 中
-		var CourseList = []; // 總課程列表
+		var CourseList = []; // 總課程列表（保留作為後備）
 		var isCourseListLoading = false; // 追蹤課程資料載入狀態
 		const isCourseDataLoading = ref(false); // 用於UI顯示的載入狀態
 
@@ -722,93 +735,276 @@ const app = Vue.createApp({
 			});
 		}
 
-		function query(qtype, ...args) {
-			if (qtype == "dept") {
-				const year = normalizeText(args[0]);
-				const smt  = normalizeText(args[1]);
-				const deptStrategy = args[2]; // 新的查詢策略物件
+		// 新的查詢功能 - 使用 portalfun.yzu.edu.tw 方法
+		async function performDeptQuery() {
+			if (!querySelectSemester.value || !querySelectQueryDept.value || !querySelectGrade.value) {
+				console.log("系所查詢參數不完整");
+				return;
+			}
+
+			isCourseDataLoading.value = true;
+			
+			try {
+				console.log("開始系所查詢:", {
+					semester: querySelectSemester.value,
+					dept: querySelectQueryDept.value,
+					grade: querySelectGrade.value
+				});
 				
-				let results = [];
+				const result = await apibackend.queryCourseByDept(
+					querySelectSemester.value,
+					querySelectQueryDept.value,
+					querySelectGrade.value
+				);
 				
-				if (deptStrategy.usePattern && deptStrategy.cosIdPrefix) {
-					// 使用 cos_id 模式匹配並根據學制過濾
-					console.log(`使用 cos_id 模式查詢: ${deptStrategy.cosIdPrefix}, 學制: ${deptStrategy.degreeLevel}`);
+				if (result.success) {
+					let courses = result.courses;
 					
-					results = CourseList.filter(x => {
-						// 基本條件：年度、學期、前綴匹配
-						if (!(normalizeText(x.year) === year &&
-							  normalizeText(x.smtr) === smt &&
-							  x.cos_id && x.cos_id.startsWith(deptStrategy.cosIdPrefix))) {
-							return false;
-						}
-						
-						// 根據學制進一步過濾
-						if (deptStrategy.degreeLevel) {
-							return isCourseLevelMatch(x, deptStrategy.degreeLevel);
-						}
-						
-						// 如果沒有學制資訊，則返回所有匹配前綴的課程
-						return true;
-					});
-				} else if (deptStrategy.deptName) {
-					// 使用傳統的 dept_name 匹配
-					console.log(`使用 dept_name 查詢: ${deptStrategy.deptName}`);
-					results = CourseList.filter(x =>
-						normalizeText(x.year) === year &&
-						normalizeText(x.smtr) === smt &&
-						normalizeText(x.dept_name) === normalizeText(deptStrategy.deptName)
-					);
+					// 如果有關鍵字篩選，進行後處理過濾
+					if (queryDeptKeyword.value.trim()) {
+						const keyword = queryDeptKeyword.value.trim().toLowerCase();
+						courses = courses.filter(course => 
+							course.cos_name.toLowerCase().includes(keyword) ||
+							course.teacher.toLowerCase().includes(keyword)
+						);
+					}
+					
+					// 轉換格式以符合現有顯示邏輯
+					queryResultForList.value = courses.map(course => ({
+						cos_id: course.cos_id,
+						cos_class: course.cos_class,
+						name: course.cos_name,
+						cos_name: course.cos_name,
+						type: course.type,
+						time_room: course.time_room,
+						teacher_name: course.teacher,
+						credits: course.credits,
+						year: querySelectSemester.value.split(',')[0].trim(),
+						smtr: querySelectSemester.value.split(',')[1].trim()
+					}));
+					
+					console.log(`系所查詢完成，找到 ${queryResultForList.value.length} 門課程`);
+				} else {
+					queryResultForList.value = [];
+					console.log("系所查詢結果為空");
 				}
-				
-				console.log(`查詢結果: 找到 ${results.length} 門課程`);
-				if (deptStrategy.degreeLevel) {
-					console.log(`已依據學制 ${deptStrategy.degreeLevel} 進行過濾`);
-				}
-				queryResultForList.value = results;
-			} else if (qtype == "courseName") {
-				var a = CourseList.filter(x => x.name == args[0]);
-				queryResultForList.value = a;
-			} else if (qtype == "teacherName") {
-				var a = CourseList.filter(x => x.teacher_name && x.teacher_name.includes(args[0]));
-				queryResultForList.value = a;
-			} else if (qtype == "courseTime") {
-				var time = args[0] + args[1];
-				var a = CourseList.filter(x => x.time && x.time.includes(time));
-				queryResultForList.value = a;
+			} catch (error) {
+				console.error("系所查詢失敗:", error);
+				queryResultForList.value = [];
+			} finally {
+				isCourseDataLoading.value = false;
 			}
 		}
 
-		watch([querySelectQueryYear, querySelectQuerySmt], ([newYear, newSmt], [prevYear, prevSmt]) => {
-			getCourseList()
-		})
-		watch(querySelectQueryDept, (newDeptValue, prevDeptValue) => {
-			const queryStrategy = getDeptQueryStrategy(newDeptValue);
-			query(queryType.value, querySelectQueryYear.value, querySelectQuerySmt.value, queryStrategy)
-		})
-		watch([querySelectQueryDay, querySelectQueryPeriod,], ([newDay, newPeriod], [prevDay, prevPeriod]) => {
-			query(queryType.value, newDay, newPeriod)
-		})
-		watch(queryInputQueryCourseName, (newCN, prevCN) => {
-			query(queryType.value, newCN)
-		})
-		watch(queryInputQueryTeacherName, (newTN, prevTN) => {
-			query(queryType.value, newTN)
-		})
-		watch(queryType, (newqueryType, prevqueryType) => {
+		async function performNameQuery() {
+			if (!querySelectSemesterForName.value || !querySelectDeptForName.value || 
+				!querySelectGradeForName.value || !queryInputQueryCourseName.value.trim()) {
+				console.log("課程名稱查詢參數不完整");
+				return;
+			}
 
-			// querySelectQueryYear.value = ""
-			// querySelectQuerySmt.value = ""
-			querySelectQueryDept.value = ""
+			isCourseDataLoading.value = true;
+			
+			try {
+				console.log("開始課程名稱查詢:", {
+					semester: querySelectSemesterForName.value,
+					dept: querySelectDeptForName.value,
+					grade: querySelectGradeForName.value,
+					courseName: queryInputQueryCourseName.value
+				});
+				
+				const result = await apibackend.queryCourseByName(
+					querySelectSemesterForName.value,
+					querySelectDeptForName.value,
+					querySelectGradeForName.value,
+					queryInputQueryCourseName.value.trim()
+				);
+				
+				if (result.success) {
+					queryResultForList.value = result.courses.map(course => ({
+						cos_id: course.cos_id,
+						cos_class: course.cos_class,
+						name: course.cos_name,
+						cos_name: course.cos_name,
+						type: course.type,
+						time_room: course.time_room,
+						teacher_name: course.teacher,
+						credits: course.credits,
+						year: querySelectSemesterForName.value.split(',')[0].trim(),
+						smtr: querySelectSemesterForName.value.split(',')[1].trim()
+					}));
+					
+					console.log(`課程名稱查詢完成，找到 ${queryResultForList.value.length} 門課程`);
+				} else {
+					queryResultForList.value = [];
+					console.log("課程名稱查詢結果為空");
+				}
+			} catch (error) {
+				console.error("課程名稱查詢失敗:", error);
+				queryResultForList.value = [];
+			} finally {
+				isCourseDataLoading.value = false;
+			}
+		}
 
-			queryInputQueryCourseName.value = ""
+		async function performTeacherQuery() {
+			if (!querySelectSemesterForTeacher.value || !queryInputQueryTeacherName.value.trim()) {
+				console.log("教師姓名查詢參數不完整");
+				return;
+			}
 
-			queryInputQueryTeacherName.value = ""
+			isCourseDataLoading.value = true;
+			
+			try {
+				console.log("開始教師姓名查詢:", {
+					semester: querySelectSemesterForTeacher.value,
+					teacherName: queryInputQueryTeacherName.value
+				});
+				
+				const result = await apibackend.queryCourseByTeacher(
+					querySelectSemesterForTeacher.value,
+					queryInputQueryTeacherName.value.trim()
+				);
+				
+				if (result.success) {
+					queryResultForList.value = result.courses.map(course => ({
+						cos_id: course.cos_id,
+						cos_class: course.cos_class,
+						name: course.cos_name,
+						cos_name: course.cos_name,
+						type: course.type,
+						time_room: course.time_room,
+						teacher_name: course.teacher,
+						credits: course.credits,
+						year: querySelectSemesterForTeacher.value.split(',')[0].trim(),
+						smtr: querySelectSemesterForTeacher.value.split(',')[1].trim()
+					}));
+					
+					console.log(`教師姓名查詢完成，找到 ${queryResultForList.value.length} 門課程`);
+				} else {
+					queryResultForList.value = [];
+					console.log("教師姓名查詢結果為空");
+				}
+			} catch (error) {
+				console.error("教師姓名查詢失敗:", error);
+				queryResultForList.value = [];
+			} finally {
+				isCourseDataLoading.value = false;
+			}
+		}
 
-			querySelectQueryDay.value = "1"
-			querySelectQueryPeriod.value = "01"
+		async function performTimeQuery() {
+			if (!querySelectSemesterForTime.value || !querySelectDeptForTime.value || 
+				!querySelectGradeForTime.value || !querySelectQueryDay.value || !querySelectQueryPeriod.value) {
+				console.log("時間查詢參數不完整");
+				return;
+			}
 
-			queryResultForList.value = []
-		})
+			isCourseDataLoading.value = true;
+			
+			try {
+				// 建構 ctl216 格式：星期(1-7) + 節次(01-13)
+				const ctl216 = querySelectQueryDay.value + querySelectQueryPeriod.value;
+				
+				console.log("開始時間查詢:", {
+					semester: querySelectSemesterForTime.value,
+					dept: querySelectDeptForTime.value,
+					grade: querySelectGradeForTime.value,
+					ctl216: ctl216
+				});
+				
+				const result = await apibackend.queryCourseByTime(
+					querySelectSemesterForTime.value,
+					querySelectDeptForTime.value,
+					querySelectGradeForTime.value,
+					ctl216
+				);
+				
+				if (result.success) {
+					queryResultForList.value = result.courses.map(course => ({
+						cos_id: course.cos_id,
+						cos_class: course.cos_class,
+						name: course.cos_name,
+						cos_name: course.cos_name,
+						type: course.type,
+						time_room: course.time_room,
+						teacher_name: course.teacher,
+						credits: course.credits,
+						year: querySelectSemesterForTime.value.split(',')[0].trim(),
+						smtr: querySelectSemesterForTime.value.split(',')[1].trim()
+					}));
+					
+					console.log(`時間查詢完成，找到 ${queryResultForList.value.length} 門課程`);
+				} else {
+					queryResultForList.value = [];
+					console.log("時間查詢結果為空");
+				}
+			} catch (error) {
+				console.error("時間查詢失敗:", error);
+				queryResultForList.value = [];
+			} finally {
+				isCourseDataLoading.value = false;
+			}
+		}
+
+		// 監聽各種查詢參數變化
+		watch([querySelectSemester, querySelectQueryDept, querySelectGrade], ([semester, dept, grade]) => {
+			if (semester && dept && grade) {
+				performDeptQuery();
+			}
+		});
+
+		watch(queryDeptKeyword, (newKeyword) => {
+			// 關鍵字變化時重新執行系所查詢（如果參數完整）
+			if (querySelectSemester.value && querySelectQueryDept.value && querySelectGrade.value) {
+				performDeptQuery();
+			}
+		});
+
+		watch([querySelectSemesterForName, querySelectDeptForName, querySelectGradeForName, queryInputQueryCourseName], 
+			([semester, dept, grade, courseName]) => {
+				if (semester && dept && grade && courseName && courseName.trim()) {
+					performNameQuery();
+				}
+			});
+
+		watch([querySelectSemesterForTeacher, queryInputQueryTeacherName], ([semester, teacherName]) => {
+			if (semester && teacherName && teacherName.trim()) {
+				performTeacherQuery();
+			}
+		});
+
+		watch([querySelectSemesterForTime, querySelectDeptForTime, querySelectGradeForTime, querySelectQueryDay, querySelectQueryPeriod], 
+			([semester, dept, grade, day, period]) => {
+				if (semester && dept && grade && day && period) {
+					performTimeQuery();
+				}
+			});
+
+		watch(queryType, (newQueryType) => {
+			// 切換查詢類型時清空結果
+			queryResultForList.value = [];
+			
+			// 清空所有查詢參數
+			querySelectSemester.value = "";
+			querySelectQueryDept.value = "";
+			querySelectGrade.value = "";
+			queryDeptKeyword.value = "";
+			
+			querySelectSemesterForName.value = "";
+			querySelectDeptForName.value = "";
+			querySelectGradeForName.value = "";
+			queryInputQueryCourseName.value = "";
+			
+			querySelectSemesterForTeacher.value = "";
+			queryInputQueryTeacherName.value = "";
+			
+			querySelectSemesterForTime.value = "";
+			querySelectDeptForTime.value = "";
+			querySelectGradeForTime.value = "";
+			querySelectQueryDay.value = "1";
+			querySelectQueryPeriod.value = "01";
+		});
 
 		watch(StealCourseInterval, (newInterval, prevInterval) => {
 			settings["interval"] = parseInt(newInterval)
@@ -910,15 +1106,24 @@ const app = Vue.createApp({
 			isLoading, loading_text, isCourseDataLoading,
 			dept_list, deptOptions,
 			showSection,
-			// School Timetable Query
+			// School Timetable Query - New variables
 			addToSchedule, showCourseInfo, showCourseDetail,
-			queryType, querySelectQueryYear, querySelectQuerySmt, querySelectQueryDept, queryInputQueryCourseName,
-			queryInputQueryTeacherName, querySelectQueryDay, querySelectQueryPeriod, queryResultForList, modalCourse,
+			queryType, queryResultForList, modalCourse,
+			// Department query
+			querySelectSemester, querySelectQueryDept, querySelectGrade, queryDeptKeyword,
+			// Course name query  
+			querySelectSemesterForName, querySelectDeptForName, querySelectGradeForName, queryInputQueryCourseName,
+			// Teacher query
+			querySelectSemesterForTeacher, queryInputQueryTeacherName,
+			// Time query
+			querySelectSemesterForTime, querySelectDeptForTime, querySelectGradeForTime, querySelectQueryDay, querySelectQueryPeriod,
+			// Query functions
+			performDeptQuery, performNameQuery, performTeacherQuery, performTimeQuery,
 			// Task List 
 			tasks, status,
 			// Settings
 			StealCourseInterval, StealCourseStage,
-			// Debug functions
+			// Debug functions (kept for compatibility)
 			analyzeCoursePatterns, getDeptQueryStrategy, isCourseLevelMatch, debugDeptQuery,
 			// Course loading functions
 			isPersonalScheduleData, getCourseListForQuery, getCourseListForQueryAsync,

@@ -289,26 +289,20 @@
                                 <h2>系所查詢</h2>
                                 <div class="row">
                                     <div class="form-group col">
-                                        <label class="sr-only" for="querySelectQueryYear">學年</label>
-                                        <select v-model="querySelectQueryYear" id="querySelectQueryYear"
-                                            class="form-control" :disabled="isCourseDataLoading">
-                                            <option v-if="isCourseDataLoading" value="" selected disabled>載入中...</option>
-                                            <option v-else value="" selected disabled>選擇學年...</option>
-                                        </select>
-                                    </div>
-                                    <div class="form-group col">
-                                        <label class="sr-only" for="querySelectQuerySmt">學期</label>
-                                        <select v-model="querySelectQuerySmt" id="querySelectQuerySmt"
+                                        <label for="querySelectSemester">學期</label>
+                                        <select v-model="querySelectSemester" id="querySelectSemester"
                                             class="form-control" :disabled="isCourseDataLoading">
                                             <option v-if="isCourseDataLoading" value="" selected disabled>載入中...</option>
                                             <option v-else value="" selected disabled>選擇學期...</option>
-                                            <option value="1">上學期</option>
-                                            <option value="2">下學期</option>
+                                            <option value="114,1  ">114,1</option>
+                                            <option value="114,2  ">114,2</option>
+                                            <option value="113,1  ">113,1</option>
+                                            <option value="113,2  ">113,2</option>
                                         </select>
                                     </div>
 
                                     <div class="form-group col">
-                                        <label class="sr-only" for="querySelectQueryDept">系所</label>
+                                        <label for="querySelectQueryDept">系所</label>
                                         <select v-model="querySelectQueryDept" id="querySelectQueryDept"
                                             class="form-control" :disabled="isCourseDataLoading">
                                             <option v-if="isCourseDataLoading" value="" selected disabled>載入中...</option>
@@ -317,7 +311,28 @@
                                         </select>
                                     </div>
 
+                                    <div class="form-group col">
+                                        <label for="querySelectGrade">開課年級</label>
+                                        <select v-model="querySelectGrade" id="querySelectGrade"
+                                            class="form-control" :disabled="isCourseDataLoading">
+                                            <option v-if="isCourseDataLoading" value="" selected disabled>載入中...</option>
+                                            <option v-else value="" selected disabled>選擇年級...</option>
+                                            <option value="0">全部</option>
+                                            <option value="1">1年級</option>
+                                            <option value="2">2年級</option>
+                                            <option value="3">3年級</option>
+                                            <option value="4">4年級</option>
+                                        </select>
+                                    </div>
                                 </div>
+                                <div class="row">
+                                    <div class="form-group col">
+                                        <label for="queryDeptKeyword">關鍵字篩選</label>
+                                        <input v-model="queryDeptKeyword" type="text" class="form-control"
+                                            id="queryDeptKeyword" placeholder="請輸入課程關鍵字進行篩選（選填）" :disabled="isCourseDataLoading">
+                                    </div>
+                                </div>
+                            </section>
                             </section>
 
                             <!-- 課程關鍵字查詢 Section -->
@@ -325,21 +340,37 @@
                                 <h2>課程關鍵字查詢</h2>
                                 <div class="row">
                                     <div class="form-group col">
-                                        <label for="querySelectQueryYear_forCourseName">學年</label>
-                                        <select v-model="querySelectQueryYear" id="querySelectQueryYear_forCourseName"
-                                            class="form-control" :disabled="isCourseDataLoading">
-                                            <option v-if="isCourseDataLoading" value="" selected disabled>載入中...</option>
-                                            <option v-else value="" selected disabled>選擇學年...</option>
-                                        </select>
-                                    </div>
-                                    <div class="form-group col">
-                                        <label for="querySelectQuerySmt_forCourseName">學期</label>
-                                        <select v-model="querySelectQuerySmt" id="querySelectQuerySmt_forCourseName"
+                                        <label for="querySelectSemesterForName">學期</label>
+                                        <select v-model="querySelectSemesterForName" id="querySelectSemesterForName"
                                             class="form-control" :disabled="isCourseDataLoading">
                                             <option v-if="isCourseDataLoading" value="" selected disabled>載入中...</option>
                                             <option v-else value="" selected disabled>選擇學期...</option>
-                                            <option value="1">上學期</option>
-                                            <option value="2">下學期</option>
+                                            <option value="114,1  ">114,1</option>
+                                            <option value="114,2  ">114,2</option>
+                                            <option value="113,1  ">113,1</option>
+                                            <option value="113,2  ">113,2</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group col">
+                                        <label for="querySelectDeptForName">系所</label>
+                                        <select v-model="querySelectDeptForName" id="querySelectDeptForName"
+                                            class="form-control" :disabled="isCourseDataLoading">
+                                            <option v-if="isCourseDataLoading" value="" selected disabled>載入中...</option>
+                                            <option v-else value="" selected disabled>選擇系所...</option>
+                                            <option v-for="d in deptOptions" :key="d.value" :value="d.value">{{ d.text }}</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group col">
+                                        <label for="querySelectGradeForName">開課年級</label>
+                                        <select v-model="querySelectGradeForName" id="querySelectGradeForName"
+                                            class="form-control" :disabled="isCourseDataLoading">
+                                            <option v-if="isCourseDataLoading" value="" selected disabled>載入中...</option>
+                                            <option v-else value="" selected disabled>選擇年級...</option>
+                                            <option value="0">全部</option>
+                                            <option value="1">1年級</option>
+                                            <option value="2">2年級</option>
+                                            <option value="3">3年級</option>
+                                            <option value="4">4年級</option>
                                         </select>
                                     </div>
                                 </div>
@@ -357,21 +388,15 @@
                                 <h2>教師姓名</h2>
                                 <div class="row">
                                     <div class="form-group col">
-                                        <label for="querySelectQueryYear_forTeacherName">學年</label>
-                                        <select v-model="querySelectQueryYear" id="querySelectQueryYear_forTeacherName"
-                                            class="form-control" :disabled="isCourseDataLoading">
-                                            <option v-if="isCourseDataLoading" value="" selected disabled>載入中...</option>
-                                            <option v-else value="" selected disabled>選擇學年...</option>
-                                        </select>
-                                    </div>
-                                    <div class="form-group col">
-                                        <label for="querySelectQuerySmt_forTeacherName">學期</label>
-                                        <select v-model="querySelectQuerySmt" id="querySelectQuerySmt_forTeacherName"
+                                        <label for="querySelectSemesterForTeacher">學期</label>
+                                        <select v-model="querySelectSemesterForTeacher" id="querySelectSemesterForTeacher"
                                             class="form-control" :disabled="isCourseDataLoading">
                                             <option v-if="isCourseDataLoading" value="" selected disabled>載入中...</option>
                                             <option v-else value="" selected disabled>選擇學期...</option>
-                                            <option value="1">上學期</option>
-                                            <option value="2">下學期</option>
+                                            <option value="114,1  ">114,1</option>
+                                            <option value="114,2  ">114,2</option>
+                                            <option value="113,1  ">113,1</option>
+                                            <option value="113,2  ">113,2</option>
                                         </select>
                                     </div>
                                 </div>
@@ -389,21 +414,37 @@
                                 <h2>時間查詢</h2>
                                 <div class="row">
                                     <div class="form-group col">
-                                        <label for="querySelectQueryYear_forQueryTime">學年</label>
-                                        <select v-model="querySelectQueryYear" id="querySelectQueryYear_forQueryTime"
-                                            class="form-control" :disabled="isCourseDataLoading">
-                                            <option v-if="isCourseDataLoading" value="" selected disabled>載入中...</option>
-                                            <option v-else value="" selected disabled>選擇學年...</option>
-                                        </select>
-                                    </div>
-                                    <div class="form-group col">
-                                        <label for="querySelectQuerySmt_forQueryTime">學期</label>
-                                        <select v-model="querySelectQuerySmt" id="querySelectQuerySmt_forQueryTime"
+                                        <label for="querySelectSemesterForTime">學期</label>
+                                        <select v-model="querySelectSemesterForTime" id="querySelectSemesterForTime"
                                             class="form-control" :disabled="isCourseDataLoading">
                                             <option v-if="isCourseDataLoading" value="" selected disabled>載入中...</option>
                                             <option v-else value="" selected disabled>選擇學期...</option>
-                                            <option value="1">上學期</option>
-                                            <option value="2">下學期</option>
+                                            <option value="114,1  ">114,1</option>
+                                            <option value="114,2  ">114,2</option>
+                                            <option value="113,1  ">113,1</option>
+                                            <option value="113,2  ">113,2</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group col">
+                                        <label for="querySelectDeptForTime">系所</label>
+                                        <select v-model="querySelectDeptForTime" id="querySelectDeptForTime"
+                                            class="form-control" :disabled="isCourseDataLoading">
+                                            <option v-if="isCourseDataLoading" value="" selected disabled>載入中...</option>
+                                            <option v-else value="" selected disabled>選擇系所...</option>
+                                            <option v-for="d in deptOptions" :key="d.value" :value="d.value">{{ d.text }}</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group col">
+                                        <label for="querySelectGradeForTime">開課年級</label>
+                                        <select v-model="querySelectGradeForTime" id="querySelectGradeForTime"
+                                            class="form-control" :disabled="isCourseDataLoading">
+                                            <option v-if="isCourseDataLoading" value="" selected disabled>載入中...</option>
+                                            <option v-else value="" selected disabled>選擇年級...</option>
+                                            <option value="0">全部</option>
+                                            <option value="1">1年級</option>
+                                            <option value="2">2年級</option>
+                                            <option value="3">3年級</option>
+                                            <option value="4">4年級</option>
                                         </select>
                                     </div>
                                 </div>

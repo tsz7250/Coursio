@@ -2140,6 +2140,712 @@ class BackendService {
             })
         })
     }
+
+    /**
+     * 查詢課程 - 使用系所查詢方式 (基於 query_course_byDept.js)
+     * @param {string} ddl_ym - 學年學期，格式如 "114,1  " (注意尾端兩個空白)
+     * @param {string} ddl_dept - 系所代碼
+     * @param {string} ddl_degree - 年級 (0=全部, 1-4=對應年級)
+     */
+    async queryCourseByDept(ddl_ym, ddl_dept, ddl_degree = "0") {
+        const axios = require("axios");
+        const { wrapper } = require("axios-cookiejar-support");
+        const { CookieJar } = require("tough-cookie");
+        const cheerio = require("cheerio");
+
+        const BASE = "https://portalfun.yzu.edu.tw/cosSelect/index.aspx?D=G";
+
+        // 建立 HTTP client
+        const jar = new CookieJar();
+        const client = wrapper(
+            axios.create({
+                jar,
+                withCredentials: true,
+                timeout: 30000,
+                headers: {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
+                    Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                },
+                httpsAgent: undefined,
+            })
+        );
+
+        // 取得隱藏欄位
+        async function fetchHiddenFields() {
+            const r = await client.get(BASE);
+            const $ = cheerio.load(r.data);
+            const viewstate = $("#__VIEWSTATE").val() ?? "";
+            const viewstategen = $("#__VIEWSTATEGENERATOR").val() ?? "";
+            const eventvalid = $("#__EVENTVALIDATION").val() ?? "";
+
+            if (!viewstate || !eventvalid) {
+                throw new Error("無法取得必要的隱藏欄位：__VIEWSTATE 或 __EVENTVALIDATION");
+            }
+
+            return { viewstate, viewstategen, eventvalid };
+        }
+
+        // 建立表單
+        function buildForm({ viewstate, viewstategen, eventvalid }) {
+            const form = new URLSearchParams();
+            form.set("__EVENTTARGET", "");
+            form.set("__EVENTARGUMENT", "");
+            form.set("__LASTFOCUS", "");
+            form.set("__VIEWSTATE", viewstate);
+            form.set("__VIEWSTATEGENERATOR", viewstategen);
+            form.set("__EVENTVALIDATION", eventvalid);
+
+            // 查詢條件
+            form.set("Q", "RadioButton1");
+            form.set("DDL_YM", ddl_ym);
+            form.set("DDL_Dept", ddl_dept);
+            form.set("DDL_Degree", ddl_degree);
+            form.set("Button1", "確定");
+            
+            return form;
+        }
+
+        try {
+            // 1) 先 GET 取得 cookies + 隱藏欄位
+            const hidden = await fetchHiddenFields();
+
+            // 2) POST 查詢
+            const form = buildForm(hidden);
+            const r2 = await client.post(BASE, form, {
+                headers: {
+                    "Content-Type": "application/x-www-form-urlencoded",
+                    Referer: BASE,
+                },
+            });
+
+            const html = r2.data;
+
+            // 3) 解析表格資料
+            const $ = cheerio.load(html);
+            const table1 = $("#Table1");
+
+            if (table1.length) {
+                const courses = [];
+                table1.find("tr").each((index, row) => {
+                    if (index === 0) return; // 跳過標題行
+                    
+                    const cells = $(row).find("td");
+                    if (cells.length >= 6) {
+                        courses.push({
+                            cos_id: $(cells[0]).text().trim(),
+                            cos_class: $(cells[1]).text().trim(),
+                            cos_name: $(cells[2]).text().trim(),
+                            type: $(cells[3]).text().trim(),
+                            time_room: $(cells[4]).text().trim(),
+                            teacher: $(cells[5]).text().trim(),
+                            credits: $(cells[6]).text().trim(),
+                        });
+                    }
+                });
+
+                return {
+                    success: true,
+                    courses: courses,
+                    message: `找到 ${courses.length} 門課程`
+                };
+            } else {
+                return {
+                    success: false,
+                    courses: [],
+                    message: "未找到課程資料"
+                };
+            }
+        } catch (err) {
+            throw new Error(`系所查詢失敗: ${err.message}`);
+        }
+    }
+
+    /**
+     * 查詢課程 - 使用課程名稱查詢方式 (基於 query_course_byName.js)
+     * @param {string} ddl_ym - 學年學期，格式如 "114,1  "
+     * @param {string} ddl_dept - 系所代碼
+     * @param {string} ddl_degree - 年級
+     * @param {string} cos_name - 課程名稱關鍵字
+     */
+    async queryCourseByName(ddl_ym, ddl_dept, ddl_degree, cos_name) {
+        const axios = require("axios");
+        const { wrapper } = require("axios-cookiejar-support");
+        const { CookieJar } = require("tough-cookie");
+        const cheerio = require("cheerio");
+
+        const BASE = "https://portalfun.yzu.edu.tw/cosSelect/Index.aspx?D=G";
+
+        const jar = new CookieJar();
+        const client = wrapper(
+            axios.create({
+                jar,
+                withCredentials: true,
+                timeout: 30000,
+                headers: {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:142.0) Gecko/20100101 Firefox/142.0",
+                    Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                },
+                httpsAgent: undefined,
+            })
+        );
+
+        // 生成隨機 CheckCode
+        function generateCheckCode() {
+            const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+            let result = "";
+            for (let i = 0; i < 4; i++) {
+                result += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            return result;
+        }
+
+        // 確保有 CheckCode cookie
+        function ensureCheckCodeCookie() {
+            const cookies = jar.getCookiesSync(BASE);
+            const hasCheckCode = cookies.some(cookie => cookie.key === "CheckCode");
+            
+            if (!hasCheckCode) {
+                const checkCode = generateCheckCode();
+                jar.setCookieSync(`CheckCode=${checkCode}; Domain=portalfun.yzu.edu.tw; Path=/`, BASE);
+            }
+        }
+
+        // 解析隱藏欄位
+        function parseHiddenFields(html) {
+            const $ = cheerio.load(html);
+            
+            const pick = (name) => {
+                const element = $(`input[name="${name}"]`);
+                return element.val() || "";
+            };
+
+            return {
+                __EVENTTARGET: "",
+                __EVENTARGUMENT: "",
+                __LASTFOCUS: "",
+                __VIEWSTATE: pick("__VIEWSTATE"),
+                __VIEWSTATEGENERATOR: pick("__VIEWSTATEGENERATOR"),
+                __EVENTVALIDATION: pick("__EVENTVALIDATION"),
+            };
+        }
+
+        // 建立表單資料
+        function buildForm(hiddenFields, additionalFields = {}) {
+            const form = new URLSearchParams();
+            
+            for (const [key, value] of Object.entries(hiddenFields)) {
+                form.set(key, value);
+            }
+            
+            for (const [key, value] of Object.entries(additionalFields)) {
+                form.set(key, value);
+            }
+            
+            return form;
+        }
+
+        try {
+            // 1) 先 GET 取得 cookies + 隱藏欄位
+            const r1 = await client.get(BASE);
+            r1.data;
+            
+            ensureCheckCodeCookie();
+            let hidden = parseHiddenFields(r1.data);
+
+            // 2) 第一段 POST：切換查詢模式到「以科目名稱查詢」
+            const step1Form = buildForm(hidden, {
+                Q: "RadioButton2",
+                DDL_YM: ddl_ym,
+                DDL_Dept: ddl_dept,
+                DDL_Degree: ddl_degree,
+            });
+
+            const r2 = await client.post(BASE, step1Form, {
+                headers: {
+                    "Content-Type": "application/x-www-form-urlencoded",
+                    Origin: "https://portalfun.yzu.edu.tw",
+                    Referer: BASE,
+                },
+                maxRedirects: 0,
+                validateStatus: (status) => status < 400,
+            });
+
+            let response = r2;
+            if (r2.status >= 300 && r2.status < 400 && r2.headers.location) {
+                response = await client.get(r2.headers.location);
+            }
+
+            response.data;
+            hidden = parseHiddenFields(response.data);
+
+            // 3) 第二段 POST：送出查詢
+            const step2Form = buildForm(hidden, {
+                Q: "RadioButton2",
+                DDL_YM2: ddl_ym,
+                Txt_Cos_Name: cos_name,
+                Button2: "確定",
+            });
+
+            const r3 = await client.post(BASE, step2Form, {
+                headers: {
+                    "Content-Type": "application/x-www-form-urlencoded",
+                    Origin: "https://portalfun.yzu.edu.tw",
+                    Referer: BASE,
+                },
+                maxRedirects: 0,
+                validateStatus: (status) => status < 400,
+            });
+
+            let finalResponse = r3;
+            if (r3.status >= 300 && r3.status < 400 && r3.headers.location) {
+                finalResponse = await client.get(r3.headers.location);
+            }
+
+            const html = finalResponse.data;
+
+            // 4) 解析表格資料
+            const $ = cheerio.load(html);
+            const table1 = $("#Table1");
+
+            if (table1.length) {
+                const courses = [];
+                table1.find("tr").each((index, row) => {
+                    if (index === 0) return;
+                    
+                    const cells = $(row).find("td");
+                    if (cells.length >= 6) {
+                        courses.push({
+                            cos_id: $(cells[0]).text().trim(),
+                            cos_class: $(cells[1]).text().trim(), 
+                            cos_name: $(cells[2]).text().trim(),
+                            type: $(cells[3]).text().trim(),
+                            time_room: $(cells[4]).text().trim(),
+                            teacher: $(cells[5]).text().trim(),
+                            credits: $(cells[6]).text().trim(),
+                        });
+                    }
+                });
+
+                return {
+                    success: true,
+                    courses: courses,
+                    message: `找到 ${courses.length} 門課程`
+                };
+            } else {
+                return {
+                    success: false,
+                    courses: [],
+                    message: "未找到課程資料"
+                };
+            }
+        } catch (err) {
+            throw new Error(`課程名稱查詢失敗: ${err.message}`);
+        }
+    }
+
+    /**
+     * 查詢課程 - 使用教師姓名查詢方式 (基於 query_course_byTeacher.js)
+     * @param {string} ddl_ym - 學年學期
+     * @param {string} teacher_name - 教師姓名
+     */
+    async queryCourseByTeacher(ddl_ym, teacher_name) {
+        const axios = require("axios");
+        const { wrapper } = require("axios-cookiejar-support");
+        const { CookieJar } = require("tough-cookie");
+        const cheerio = require("cheerio");
+
+        const BASE = "https://portalfun.yzu.edu.tw/cosSelect/Index.aspx?D=G";
+
+        const jar = new CookieJar();
+        const client = wrapper(
+            axios.create({
+                jar,
+                withCredentials: true,
+                timeout: 30000,
+                headers: {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:142.0) Gecko/20100101 Firefox/142.0",
+                    Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                },
+                httpsAgent: undefined,
+            })
+        );
+
+        // 生成隨機 CheckCode
+        function generateCheckCode() {
+            const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+            let result = "";
+            for (let i = 0; i < 4; i++) {
+                result += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            return result;
+        }
+
+        function ensureCheckCodeCookie() {
+            const cookies = jar.getCookiesSync(BASE);
+            const hasCheckCode = cookies.some(cookie => cookie.key === "CheckCode");
+            
+            if (!hasCheckCode) {
+                const checkCode = generateCheckCode();
+                jar.setCookieSync(`CheckCode=${checkCode}; Domain=portalfun.yzu.edu.tw; Path=/`, BASE);
+            }
+        }
+
+        function parseHiddenFields(html) {
+            const $ = cheerio.load(html);
+            
+            const pick = (name) => {
+                const element = $(`input[name="${name}"]`);
+                return element.val() || "";
+            };
+
+            return {
+                __EVENTTARGET: "",
+                __EVENTARGUMENT: "",
+                __LASTFOCUS: "",
+                __VIEWSTATE: pick("__VIEWSTATE"),
+                __VIEWSTATEGENERATOR: pick("__VIEWSTATEGENERATOR"),
+                __EVENTVALIDATION: pick("__EVENTVALIDATION"),
+            };
+        }
+
+        function buildForm(hiddenFields, additionalFields = {}) {
+            const form = new URLSearchParams();
+            
+            for (const [key, value] of Object.entries(hiddenFields)) {
+                form.set(key, value);
+            }
+            
+            for (const [key, value] of Object.entries(additionalFields)) {
+                form.set(key, value);
+            }
+            
+            return form;
+        }
+
+        try {
+            const r1 = await client.get(BASE);
+            r1.data;
+            
+            ensureCheckCodeCookie();
+            let hidden = parseHiddenFields(r1.data);
+
+            const requiredFields = ["__VIEWSTATE", "__VIEWSTATEGENERATOR", "__EVENTVALIDATION"];
+            const missingFields = requiredFields.filter(field => !hidden[field]);
+            if (missingFields.length > 0) {
+                throw new Error(`抓不到隱藏欄位: ${missingFields.join(", ")}`);
+            }
+
+            // 切換查詢模式到「以教師姓名查詢」
+            const step1Form = buildForm(hidden, {
+                Q: "RadioButton3",
+                DDL_YM: ddl_ym,
+            });
+
+            const r2 = await client.post(BASE, step1Form, {
+                headers: {
+                    "Content-Type": "application/x-www-form-urlencoded",
+                    Origin: "https://portalfun.yzu.edu.tw",
+                    Referer: BASE,
+                },
+                maxRedirects: 0,
+                validateStatus: (status) => status < 400,
+            });
+
+            let response = r2;
+            if (r2.status >= 300 && r2.status < 400 && r2.headers.location) {
+                response = await client.get(r2.headers.location);
+            }
+
+            response.data;
+            hidden = parseHiddenFields(response.data);
+
+            // 送出查詢
+            const step2Form = buildForm(hidden, {
+                Q: "RadioButton3",
+                DDL_YM3: ddl_ym,
+                Txt_teacher_Name: teacher_name,
+                Button3: "確定",
+            });
+
+            const r3 = await client.post(BASE, step2Form, {
+                headers: {
+                    "Content-Type": "application/x-www-form-urlencoded",
+                    Origin: "https://portalfun.yzu.edu.tw",
+                    Referer: BASE,
+                },
+                maxRedirects: 0,
+                validateStatus: (status) => status < 400,
+            });
+
+            let finalResponse = r3;
+            if (r3.status >= 300 && r3.status < 400 && r3.headers.location) {
+                finalResponse = await client.get(r3.headers.location);
+            }
+
+            const html = finalResponse.data;
+
+            const $ = cheerio.load(html);
+            const table1 = $("#Table1");
+
+            if (table1.length) {
+                const courses = [];
+                table1.find("tr").each((index, row) => {
+                    if (index === 0) return;
+                    
+                    const cells = $(row).find("td");
+                    if (cells.length >= 6) {
+                        courses.push({
+                            cos_id: $(cells[0]).text().trim(),
+                            cos_class: $(cells[1]).text().trim(),
+                            cos_name: $(cells[2]).text().trim(),
+                            type: $(cells[3]).text().trim(),
+                            time_room: $(cells[4]).text().trim(),
+                            teacher: $(cells[5]).text().trim(),
+                            credits: $(cells[6]).text().trim(),
+                        });
+                    }
+                });
+
+                return {
+                    success: true,
+                    courses: courses,
+                    message: `找到 ${courses.length} 門課程`
+                };
+            } else {
+                return {
+                    success: false,
+                    courses: [],
+                    message: "未找到課程資料"
+                };
+            }
+        } catch (err) {
+            throw new Error(`教師姓名查詢失敗: ${err.message}`);
+        }
+    }
+
+    /**
+     * 查詢課程 - 使用時間查詢方式 (基於 query_course_byTime.js)
+     * @param {string} ddl_ym - 學年學期
+     * @param {string} ddl_dept - 系所代碼
+     * @param {string} ddl_degree - 年級
+     * @param {string} ctl216 - 時間代碼，格式如 "111" (星期一第1節)
+     */
+    async queryCourseByTime(ddl_ym, ddl_dept, ddl_degree, ctl216) {
+        const axios = require("axios");
+        const { wrapper } = require("axios-cookiejar-support");
+        const { CookieJar } = require("tough-cookie");
+        const cheerio = require("cheerio");
+
+        const BASE = "https://portalfun.yzu.edu.tw";
+
+        const jar = new CookieJar();
+        const client = wrapper(
+            axios.create({
+                jar,
+                withCredentials: true,
+                timeout: 30000,
+                headers: {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:142.0) Gecko/20100101 Firefox/142.0",
+                    Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                    "Accept-Language": "zh-TW,zh-HK;q=0.8,zh;q=0.6,en-US;q=0.4,en;q=0.2",
+                    "Accept-Encoding": "gzip, deflate, br, zstd",
+                    "Upgrade-Insecure-Requests": "1",
+                    DNT: "1",
+                    "Sec-GPC": "1",
+                    Connection: "keep-alive",
+                },
+                httpsAgent: undefined,
+            })
+        );
+
+        function generateCheckCode() {
+            const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+            let result = "";
+            for (let i = 0; i < 4; i++) {
+                result += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            return result;
+        }
+
+        function ensureCheckCodeCookie() {
+            const cookies = jar.getCookiesSync(BASE);
+            const hasCheckCode = cookies.some(cookie => cookie.key === "CheckCode");
+            
+            if (!hasCheckCode) {
+                const checkCode = generateCheckCode();
+                jar.setCookieSync(`CheckCode=${checkCode}; Domain=portalfun.yzu.edu.tw; Path=/`, BASE);
+            }
+        }
+
+        function parseHiddenFields(html) {
+            const $ = cheerio.load(html);
+            const form = $("#form1");
+            
+            if (form.length === 0) {
+                throw new Error("找不到 form1");
+            }
+            
+            const data = {};
+            
+            form.find("input[type='hidden']").each((_, element) => {
+                const name = $(element).attr("name");
+                if (name) {
+                    data[name] = $(element).attr("value") || "";
+                }
+            });
+            
+            form.find("select").each((_, element) => {
+                const name = $(element).attr("name");
+                if (name) {
+                    const selected = $(element).find("option[selected]").first();
+                    if (selected.length > 0) {
+                        data[name] = selected.attr("value") || "";
+                    }
+                }
+            });
+            
+            const action = form.attr("action") || "./index.aspx?D=G";
+            return { data, action };
+        }
+
+        function buildForm(hiddenFields, additionalFields = {}) {
+            const form = new URLSearchParams();
+            
+            for (const [key, value] of Object.entries(hiddenFields)) {
+                form.set(key, value);
+            }
+            
+            for (const [key, value] of Object.entries(additionalFields)) {
+                form.set(key, value);
+            }
+            
+            return form;
+        }
+
+        function buildFullUrl(baseUrl, action) {
+            if (action.startsWith("http")) {
+                return action;
+            }
+            if (action.startsWith("./")) {
+                return new URL(action, baseUrl).href;
+            }
+            return new URL(action, baseUrl).href;
+        }
+
+        try {
+            // Step 1: GET 首頁
+            const step1Url = `${BASE}/cosSelect/index.aspx?D=G`;
+            const r1 = await client.get(step1Url);
+            r1.data;
+            
+            ensureCheckCodeCookie();
+            
+            const { data: hidden1, action: action1 } = parseHiddenFields(r1.data);
+            const urlStep2 = buildFullUrl(r1.config.url, action1);
+            
+            const requiredFields = ["__VIEWSTATE", "__VIEWSTATEGENERATOR", "__EVENTVALIDATION"];
+            const missingFields = requiredFields.filter(field => !hidden1[field]);
+            if (missingFields.length > 0) {
+                throw new Error(`抓不到隱藏欄位: ${missingFields.join(", ")}`);
+            }
+
+            // Step 2: POST 切換 RadioButton4
+            const step2Form = buildForm(hidden1, {
+                __EVENTTARGET: "RadioButton4",
+                __EVENTARGUMENT: "",
+                __LASTFOCUS: "",
+                Q: "RadioButton4",
+                DDL_YM: ddl_ym,
+                DDL_Dept: ddl_dept,
+                DDL_Degree: ddl_degree,
+            });
+
+            const r2 = await client.post(urlStep2, step2Form, {
+                headers: {
+                    "Content-Type": "application/x-www-form-urlencoded",
+                    Origin: BASE,
+                    Referer: r1.config.url,
+                },
+                maxRedirects: 0,
+                validateStatus: (status) => status < 400,
+            });
+
+            let response2 = r2;
+            if (r2.status >= 300 && r2.status < 400 && r2.headers.location) {
+                response2 = await client.get(r2.headers.location);
+            }
+
+            response2.data;
+            const { data: hidden2, action: action2 } = parseHiddenFields(response2.data);
+            const urlStep3 = buildFullUrl(response2.config.url, action2);
+
+            // Step 3: POST 送出實查
+            const step3Form = buildForm(hidden2, {
+                __EVENTTARGET: "",
+                __EVENTARGUMENT: "",
+                __LASTFOCUS: "",
+                Q: "RadioButton4",
+                DDL_YM4: ddl_ym,
+                ctl216: ctl216,
+            });
+
+            const finalUrl = urlStep3.includes("Q=") ? urlStep3 : `${BASE}/cosSelect/index.aspx?Q=111`;
+
+            const r3 = await client.post(finalUrl, step3Form, {
+                headers: {
+                    "Content-Type": "application/x-www-form-urlencoded",
+                    Origin: BASE,
+                    Referer: `${BASE}/cosSelect/index.aspx?D=G`,
+                },
+                maxRedirects: 0,
+                validateStatus: (status) => status < 400,
+            });
+
+            let finalResponse = r3;
+            if (r3.status >= 300 && r3.status < 400 && r3.headers.location) {
+                finalResponse = await client.get(r3.headers.location);
+            }
+
+            const html = finalResponse.data;
+
+            const $ = cheerio.load(html);
+            const table1 = $("#Table1");
+
+            if (table1.length) {
+                const courses = [];
+                table1.find("tr").each((index, row) => {
+                    if (index === 0) return;
+                    
+                    const cells = $(row).find("td");
+                    if (cells.length >= 6) {
+                        courses.push({
+                            cos_id: $(cells[0]).text().trim(),
+                            cos_class: $(cells[1]).text().trim(),
+                            cos_name: $(cells[2]).text().trim(),
+                            type: $(cells[3]).text().trim(),
+                            time_room: $(cells[4]).text().trim(),
+                            teacher: $(cells[5]).text().trim(),
+                            credits: $(cells[6]).text().trim(),
+                        });
+                    }
+                });
+
+                return {
+                    success: true,
+                    courses: courses,
+                    message: `找到 ${courses.length} 門課程`
+                };
+            } else {
+                return {
+                    success: false,
+                    courses: [],
+                    message: "未找到課程資料"
+                };
+            }
+        } catch (err) {
+            throw new Error(`時間查詢失敗: ${err.message}`);
+        }
+    }
 }
 
 module.exports = { BackendService };
