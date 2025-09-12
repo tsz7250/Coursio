@@ -2134,6 +2134,9 @@ class BackendService {
 
             console.log(`成功取得 ${dept_list.length} 個系所選項和 ${semester_list.length} 個學期選項`);
 
+            // 將 dept_options 儲存到全域變數以供查詢方法使用
+            this.dept_options = dept_list;
+
             // 4) 返回相容的格式
             return {
                 course_list: [], // 保持相容性，實際課程查詢使用專門的方法
@@ -2153,10 +2156,21 @@ class BackendService {
     /**
      * 查詢課程 - 使用系所查詢方式 (基於 query_course_byDept.js)
      * @param {string} ddl_ym - 學年學期，格式如 "114,1  " (注意尾端兩個空白)
-     * @param {string} ddl_dept - 系所代碼
+     * @param {string} ddl_dept - 系所名稱 (會自動轉換為對應的 option value)
      * @param {string} ddl_degree - 年級 (0=全部, 1-4=對應年級)
      */
     async queryCourseByDept(ddl_ym, ddl_dept, ddl_degree = "0") {
+        // 將系所名稱轉換為對應的 option value
+        let dept_value = ddl_dept;
+        if (this.dept_options && Array.isArray(this.dept_options)) {
+            const deptOption = this.dept_options.find(opt => opt.dept_name === ddl_dept || opt.text === ddl_dept);
+            if (deptOption) {
+                dept_value = deptOption.value;
+                console.log(`系所名稱 "${ddl_dept}" 對應的 option value: "${dept_value}"`);
+            } else {
+                console.warn(`找不到系所名稱 "${ddl_dept}" 對應的 option value，使用原值`);
+            }
+        }
         const axios = require("axios");
         const { wrapper } = require("axios-cookiejar-support");
         const { CookieJar } = require("tough-cookie");
@@ -2207,7 +2221,7 @@ class BackendService {
             // 查詢條件
             form.set("Q", "RadioButton1");
             form.set("DDL_YM", ddl_ym);
-            form.set("DDL_Dept", ddl_dept);
+            form.set("DDL_Dept", dept_value); // 使用映射後的 dept_value
             form.set("DDL_Degree", ddl_degree);
             form.set("Button1", "確定");
             
@@ -2229,28 +2243,50 @@ class BackendService {
 
             const html = r2.data;
 
-            // 3) 解析表格資料
+            // 3) 解析表格資料 (正確處理2行結構)
             const $ = cheerio.load(html);
             const table1 = $("#Table1");
 
             if (table1.length) {
                 const courses = [];
-                table1.find("tr").each((index, row) => {
-                    if (index === 0) return; // 跳過標題行
+                const rows = table1.find("tr").toArray();
+                
+                for (let i = 1; i < rows.length; i += 2) { // 從第2行開始，每2行為一組
+                    const row = $(rows[i]);
+                    const cells = row.find("td");
                     
-                    const cells = $(row).find("td");
-                    if (cells.length >= 6) {
+                    if (cells.length >= 7) { // 課程資料行有7列
+                        // 從課號班別欄位提取課程ID和班級
+                        const courseIdCell = $(cells[1]).find("a").text().trim() || $(cells[1]).text().trim();
+                        const courseIdMatch = courseIdCell.match(/^(\w+)\s+([A-Z])$/);
+                        
+                        let cos_id = courseIdCell;
+                        let cos_class = "";
+                        if (courseIdMatch) {
+                            cos_id = courseIdMatch[1];
+                            cos_class = courseIdMatch[2];
+                        }
+                        
+                        // 從課程名稱欄位提取第一行文字作為課程名稱
+                        const courseNameHtml = $(cells[3]).html() || "";
+                        const courseNameMatch = courseNameHtml.match(/^([^<]+)/);
+                        const cos_name = courseNameMatch ? courseNameMatch[1].trim() : $(cells[3]).text().trim();
+                        
+                        // 從授課教師欄位提取教師姓名
+                        const teacherText = $(cells[6]).find("a").text().trim() || $(cells[6]).text().trim();
+                        
                         courses.push({
-                            cos_id: $(cells[0]).text().trim(),
-                            cos_class: $(cells[1]).text().trim(),
-                            cos_name: $(cells[2]).text().trim(),
-                            type: $(cells[3]).text().trim(),
-                            time_room: $(cells[4]).text().trim(),
-                            teacher: $(cells[5]).text().trim(),
-                            credits: $(cells[6]).text().trim(),
+                            cos_id: cos_id,
+                            cos_class: cos_class,
+                            cos_name: cos_name,
+                            type: $(cells[4]).text().trim(), // 選別
+                            time_room: $(cells[5]).text().trim(), // 時間,教室
+                            teacher: teacherText, // 授課教師
+                            credits: "", // 學分數在這個結構中不直接顯示
+                            dept_level: $(cells[2]).text().trim() // 開課系級
                         });
                     }
-                });
+                }
 
                 return {
                     success: true,
@@ -2272,11 +2308,22 @@ class BackendService {
     /**
      * 查詢課程 - 使用課程名稱查詢方式 (基於 query_course_byName.js)
      * @param {string} ddl_ym - 學年學期，格式如 "114,1  "
-     * @param {string} ddl_dept - 系所代碼
+     * @param {string} ddl_dept - 系所名稱 (會自動轉換為對應的 option value)
      * @param {string} ddl_degree - 年級
      * @param {string} cos_name - 課程名稱關鍵字
      */
     async queryCourseByName(ddl_ym, ddl_dept, ddl_degree, cos_name) {
+        // 將系所名稱轉換為對應的 option value
+        let dept_value = ddl_dept;
+        if (this.dept_options && Array.isArray(this.dept_options)) {
+            const deptOption = this.dept_options.find(opt => opt.dept_name === ddl_dept || opt.text === ddl_dept);
+            if (deptOption) {
+                dept_value = deptOption.value;
+                console.log(`系所名稱 "${ddl_dept}" 對應的 option value: "${dept_value}"`);
+            } else {
+                console.warn(`找不到系所名稱 "${ddl_dept}" 對應的 option value，使用原值`);
+            }
+        }
         const axios = require("axios");
         const { wrapper } = require("axios-cookiejar-support");
         const { CookieJar } = require("tough-cookie");
@@ -2365,7 +2412,7 @@ class BackendService {
             const step1Form = buildForm(hidden, {
                 Q: "RadioButton2",
                 DDL_YM: ddl_ym,
-                DDL_Dept: ddl_dept,
+                DDL_Dept: dept_value, // 使用映射後的 dept_value
                 DDL_Degree: ddl_degree,
             });
 
@@ -2412,28 +2459,50 @@ class BackendService {
 
             const html = finalResponse.data;
 
-            // 4) 解析表格資料
+            // 4) 解析表格資料 (正確處理2行結構)
             const $ = cheerio.load(html);
             const table1 = $("#Table1");
 
             if (table1.length) {
                 const courses = [];
-                table1.find("tr").each((index, row) => {
-                    if (index === 0) return;
+                const rows = table1.find("tr").toArray();
+                
+                for (let i = 1; i < rows.length; i += 2) { // 從第2行開始，每2行為一組
+                    const row = $(rows[i]);
+                    const cells = row.find("td");
                     
-                    const cells = $(row).find("td");
-                    if (cells.length >= 6) {
+                    if (cells.length >= 7) { // 課程資料行有7列
+                        // 從課號班別欄位提取課程ID和班級
+                        const courseIdCell = $(cells[1]).find("a").text().trim() || $(cells[1]).text().trim();
+                        const courseIdMatch = courseIdCell.match(/^(\w+)\s+([A-Z])$/);
+                        
+                        let cos_id = courseIdCell;
+                        let cos_class = "";
+                        if (courseIdMatch) {
+                            cos_id = courseIdMatch[1];
+                            cos_class = courseIdMatch[2];
+                        }
+                        
+                        // 從課程名稱欄位提取第一行文字作為課程名稱
+                        const courseNameHtml = $(cells[3]).html() || "";
+                        const courseNameMatch = courseNameHtml.match(/^([^<]+)/);
+                        const cos_name = courseNameMatch ? courseNameMatch[1].trim() : $(cells[3]).text().trim();
+                        
+                        // 從授課教師欄位提取教師姓名
+                        const teacherText = $(cells[6]).find("a").text().trim() || $(cells[6]).text().trim();
+                        
                         courses.push({
-                            cos_id: $(cells[0]).text().trim(),
-                            cos_class: $(cells[1]).text().trim(), 
-                            cos_name: $(cells[2]).text().trim(),
-                            type: $(cells[3]).text().trim(),
-                            time_room: $(cells[4]).text().trim(),
-                            teacher: $(cells[5]).text().trim(),
-                            credits: $(cells[6]).text().trim(),
+                            cos_id: cos_id,
+                            cos_class: cos_class,
+                            cos_name: cos_name,
+                            type: $(cells[4]).text().trim(), // 選別
+                            time_room: $(cells[5]).text().trim(), // 時間,教室
+                            teacher: teacherText, // 授課教師
+                            credits: "", // 學分數在這個結構中不直接顯示
+                            dept_level: $(cells[2]).text().trim() // 開課系級
                         });
                     }
-                });
+                }
 
                 return {
                     success: true,
@@ -2598,22 +2667,44 @@ class BackendService {
 
             if (table1.length) {
                 const courses = [];
-                table1.find("tr").each((index, row) => {
-                    if (index === 0) return;
+                const rows = table1.find("tr").toArray();
+                
+                for (let i = 1; i < rows.length; i += 2) { // 從第2行開始，每2行為一組
+                    const row = $(rows[i]);
+                    const cells = row.find("td");
                     
-                    const cells = $(row).find("td");
-                    if (cells.length >= 6) {
+                    if (cells.length >= 7) { // 課程資料行有7列
+                        // 從課號班別欄位提取課程ID和班級
+                        const courseIdCell = $(cells[1]).find("a").text().trim() || $(cells[1]).text().trim();
+                        const courseIdMatch = courseIdCell.match(/^(\w+)\s+([A-Z])$/);
+                        
+                        let cos_id = courseIdCell;
+                        let cos_class = "";
+                        if (courseIdMatch) {
+                            cos_id = courseIdMatch[1];
+                            cos_class = courseIdMatch[2];
+                        }
+                        
+                        // 從課程名稱欄位提取第一行文字作為課程名稱
+                        const courseNameHtml = $(cells[3]).html() || "";
+                        const courseNameMatch = courseNameHtml.match(/^([^<]+)/);
+                        const cos_name = courseNameMatch ? courseNameMatch[1].trim() : $(cells[3]).text().trim();
+                        
+                        // 從授課教師欄位提取教師姓名
+                        const teacherText = $(cells[6]).find("a").text().trim() || $(cells[6]).text().trim();
+                        
                         courses.push({
-                            cos_id: $(cells[0]).text().trim(),
-                            cos_class: $(cells[1]).text().trim(),
-                            cos_name: $(cells[2]).text().trim(),
-                            type: $(cells[3]).text().trim(),
-                            time_room: $(cells[4]).text().trim(),
-                            teacher: $(cells[5]).text().trim(),
-                            credits: $(cells[6]).text().trim(),
+                            cos_id: cos_id,
+                            cos_class: cos_class,
+                            cos_name: cos_name,
+                            type: $(cells[4]).text().trim(), // 選別
+                            time_room: $(cells[5]).text().trim(), // 時間,教室
+                            teacher: teacherText, // 授課教師
+                            credits: "", // 學分數在這個結構中不直接顯示
+                            dept_level: $(cells[2]).text().trim() // 開課系級
                         });
                     }
-                });
+                }
 
                 return {
                     success: true,
@@ -2635,11 +2726,22 @@ class BackendService {
     /**
      * 查詢課程 - 使用時間查詢方式 (基於 query_course_byTime.js)
      * @param {string} ddl_ym - 學年學期
-     * @param {string} ddl_dept - 系所代碼
+     * @param {string} ddl_dept - 系所名稱 (會自動轉換為對應的 option value)
      * @param {string} ddl_degree - 年級
      * @param {string} ctl216 - 時間代碼，格式如 "111" (星期一第1節)
      */
     async queryCourseByTime(ddl_ym, ddl_dept, ddl_degree, ctl216) {
+        // 將系所名稱轉換為對應的 option value
+        let dept_value = ddl_dept;
+        if (this.dept_options && Array.isArray(this.dept_options)) {
+            const deptOption = this.dept_options.find(opt => opt.dept_name === ddl_dept || opt.text === ddl_dept);
+            if (deptOption) {
+                dept_value = deptOption.value;
+                console.log(`系所名稱 "${ddl_dept}" 對應的 option value: "${dept_value}"`);
+            } else {
+                console.warn(`找不到系所名稱 "${ddl_dept}" 對應的 option value，使用原值`);
+            }
+        }
         const axios = require("axios");
         const { wrapper } = require("axios-cookiejar-support");
         const { CookieJar } = require("tough-cookie");
@@ -2765,7 +2867,7 @@ class BackendService {
                 __LASTFOCUS: "",
                 Q: "RadioButton4",
                 DDL_YM: ddl_ym,
-                DDL_Dept: ddl_dept,
+                DDL_Dept: dept_value, // 使用映射後的 dept_value
                 DDL_Degree: ddl_degree,
             });
 
@@ -2822,22 +2924,44 @@ class BackendService {
 
             if (table1.length) {
                 const courses = [];
-                table1.find("tr").each((index, row) => {
-                    if (index === 0) return;
+                const rows = table1.find("tr").toArray();
+                
+                for (let i = 1; i < rows.length; i += 2) { // 從第2行開始，每2行為一組
+                    const row = $(rows[i]);
+                    const cells = row.find("td");
                     
-                    const cells = $(row).find("td");
-                    if (cells.length >= 6) {
+                    if (cells.length >= 7) { // 課程資料行有7列
+                        // 從課號班別欄位提取課程ID和班級
+                        const courseIdCell = $(cells[1]).find("a").text().trim() || $(cells[1]).text().trim();
+                        const courseIdMatch = courseIdCell.match(/^(\w+)\s+([A-Z])$/);
+                        
+                        let cos_id = courseIdCell;
+                        let cos_class = "";
+                        if (courseIdMatch) {
+                            cos_id = courseIdMatch[1];
+                            cos_class = courseIdMatch[2];
+                        }
+                        
+                        // 從課程名稱欄位提取第一行文字作為課程名稱
+                        const courseNameHtml = $(cells[3]).html() || "";
+                        const courseNameMatch = courseNameHtml.match(/^([^<]+)/);
+                        const cos_name = courseNameMatch ? courseNameMatch[1].trim() : $(cells[3]).text().trim();
+                        
+                        // 從授課教師欄位提取教師姓名
+                        const teacherText = $(cells[6]).find("a").text().trim() || $(cells[6]).text().trim();
+                        
                         courses.push({
-                            cos_id: $(cells[0]).text().trim(),
-                            cos_class: $(cells[1]).text().trim(),
-                            cos_name: $(cells[2]).text().trim(),
-                            type: $(cells[3]).text().trim(),
-                            time_room: $(cells[4]).text().trim(),
-                            teacher: $(cells[5]).text().trim(),
-                            credits: $(cells[6]).text().trim(),
+                            cos_id: cos_id,
+                            cos_class: cos_class,
+                            cos_name: cos_name,
+                            type: $(cells[4]).text().trim(), // 選別
+                            time_room: $(cells[5]).text().trim(), // 時間,教室
+                            teacher: teacherText, // 授課教師
+                            credits: "", // 學分數在這個結構中不直接顯示
+                            dept_level: $(cells[2]).text().trim() // 開課系級
                         });
                     }
-                });
+                }
 
                 return {
                     success: true,
