@@ -82,8 +82,8 @@ async function main() {
 
     if (table.length) {
       const fullTableHtml = $.html(table); // 含 <table> 標籤
-      await fs.writeFile("tbl_view1.html", fullTableHtml, "utf8");
-      console.log("✅ tbl_view1 內容已存成 tbl_view1.html");
+      await fs.writeFile("option_list.html", fullTableHtml, "utf8");
+      console.log("✅ tbl_view1 內容已存成 option_list.html");
     } else {
       console.log("⚠️ 未找到 tbl_view1（可能查無資料或頁面結構變更）");
     }

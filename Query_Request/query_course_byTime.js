@@ -221,8 +221,8 @@ async function main() {
 
     if (table1.length) {
       const fullTableHtml = $.html(table1); // 含 <table> 標籤
-      await fs.writeFile("table1.html", fullTableHtml, "utf8");
-      console.log("✅ Table1 內容已存成 table1.html");
+      await fs.writeFile("byTime.html", fullTableHtml, "utf8");
+      console.log("✅ Table1 內容已存成 byTime.html");
     } else {
       console.log("⚠️ 未找到 Table1（可能查無資料或頁面結構變更）");
     }

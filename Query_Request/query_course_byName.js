@@ -9,7 +9,9 @@ const BASE = "https://portalfun.yzu.edu.tw/cosSelect/Index.aspx?D=G";
 // ---- 可調的查詢條件 ----
 const QUERY_CONFIG = {
   DDL_YM: "114,1  ", // 注意尾端兩個空白
-  Txt_teacher_Name: "陳鼎翰", // 教師姓名
+  DDL_Dept: "300",   // 系所
+  DDL_Degree: "1",   // 學制
+  Txt_Cos_Name: "大數據", // 科目名稱
 };
 
 // ---- 共用的 HTTP client（自動帶 Cookie）----
@@ -107,17 +109,12 @@ async function main() {
     
     let hidden = parseHiddenFields(r1.data);
 
-    // 防呆：三個 hidden 缺一不可
-    const requiredFields = ["__VIEWSTATE", "__VIEWSTATEGENERATOR", "__EVENTVALIDATION"];
-    const missingFields = requiredFields.filter(field => !hidden[field]);
-    if (missingFields.length > 0) {
-      throw new Error(`抓不到隱藏欄位: ${missingFields.join(", ")}`);
-    }
-
-    // 2) 第一段 POST：切換查詢模式到「以教師姓名查詢」
+    // 2) 第一段 POST：切換查詢模式到「以科目名稱查詢」
     const step1Form = buildForm(hidden, {
-      Q: "RadioButton3",    // 切換到教師姓名查詢模式
+      Q: "RadioButton2",    // 切換頁面模式
       DDL_YM: QUERY_CONFIG.DDL_YM,
+      DDL_Dept: QUERY_CONFIG.DDL_Dept,
+      DDL_Degree: QUERY_CONFIG.DDL_Degree,
     });
 
     const r2 = await client.post(BASE, step1Form, {
@@ -143,10 +140,10 @@ async function main() {
 
     // 3) 第二段 POST：送出查詢（按下「確定」）
     const step2Form = buildForm(hidden, {
-      Q: "RadioButton3",
-      DDL_YM3: QUERY_CONFIG.DDL_YM,  // 教師查詢使用 DDL_YM3
-      Txt_teacher_Name: QUERY_CONFIG.Txt_teacher_Name,
-      Button3: "確定",
+      Q: "RadioButton2",
+      DDL_YM2: QUERY_CONFIG.DDL_YM,
+      Txt_Cos_Name: QUERY_CONFIG.Txt_Cos_Name,
+      Button2: "確定",
     });
 
     const r3 = await client.post(BASE, step2Form, {
@@ -175,10 +172,8 @@ async function main() {
 
     if (table1.length) {
       const fullTableHtml = $.html(table1); // 含 <table> 標籤
-      await fs.writeFile("table1.html", fullTableHtml, "utf8");
-      console.log("✅ Table1 內容已存成 table1.html");
-      console.log("結果頁長度：", html.length);
-      console.log("頁面是否出現教師名：", html.includes(QUERY_CONFIG.Txt_teacher_Name));
+      await fs.writeFile("byName.html", fullTableHtml, "utf8");
+      console.log("✅ Table1 內容已存成 byName.html");
     } else {
       console.log("⚠️ 未找到 Table1（可能查無資料或頁面結構變更）");
     }
