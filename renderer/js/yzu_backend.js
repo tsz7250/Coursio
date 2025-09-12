@@ -2069,76 +2069,85 @@ class BackendService {
     }
 
     /**
-     * 得到某一學年某學期修的課程列表 (使用 OpenData API)
-     * @param {string} year 學年，ex: 108, 107
+     * 從 portalfun.yzu.edu.tw 取得系所清單和學期選項 (基於 query_course_tbl_view1_byDept.js)
+     * @param {string} year 學年，ex: 114
      * @param {string} smtr 學期，ex: 1, 2
      */
-    getCourseListFromYZUApi(year, smtr) {
-        console.log("Calling OpenData API: " + this.openDataAPIurl + this.openDataAPI["CosList"]);
-        
-        var url = this.openDataAPIurl + "api/Open/CosList?year=" + year + "&smtr=" + smtr
-        console.log("查詢參數:", year, smtr);
-        console.log("完整 URL:", url);
+    async getCourseListFromYZUApi(year, smtr) {
+        const axios = require("axios");
+        const { wrapper } = require("axios-cookiejar-support");
+        const { CookieJar } = require("tough-cookie");
+        const cheerio = require("cheerio");
 
-        return new Promise(function (resolve, reject) {
-            request.get({
-                url: url,
-                rejectUnauthorized: false  // 忽略 SSL 憑證驗證
-            }, function (err, response, body) {
-                if (!err && response.statusCode == 200) {
-                    var dept_list = []; // 所有科系名稱
+        const BASE = "https://portalfun.yzu.edu.tw/cosSelect/index.aspx?D=G";
 
-                    var data = JSON.parse(body)
-                    data.forEach(function(datum, index, theArray) {
-                        dept_list.indexOf(datum["dept_name"]) === -1 ? dept_list.push(datum["dept_name"].trim()): "";
-                        theArray[index].smtr = datum["smtr"].trim();
-
-                        
-                        var times = datum["WeekandRoom"].split(",")
-                        var r = RegExp("([0-9]{3})\(([0-9a-zA-Z]*)\)", "g");
-
-                        var datumTime = [];
-
-                        times.forEach((time)=>{
-                            if(time==""){
-                                return;
-                            }
-                    
-                            var info = time.match(r);
-                            
-                            if(info==null){
-                                datum["time"] = "無課程資料";
-                                datum["room"] = "無課程資料";
-                            }else if(info.length==1){
-                                datum["time"] = info[0];
-                                datum["room"] = "無教室位置";
-                                datumTime.push(info[0])
-                            }else{
-                                datum["time"] = info[0];
-                                datum["room"] = info[1];
-                                datumTime.push(info[0])
-                            }
-                        })
-                        
-                        if(datumTime.length > 0){
-                            datum["time"] = datumTime.join(",")
-                        }
-
-                        theArray[index].hashid = crypto.createHash('md5').update(JSON.stringify(datum)).digest('hex');
-                    });
-
-                    return resolve({
-                        course_list: data,
-                        dept_list: dept_list,
-                        source: "OpenData API",
-                        message: `成功取得 ${data.length} 門課程資料`
-                    })
-                } else {
-                    console.error("OpenData API 呼叫失敗:", err || `HTTP ${response.statusCode}`);
-                    return reject(new Error("OpenData API 呼叫失敗"));
-                }
+        // 建立 HTTP client
+        const jar = new CookieJar();
+        const client = wrapper(
+            axios.create({
+                jar,
+                withCredentials: true,
+                timeout: 30000,
+                headers: {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
+                    Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                },
+                httpsAgent: undefined,
             })
-        })
+        );
+
+        try {
+            console.log("正在從 portalfun.yzu.edu.tw 取得系所和學期選項...");
+            
+            // 1) GET 取得頁面內容和選項
+            const response = await client.get(BASE);
+            const $ = cheerio.load(response.data);
+
+            // 2) 解析系所選項 (DDL_Dept)
+            const dept_list = [];
+            const deptOptions = $("#DDL_Dept option");
+            deptOptions.each((index, element) => {
+                const value = $(element).attr('value');
+                const text = $(element).text().trim();
+                if (value && text && value !== "") {
+                    dept_list.push({
+                        value: value,
+                        text: text,
+                        dept_name: text // 相容性欄位
+                    });
+                }
+            });
+
+            // 3) 解析學期選項 (DDL_YM)
+            const semester_list = [];
+            const semesterOptions = $("#DDL_YM option");
+            semesterOptions.each((index, element) => {
+                const value = $(element).attr('value');
+                const text = $(element).text().trim();
+                if (value && text && value !== "") {
+                    semester_list.push({
+                        value: value,
+                        text: text
+                    });
+                }
+            });
+
+            console.log(`成功取得 ${dept_list.length} 個系所選項和 ${semester_list.length} 個學期選項`);
+
+            // 4) 返回相容的格式
+            return {
+                course_list: [], // 保持相容性，實際課程查詢使用專門的方法
+                dept_list: dept_list.map(dept => dept.dept_name), // 提取系所名稱陣列以保持相容性
+                dept_options: dept_list, // 完整的系所選項資料
+                semester_list: semester_list,
+                source: "portalfun.yzu.edu.tw",
+                message: `成功取得 ${dept_list.length} 個系所選項`
+            };
+
+        } catch (err) {
+            console.error("從 portalfun.yzu.edu.tw 取得選項失敗:", err.message);
+            throw new Error(`選項取得失敗: ${err.message}`);
+        }
     }
 
     /**
