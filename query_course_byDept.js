@@ -60,20 +60,6 @@ function buildForm({ viewstate, viewstategen, eventvalid }) {
   return form;
 }
 
-function wrapHtml(tableHtml) {
-  return `<!DOCTYPE html>
-<html lang="zh-TW">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>課程查詢結果</title>
-</head>
-<body>
-  <h1>元智大學課程查詢結果</h1>
-  ${tableHtml}
-</body>
-</html>`;
-}
 
 async function main() {
   try {
@@ -97,8 +83,7 @@ async function main() {
 
     if (table1.length) {
       const fullTableHtml = $.html(table1); // 含 <table> 標籤
-      const pretty = wrapHtml(fullTableHtml);
-      await fs.writeFile("table1.html", pretty, "utf8");
+      await fs.writeFile("table1.html", fullTableHtml, "utf8");
       console.log("✅ Table1 內容已存成 table1.html");
     } else {
       console.log("⚠️ 未找到 Table1（可能查無資料或頁面結構變更）");
