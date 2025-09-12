@@ -5,6 +5,7 @@ const NodeRSA = require('node-rsa');
 const moment = require("moment")
 const fs = require("fs")
 const https = require('https');
+const http = require('http');
 
 // Puppeteer for automated browser actions (懶加載)
 let puppeteer = null;
@@ -78,6 +79,124 @@ class BackendService {
             "LibKeyword": "api/Open/LibKeyword?Scope=%s&QueryStr=%s",
             "LibHolding": "api/Open/LibHolding/%s"
         };
+
+        // 簡易 GET：使用 Node https/http 並支援重導向
+        this._httpGet = function(urlString, headers = {}, redirectCount = 0) {
+            return new Promise((resolve, reject) => {
+                try {
+                    const url = new URL(urlString);
+                    const isHttps = url.protocol === 'https:';
+                    const mod = isHttps ? https : http;
+                    const req = mod.request({
+                        protocol: url.protocol,
+                        hostname: url.hostname,
+                        port: url.port || (isHttps ? 443 : 80),
+                        path: url.pathname + (url.search || ''),
+                        method: 'GET',
+                        headers: headers || {},
+                        rejectUnauthorized: false,
+                    }, (res) => {
+                        const status = res.statusCode || 0;
+                        // 處理 3xx 重導向
+                        if (status >= 300 && status < 400 && res.headers.location) {
+                            if (redirectCount >= 5) return reject(new Error('Too many redirects'));
+                            const next = new URL(res.headers.location, urlString).toString();
+                            res.resume();
+                            return resolve(this._httpGet(next, headers, redirectCount + 1));
+                        }
+
+                        const chunks = [];
+                        res.on('data', (chunk) => chunks.push(Buffer.from(chunk)));
+                        res.on('end', () => {
+                            const body = Buffer.concat(chunks).toString('utf8');
+                            // 更新 Cookie 儲存
+                            if (typeof this._updateCookiesFromResponse === 'function') {
+                                this._updateCookiesFromResponse(res, urlString);
+                            }
+                            resolve({ statusCode: status, headers: res.headers, body });
+                        });
+                    });
+                    req.on('error', reject);
+                    req.end();
+                } catch (e) {
+                    reject(e);
+                }
+            });
+        }
+
+        // 簡單 Cookie 管理
+        this._cookieStore = {};
+        this._updateCookiesFromResponse = function(res, urlString) {
+            const setCookie = res.headers['set-cookie'];
+            if (!setCookie || !Array.isArray(setCookie)) return;
+            setCookie.forEach((cookieStr) => {
+                const pair = String(cookieStr).split(';')[0];
+                const eq = pair.indexOf('=');
+                if (eq > 0) {
+                    const name = pair.substring(0, eq).trim();
+                    const value = pair.substring(eq + 1).trim();
+                    this._cookieStore[name] = value;
+                }
+            });
+        }
+        this._getCookieHeader = function() {
+            const entries = Object.entries(this._cookieStore || {});
+            if (!entries.length) return '';
+            return entries.map(([k, v]) => `${k}=${v}`).join('; ');
+        }
+        this._httpPostForm = function(urlString, form, headers = {}, redirectCount = 0) {
+            return new Promise((resolve, reject) => {
+                try {
+                    const url = new URL(urlString);
+                    const isHttps = url.protocol === 'https:';
+                    const mod = isHttps ? https : http;
+                    const body = new URLSearchParams(form || {}).toString();
+
+                    const mergedHeaders = Object.assign({
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'Content-Length': Buffer.byteLength(body),
+                    }, headers || {});
+
+                    const cookieHeader = this._getCookieHeader();
+                    if (cookieHeader) mergedHeaders['Cookie'] = cookieHeader;
+
+                    const req = mod.request({
+                        protocol: url.protocol,
+                        hostname: url.hostname,
+                        port: url.port || (isHttps ? 443 : 80),
+                        path: url.pathname + (url.search || ''),
+                        method: 'POST',
+                        headers: mergedHeaders,
+                        rejectUnauthorized: false,
+                    }, (res) => {
+                        const status = res.statusCode || 0;
+                        // 更新 cookies
+                        this._updateCookiesFromResponse(res, urlString);
+
+                        // 處理 3xx 重導向
+                        if (status >= 300 && status < 400 && res.headers.location) {
+                            if (redirectCount >= 5) return reject(new Error('Too many redirects'));
+                            const next = new URL(res.headers.location, urlString).toString();
+                            res.resume();
+                            // 重導後使用 GET 取得最終頁面
+                            return resolve(this._httpGet(next, headers, redirectCount + 1));
+                        }
+
+                        const chunks = [];
+                        res.on('data', (chunk) => chunks.push(Buffer.from(chunk)));
+                        res.on('end', () => {
+                            const respBody = Buffer.concat(chunks).toString('utf8');
+                            resolve({ statusCode: status, headers: res.headers, body: respBody });
+                        });
+                    });
+                    req.on('error', reject);
+                    req.write(body);
+                    req.end();
+                } catch (e) {
+                    reject(e);
+                }
+            });
+        }
     }
 
     // 新增：使用 OpenData API 取得課程清單
@@ -2074,34 +2193,24 @@ class BackendService {
      * @param {string} smtr 學期，ex: 1, 2
      */
     async getCourseListFromYZUApi(year, smtr) {
-        const axios = require("axios");
-        const { wrapper } = require("axios-cookiejar-support");
-        const { CookieJar } = require("tough-cookie");
         const cheerio = require("cheerio");
 
         const BASE = "https://portalfun.yzu.edu.tw/cosSelect/index.aspx?D=G";
 
-        // 建立 HTTP client
-        const jar = new CookieJar();
-        const client = wrapper(
-            axios.create({
-                jar,
-                withCredentials: true,
-                timeout: 30000,
-                headers: {
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
-                    Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-                },
-                httpsAgent: undefined,
-            })
-        );
-
         try {
             console.log("正在從 portalfun.yzu.edu.tw 取得系所和學期選項...");
-            
-            // 1) GET 取得頁面內容和選項
-            const response = await client.get(BASE);
-            const $ = cheerio.load(response.data);
+
+            // 使用 Electron net 發送 GET
+            const res = await this._httpGet(BASE, {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
+                Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            });
+
+            if (res.statusCode >= 300) {
+                throw new Error(`HTTP ${res.statusCode}`);
+            }
+
+            const $ = cheerio.load(res.body);
 
             // 2) 解析系所選項 (DDL_Dept)
             const dept_list = [];
@@ -2171,32 +2280,20 @@ class BackendService {
                 console.warn(`找不到系所名稱 "${ddl_dept}" 對應的 option value，使用原值`);
             }
         }
-        const axios = require("axios");
-        const { wrapper } = require("axios-cookiejar-support");
-        const { CookieJar } = require("tough-cookie");
         const cheerio = require("cheerio");
 
         const BASE = "https://portalfun.yzu.edu.tw/cosSelect/index.aspx?D=G";
-
-        // 建立 HTTP client
-        const jar = new CookieJar();
-        const client = wrapper(
-            axios.create({
-                jar,
-                withCredentials: true,
-                timeout: 30000,
-                headers: {
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
-                    Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-                },
-                httpsAgent: undefined,
-            })
-        );
+        const defaultHeaders = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
+            Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            Origin: "https://portalfun.yzu.edu.tw",
+            Referer: BASE,
+        };
 
         // 取得隱藏欄位
-        async function fetchHiddenFields() {
-            const r = await client.get(BASE);
-            const $ = cheerio.load(r.data);
+        async function fetchHiddenFields(ctx) {
+            const r = await ctx._httpGet(BASE, defaultHeaders);
+            const $ = cheerio.load(r.body);
             const viewstate = $("#__VIEWSTATE").val() ?? "";
             const viewstategen = $("#__VIEWSTATEGENERATOR").val() ?? "";
             const eventvalid = $("#__EVENTVALIDATION").val() ?? "";
@@ -2230,18 +2327,12 @@ class BackendService {
 
         try {
             // 1) 先 GET 取得 cookies + 隱藏欄位
-            const hidden = await fetchHiddenFields();
+            const hidden = await fetchHiddenFields(this);
 
             // 2) POST 查詢
             const form = buildForm(hidden);
-            const r2 = await client.post(BASE, form, {
-                headers: {
-                    "Content-Type": "application/x-www-form-urlencoded",
-                    Referer: BASE,
-                },
-            });
-
-            const html = r2.data;
+            const r2 = await this._httpPostForm(BASE, form, defaultHeaders);
+            const html = r2.body;
 
             // 3) 解析表格資料 (正確處理2行結構)
             const $ = cheerio.load(html);
@@ -2324,26 +2415,16 @@ class BackendService {
                 console.warn(`找不到系所名稱 "${ddl_dept}" 對應的 option value，使用原值`);
             }
         }
-        const axios = require("axios");
-        const { wrapper } = require("axios-cookiejar-support");
-        const { CookieJar } = require("tough-cookie");
         const cheerio = require("cheerio");
 
         const BASE = "https://portalfun.yzu.edu.tw/cosSelect/Index.aspx?D=G";
 
-        const jar = new CookieJar();
-        const client = wrapper(
-            axios.create({
-                jar,
-                withCredentials: true,
-                timeout: 30000,
-                headers: {
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:142.0) Gecko/20100101 Firefox/142.0",
-                    Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-                },
-                httpsAgent: undefined,
-            })
-        );
+        const defaultHeaders = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:142.0) Gecko/20100101 Firefox/142.0",
+            Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            Origin: "https://portalfun.yzu.edu.tw",
+            Referer: BASE,
+        };
 
         // 生成隨機 CheckCode
         function generateCheckCode() {
@@ -2356,13 +2437,11 @@ class BackendService {
         }
 
         // 確保有 CheckCode cookie
-        function ensureCheckCodeCookie() {
-            const cookies = jar.getCookiesSync(BASE);
-            const hasCheckCode = cookies.some(cookie => cookie.key === "CheckCode");
-            
-            if (!hasCheckCode) {
+        function ensureCheckCodeCookie(ctx) {
+            // 若尚無 Cookie，補一個隨機 CheckCode 以符合後端需求
+            if (!ctx._cookieStore || !ctx._cookieStore["CheckCode"]) {
                 const checkCode = generateCheckCode();
-                jar.setCookieSync(`CheckCode=${checkCode}; Domain=portalfun.yzu.edu.tw; Path=/`, BASE);
+                ctx._cookieStore["CheckCode"] = checkCode;
             }
         }
 
@@ -2402,11 +2481,9 @@ class BackendService {
 
         try {
             // 1) 先 GET 取得 cookies + 隱藏欄位
-            const r1 = await client.get(BASE);
-            r1.data;
-            
-            ensureCheckCodeCookie();
-            let hidden = parseHiddenFields(r1.data);
+            const r1 = await this._httpGet(BASE, defaultHeaders);
+            ensureCheckCodeCookie(this);
+            let hidden = parseHiddenFields(r1.body);
 
             // 2) 第一段 POST：切換查詢模式到「以科目名稱查詢」
             const step1Form = buildForm(hidden, {
@@ -2416,23 +2493,9 @@ class BackendService {
                 DDL_Degree: ddl_degree,
             });
 
-            const r2 = await client.post(BASE, step1Form, {
-                headers: {
-                    "Content-Type": "application/x-www-form-urlencoded",
-                    Origin: "https://portalfun.yzu.edu.tw",
-                    Referer: BASE,
-                },
-                maxRedirects: 0,
-                validateStatus: (status) => status < 400,
-            });
-
+            const r2 = await this._httpPostForm(BASE, step1Form, defaultHeaders);
             let response = r2;
-            if (r2.status >= 300 && r2.status < 400 && r2.headers.location) {
-                response = await client.get(r2.headers.location);
-            }
-
-            response.data;
-            hidden = parseHiddenFields(response.data);
+            hidden = parseHiddenFields(response.body);
 
             // 3) 第二段 POST：送出查詢
             const step2Form = buildForm(hidden, {
@@ -2442,22 +2505,8 @@ class BackendService {
                 Button2: "確定",
             });
 
-            const r3 = await client.post(BASE, step2Form, {
-                headers: {
-                    "Content-Type": "application/x-www-form-urlencoded",
-                    Origin: "https://portalfun.yzu.edu.tw",
-                    Referer: BASE,
-                },
-                maxRedirects: 0,
-                validateStatus: (status) => status < 400,
-            });
-
-            let finalResponse = r3;
-            if (r3.status >= 300 && r3.status < 400 && r3.headers.location) {
-                finalResponse = await client.get(r3.headers.location);
-            }
-
-            const html = finalResponse.data;
+            const r3 = await this._httpPostForm(BASE, step2Form, defaultHeaders);
+            const html = r3.body;
 
             // 4) 解析表格資料 (正確處理2行結構)
             const $ = cheerio.load(html);
@@ -2527,26 +2576,15 @@ class BackendService {
      * @param {string} teacher_name - 教師姓名
      */
     async queryCourseByTeacher(ddl_ym, teacher_name) {
-        const axios = require("axios");
-        const { wrapper } = require("axios-cookiejar-support");
-        const { CookieJar } = require("tough-cookie");
         const cheerio = require("cheerio");
 
         const BASE = "https://portalfun.yzu.edu.tw/cosSelect/Index.aspx?D=G";
-
-        const jar = new CookieJar();
-        const client = wrapper(
-            axios.create({
-                jar,
-                withCredentials: true,
-                timeout: 30000,
-                headers: {
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:142.0) Gecko/20100101 Firefox/142.0",
-                    Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-                },
-                httpsAgent: undefined,
-            })
-        );
+        const defaultHeaders = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:142.0) Gecko/20100101 Firefox/142.0",
+            Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            Origin: "https://portalfun.yzu.edu.tw",
+            Referer: BASE,
+        };
 
         // 生成隨機 CheckCode
         function generateCheckCode() {
@@ -2558,13 +2596,10 @@ class BackendService {
             return result;
         }
 
-        function ensureCheckCodeCookie() {
-            const cookies = jar.getCookiesSync(BASE);
-            const hasCheckCode = cookies.some(cookie => cookie.key === "CheckCode");
-            
-            if (!hasCheckCode) {
+        function ensureCheckCodeCookie(ctx) {
+            if (!ctx._cookieStore || !ctx._cookieStore["CheckCode"]) {
                 const checkCode = generateCheckCode();
-                jar.setCookieSync(`CheckCode=${checkCode}; Domain=portalfun.yzu.edu.tw; Path=/`, BASE);
+                ctx._cookieStore["CheckCode"] = checkCode;
             }
         }
 
@@ -2601,11 +2636,9 @@ class BackendService {
         }
 
         try {
-            const r1 = await client.get(BASE);
-            r1.data;
-            
-            ensureCheckCodeCookie();
-            let hidden = parseHiddenFields(r1.data);
+            const r1 = await this._httpGet(BASE, defaultHeaders);
+            ensureCheckCodeCookie(this);
+            let hidden = parseHiddenFields(r1.body);
 
             const requiredFields = ["__VIEWSTATE", "__VIEWSTATEGENERATOR", "__EVENTVALIDATION"];
             const missingFields = requiredFields.filter(field => !hidden[field]);
@@ -2619,23 +2652,8 @@ class BackendService {
                 DDL_YM: ddl_ym,
             });
 
-            const r2 = await client.post(BASE, step1Form, {
-                headers: {
-                    "Content-Type": "application/x-www-form-urlencoded",
-                    Origin: "https://portalfun.yzu.edu.tw",
-                    Referer: BASE,
-                },
-                maxRedirects: 0,
-                validateStatus: (status) => status < 400,
-            });
-
-            let response = r2;
-            if (r2.status >= 300 && r2.status < 400 && r2.headers.location) {
-                response = await client.get(r2.headers.location);
-            }
-
-            response.data;
-            hidden = parseHiddenFields(response.data);
+            const r2 = await this._httpPostForm(BASE, step1Form, defaultHeaders);
+            hidden = parseHiddenFields(r2.body);
 
             // 送出查詢
             const step2Form = buildForm(hidden, {
@@ -2645,22 +2663,8 @@ class BackendService {
                 Button3: "確定",
             });
 
-            const r3 = await client.post(BASE, step2Form, {
-                headers: {
-                    "Content-Type": "application/x-www-form-urlencoded",
-                    Origin: "https://portalfun.yzu.edu.tw",
-                    Referer: BASE,
-                },
-                maxRedirects: 0,
-                validateStatus: (status) => status < 400,
-            });
-
-            let finalResponse = r3;
-            if (r3.status >= 300 && r3.status < 400 && r3.headers.location) {
-                finalResponse = await client.get(r3.headers.location);
-            }
-
-            const html = finalResponse.data;
+            const r3 = await this._httpPostForm(BASE, step2Form, defaultHeaders);
+            const html = r3.body;
 
             const $ = cheerio.load(html);
             const table1 = $("#Table1");
@@ -2742,32 +2746,20 @@ class BackendService {
                 console.warn(`找不到系所名稱 "${ddl_dept}" 對應的 option value，使用原值`);
             }
         }
-        const axios = require("axios");
-        const { wrapper } = require("axios-cookiejar-support");
-        const { CookieJar } = require("tough-cookie");
         const cheerio = require("cheerio");
 
         const BASE = "https://portalfun.yzu.edu.tw";
-
-        const jar = new CookieJar();
-        const client = wrapper(
-            axios.create({
-                jar,
-                withCredentials: true,
-                timeout: 30000,
-                headers: {
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:142.0) Gecko/20100101 Firefox/142.0",
-                    Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-                    "Accept-Language": "zh-TW,zh-HK;q=0.8,zh;q=0.6,en-US;q=0.4,en;q=0.2",
-                    "Accept-Encoding": "gzip, deflate, br, zstd",
-                    "Upgrade-Insecure-Requests": "1",
-                    DNT: "1",
-                    "Sec-GPC": "1",
-                    Connection: "keep-alive",
-                },
-                httpsAgent: undefined,
-            })
-        );
+        const defaultHeaders = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:142.0) Gecko/20100101 Firefox/142.0",
+            Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "zh-TW,zh-HK;q=0.8,zh;q=0.6,en-US;q=0.4,en;q=0.2",
+            "Upgrade-Insecure-Requests": "1",
+            DNT: "1",
+            "Sec-GPC": "1",
+            Connection: "keep-alive",
+            Origin: BASE,
+            Referer: `${BASE}/cosSelect/index.aspx?D=G`,
+        };
 
         function generateCheckCode() {
             const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -2778,13 +2770,10 @@ class BackendService {
             return result;
         }
 
-        function ensureCheckCodeCookie() {
-            const cookies = jar.getCookiesSync(BASE);
-            const hasCheckCode = cookies.some(cookie => cookie.key === "CheckCode");
-            
-            if (!hasCheckCode) {
+        function ensureCheckCodeCookie(ctx) {
+            if (!ctx._cookieStore || !ctx._cookieStore["CheckCode"]) {
                 const checkCode = generateCheckCode();
-                jar.setCookieSync(`CheckCode=${checkCode}; Domain=portalfun.yzu.edu.tw; Path=/`, BASE);
+                ctx._cookieStore["CheckCode"] = checkCode;
             }
         }
 
@@ -2846,13 +2835,10 @@ class BackendService {
         try {
             // Step 1: GET 首頁
             const step1Url = `${BASE}/cosSelect/index.aspx?D=G`;
-            const r1 = await client.get(step1Url);
-            r1.data;
-            
-            ensureCheckCodeCookie();
-            
-            const { data: hidden1, action: action1 } = parseHiddenFields(r1.data);
-            const urlStep2 = buildFullUrl(r1.config.url, action1);
+            const r1 = await this._httpGet(step1Url, defaultHeaders);
+            ensureCheckCodeCookie(this);
+            const { data: hidden1, action: action1 } = parseHiddenFields(r1.body);
+            const urlStep2 = buildFullUrl(step1Url, action1);
             
             const requiredFields = ["__VIEWSTATE", "__VIEWSTATEGENERATOR", "__EVENTVALIDATION"];
             const missingFields = requiredFields.filter(field => !hidden1[field]);
@@ -2871,24 +2857,9 @@ class BackendService {
                 DDL_Degree: ddl_degree,
             });
 
-            const r2 = await client.post(urlStep2, step2Form, {
-                headers: {
-                    "Content-Type": "application/x-www-form-urlencoded",
-                    Origin: BASE,
-                    Referer: r1.config.url,
-                },
-                maxRedirects: 0,
-                validateStatus: (status) => status < 400,
-            });
-
-            let response2 = r2;
-            if (r2.status >= 300 && r2.status < 400 && r2.headers.location) {
-                response2 = await client.get(r2.headers.location);
-            }
-
-            response2.data;
-            const { data: hidden2, action: action2 } = parseHiddenFields(response2.data);
-            const urlStep3 = buildFullUrl(response2.config.url, action2);
+            const r2 = await this._httpPostForm(urlStep2, step2Form, defaultHeaders);
+            const { data: hidden2, action: action2 } = parseHiddenFields(r2.body);
+            const urlStep3 = buildFullUrl(urlStep2, action2);
 
             // Step 3: POST 送出實查
             const step3Form = buildForm(hidden2, {
@@ -2901,23 +2872,8 @@ class BackendService {
             });
 
             const finalUrl = urlStep3.includes("Q=") ? urlStep3 : `${BASE}/cosSelect/index.aspx?Q=111`;
-
-            const r3 = await client.post(finalUrl, step3Form, {
-                headers: {
-                    "Content-Type": "application/x-www-form-urlencoded",
-                    Origin: BASE,
-                    Referer: `${BASE}/cosSelect/index.aspx?D=G`,
-                },
-                maxRedirects: 0,
-                validateStatus: (status) => status < 400,
-            });
-
-            let finalResponse = r3;
-            if (r3.status >= 300 && r3.status < 400 && r3.headers.location) {
-                finalResponse = await client.get(r3.headers.location);
-            }
-
-            const html = finalResponse.data;
+            const r3 = await this._httpPostForm(finalUrl, step3Form, defaultHeaders);
+            const html = r3.body;
 
             const $ = cheerio.load(html);
             const table1 = $("#Table1");

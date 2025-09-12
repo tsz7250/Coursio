@@ -270,6 +270,10 @@ const app = Vue.createApp({
 
 		// School Timetable Query - New unified approach
 		const queryType = ref("dept")  // 欲搜尋的類型
+
+		// 全域查詢用學年與學期（供後端 API 使用）
+		const querySelectQueryYear = ref(`${year_now}`)
+		const querySelectQuerySmt = ref(`${smtr_now}`)
 		
 		// 系所查詢相關變數
 		const querySelectSemester = ref("")  // 學期 (DDL_YM 格式)
@@ -733,29 +737,23 @@ const app = Vue.createApp({
 		}
 
 		async function performNameQuery() {
-			if (!querySelectSemesterForName.value || !querySelectDeptForName.value || 
-				!querySelectGradeForName.value || !queryInputQueryCourseName.value.trim()) {
+			if (!queryInputQueryCourseName.value.trim()) {
 				console.log("課程名稱查詢參數不完整");
 				return;
 			}
-
 			isCourseDataLoading.value = true;
-			
 			try {
+				const ddlYM = `${querySelectQueryYear.value || year_now},${querySelectQuerySmt.value || smtr_now}  `;
 				console.log("開始課程名稱查詢:", {
-					semester: querySelectSemesterForName.value,
-					dept: querySelectDeptForName.value,
-					grade: querySelectGradeForName.value,
+					semester: ddlYM,
 					courseName: queryInputQueryCourseName.value
 				});
-				
 				const result = await apibackend.queryCourseByName(
-					querySelectSemesterForName.value,
-					querySelectDeptForName.value,
-					querySelectGradeForName.value,
+					ddlYM,
+					"",
+					"0",
 					queryInputQueryCourseName.value.trim()
 				);
-				
 				if (result.success) {
 					queryResultForList.value = result.courses.map(course => ({
 						cos_id: course.cos_id,
@@ -766,10 +764,9 @@ const app = Vue.createApp({
 						time_room: course.time_room,
 						teacher_name: course.teacher,
 						credits: course.credits,
-						year: querySelectSemesterForName.value.split(',')[0].trim(),
-						smtr: querySelectSemesterForName.value.split(',')[1].trim()
+						year: ddlYM.split(',')[0].trim(),
+						smtr: ddlYM.split(',')[1].trim()
 					}));
-					
 					console.log(`課程名稱查詢完成，找到 ${queryResultForList.value.length} 門課程`);
 				} else {
 					queryResultForList.value = [];
@@ -830,32 +827,21 @@ const app = Vue.createApp({
 		}
 
 		async function performTimeQuery() {
-			if (!querySelectSemesterForTime.value || !querySelectDeptForTime.value || 
-				!querySelectGradeForTime.value || !querySelectQueryDay.value || !querySelectQueryPeriod.value) {
+			if (!querySelectQueryDay.value || !querySelectQueryPeriod.value) {
 				console.log("時間查詢參數不完整");
 				return;
 			}
-
 			isCourseDataLoading.value = true;
-			
 			try {
-				// 建構 ctl216 格式：星期(1-7) + 節次(01-13)
 				const ctl216 = querySelectQueryDay.value + querySelectQueryPeriod.value;
-				
-				console.log("開始時間查詢:", {
-					semester: querySelectSemesterForTime.value,
-					dept: querySelectDeptForTime.value,
-					grade: querySelectGradeForTime.value,
-					ctl216: ctl216
-				});
-				
+				const ddlYM = `${querySelectQueryYear.value || year_now},${querySelectQuerySmt.value || smtr_now}  `;
+				console.log("開始時間查詢:", { semester: ddlYM, ctl216 });
 				const result = await apibackend.queryCourseByTime(
-					querySelectSemesterForTime.value,
-					querySelectDeptForTime.value,
-					querySelectGradeForTime.value,
+					ddlYM,
+					"",
+					"0",
 					ctl216
 				);
-				
 				if (result.success) {
 					queryResultForList.value = result.courses.map(course => ({
 						cos_id: course.cos_id,
@@ -866,10 +852,9 @@ const app = Vue.createApp({
 						time_room: course.time_room,
 						teacher_name: course.teacher,
 						credits: course.credits,
-						year: querySelectSemesterForTime.value.split(',')[0].trim(),
-						smtr: querySelectSemesterForTime.value.split(',')[1].trim()
+						year: ddlYM.split(',')[0].trim(),
+						smtr: ddlYM.split(',')[1].trim()
 					}));
-					
 					console.log(`時間查詢完成，找到 ${queryResultForList.value.length} 門課程`);
 				} else {
 					queryResultForList.value = [];
@@ -883,39 +868,7 @@ const app = Vue.createApp({
 			}
 		}
 
-		// 監聽各種查詢參數變化
-		watch([querySelectSemester, querySelectQueryDept, querySelectGrade], ([semester, dept, grade]) => {
-			if (semester && dept && grade) {
-				performDeptQuery();
-			}
-		});
-
-		watch(queryDeptKeyword, (newKeyword) => {
-			// 關鍵字變化時重新執行系所查詢（如果參數完整）
-			if (querySelectSemester.value && querySelectQueryDept.value && querySelectGrade.value) {
-				performDeptQuery();
-			}
-		});
-
-		watch([querySelectSemesterForName, querySelectDeptForName, querySelectGradeForName, queryInputQueryCourseName], 
-			([semester, dept, grade, courseName]) => {
-				if (semester && dept && grade && courseName && courseName.trim()) {
-					performNameQuery();
-				}
-			});
-
-		watch([querySelectSemesterForTeacher, queryInputQueryTeacherName], ([semester, teacherName]) => {
-			if (semester && teacherName && teacherName.trim()) {
-				performTeacherQuery();
-			}
-		});
-
-		watch([querySelectSemesterForTime, querySelectDeptForTime, querySelectGradeForTime, querySelectQueryDay, querySelectQueryPeriod], 
-			([semester, dept, grade, day, period]) => {
-				if (semester && dept && grade && day && period) {
-					performTimeQuery();
-				}
-			});
+		// 停用自動監聽查詢，改為按鈕觸發
 
 		watch(queryType, (newQueryType) => {
 			// 切換查詢類型時清空結果
@@ -1047,6 +1000,8 @@ const app = Vue.createApp({
 			queryType, queryResultForList, modalCourse,
 			// Department query
 			querySelectSemester, querySelectQueryDept, querySelectGrade, queryDeptKeyword,
+			// Global query params for API
+			querySelectQueryYear, querySelectQuerySmt,
 			// Course name query  
 			querySelectSemesterForName, querySelectDeptForName, querySelectGradeForName, queryInputQueryCourseName,
 			// Teacher query
