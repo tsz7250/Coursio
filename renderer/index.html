@@ -31,6 +31,16 @@
     #courses-list-data-table td.teacher-cell {
         white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
+    
+    /* 課程列表欄位寬度 */
+    #courses-list-data-table colgroup col:nth-child(1) { width: 110px; } /* 課號班別 */
+    #courses-list-data-table colgroup col:nth-child(2) { width: 180px; } /* 開課系級 */
+    #courses-list-data-table colgroup col:nth-child(3) { width: auto; }   /* 課程名稱 */
+    #courses-list-data-table colgroup col:nth-child(4) { width: 80px; }   /* 選別 */
+    #courses-list-data-table colgroup col:nth-child(5) { width: 200px; }  /* 時間,教室 */
+    #courses-list-data-table colgroup col:nth-child(6) { width: 90px; }   /* 授課教師 */
+    #courses-list-data-table colgroup col:nth-child(7) { width: 140px; }  /* 加入選課名單 */
+    
     /* 教師欄：若含括號允許在括號前換行，並縮小欄寬 */
     #courses-list-data-table td.teacher-cell {
         white-space: normal;
@@ -68,6 +78,19 @@
     /* SimpleScrollbar 內容容器確保正常文流排列 */
     #section-School-timetable-Query .ss-wrapper, 
     #section-School-timetable-Query .ss-content { position: static !important; }
+    
+    /* 移除內嵌樣式改用CSS類別 */
+    .loading-panel-hidden { display: none; }
+    .login-icon { height: 100px; }
+    .guest-btn { background: #6c757d; }
+    .login-disabled-btn { background: #ccc; cursor: not-allowed; }
+    .schedule-controls { margin: 20px 0; }
+    .schedule-loading { text-align: center; padding: 40px; display: none; }
+    .schedule-error { display: none; text-align: center; padding: 40px; }
+    .schedule-error-text { color: #e74c3c; }
+    .schedule-info { margin-top: 30px; padding: 20px; background: #f8f9fa; border-radius: 8px; }
+    .courses-table { border-collapse: collapse; }
+    .content-padding { padding: 2rem; }
     @media (max-width: 992px) {
         #section-School-timetable-Query .btabs .content { margin-bottom: 12px; }
         #section-School-timetable-Query .courses-list { margin-top: 20px; }
@@ -106,7 +129,7 @@
     <div id="app" class="section">
 
         <!-- Loading Panel -->
-        <div style="display: none;" v-show="isLoading" id="loading-panel" class="section">
+        <div v-show="isLoading" id="loading-panel" class="section loading-panel-hidden">
             <img src="../assets/Blue Cat-1s-200px.svg" alt="">
             <h3>{{ loading_text }}</h3>
         </div>
@@ -115,7 +138,7 @@
         <!-- Login Panel -->
         <div class="login-panel section">
             <div class="header">
-                <img style="height: 100px;" src="../assets/icon.png" alt="ICON">
+                <img class="login-icon" src="../assets/icon.png" alt="ICON">
             </div>
             <div class="middle wc-container">
                 <div class="hero-image move-to-hidden">
@@ -139,7 +162,7 @@
                             <input v-model="spwd" class="login-block-input-element" placeholder="密碼" type="password"
                                 id="student_pwd" required>
                             <button @click="login" class="login-block-input-element" id="login-btn">開始搶課！</button>
-                            <button @click="browseAsGuest" class="login-block-input-element" id="guest-btn" style="background: #6c757d;">訪客瀏覽課程</button>
+                            <button @click="browseAsGuest" class="login-block-input-element guest-btn" id="guest-btn">訪客瀏覽課程</button>
                         </div>
 
                         <div class="login-block-lockimg"><i class="fas fa-user-lock"></i></div>
@@ -242,13 +265,13 @@
                         <p>114學年度第1學期課程時間表</p>
                     </div>
                     
-                    <div class="schedule-controls" style="margin: 20px 0;">
+                    <div class="schedule-controls">
                         <button id="refresh-schedule" class="btn btn-primary" onclick="refreshSchedule()">
                             🔄 重新載入課表
                         </button>
                     </div>
 
-                    <div id="schedule-loading" style="text-align: center; padding: 40px; display: none;">
+                    <div id="schedule-loading" class="schedule-loading">
                         <div class="loading-spinner"></div>
                         <p>正在載入課表資料...</p>
                     </div>
@@ -275,12 +298,12 @@
                         </div>
                     </div>
 
-                    <div id="schedule-error" style="display: none; text-align: center; padding: 40px;">
-                        <p style="color: #e74c3c;">❌ 無法載入課表資料</p>
+                    <div id="schedule-error" class="schedule-error">
+                        <p class="schedule-error-text">❌ 無法載入課表資料</p>
                         <button onclick="refreshSchedule()" class="btn btn-secondary">重試</button>
                     </div>
 
-                    <div class="schedule-info" style="margin-top: 30px; padding: 20px; background: #f8f9fa; border-radius: 8px;">
+                    <div class="schedule-info">
                         <h4>📋 課表說明</h4>
                         <ul>
                             <li>點擊「重新載入課表」可更新最新的課程資料</li>
@@ -497,16 +520,15 @@
 
 
                         <div class="col-lg-12">
-                            <table id="courses-list-data-table" class="table table-striped table-hover"
-                                style="border-collapse:collapse;">
+                            <table id="courses-list-data-table" class="table table-striped table-hover courses-table">
                                 <colgroup>
-                                    <col style="width:110px">
-                                    <col style="width:180px">
                                     <col>
-                                    <col style="width:80px">
-                                    <col style="width:200px">
-                                    <col style="width:90px">
-                                    <col style="width:140px">
+                                    <col>
+                                    <col>
+                                    <col>
+                                    <col>
+                                    <col>
+                                    <col>
                                 </colgroup>
                                 <thead>
                                     <tr>
@@ -534,7 +556,7 @@
                                         <td>
                                             <span v-if="isLoggedIn" @click.capture.self="addToSchedule($event, course)"
                                                 class="btn hvr-bounce-to-right point-it">加入選課清單</span>
-                                            <span v-else class="btn disabled" style="background: #ccc; cursor: not-allowed;">需登入</span>
+                                            <span v-else class="btn disabled login-disabled-btn">需登入</span>
                                         </td>
                                     </tr>
 
@@ -559,8 +581,7 @@
 
                     <div class="courses-list">
                         <div class="col-lg-12">
-                            <table id="courses-list-data-table" class="table table-striped table-hover"
-                                style="border-collapse:collapse;">
+                            <table id="courses-list-data-table" class="table table-striped table-hover courses-table">
                                 <thead>
                                     <tr>
                                         <th>Task ID</th>
@@ -647,7 +668,7 @@
 
 
         <div ss-container id="about-modal" class="modal">
-            <div style="padding: 2rem;">
+            <div class="content-padding">
                 <h4>Wanna Class</h4>
                 <p>使用元智 Portal 帳號密碼登入，不須擔心帳號密碼會被盜用或記錄，程式碼完全公開接受開源社群的檢驗，絕對安全。</p>
                 <p>左方列表功能：
