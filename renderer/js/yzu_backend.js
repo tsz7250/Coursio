@@ -2966,7 +2966,7 @@ class BackendService {
                 __LASTFOCUS: "",
                 Q: "RadioButton4",
                 DDL_YM: ddl_ym,
-                DDL_Dept: "300", // 使用固定值，時間查詢不需要特定系所
+                DDL_Dept: "300", // 時間查詢固定使用300，用戶無法選擇系所
                 DDL_Degree: ddl_degree || "1",
             });
 
@@ -2995,7 +2995,7 @@ class BackendService {
                 ctl216: ctl216,
             });
 
-            const finalUrl = urlStep3.includes("Q=") ? urlStep3 : `${BASE}/cosSelect/index.aspx?Q=111`;
+            const finalUrl = urlStep3.includes("Q=") ? urlStep3 : `${BASE}/cosSelect/index.aspx?Q=${ctl216}`;
 
             const r3 = await this._httpPostForm(finalUrl, step3Form, {
                 ...defaultHeaders,

@@ -183,17 +183,18 @@ async function main() {
     const urlStep3 = buildFullUrl(response2.config.url, action2);
 
     // Step 3: POST 送出實查（Q=111）
+    const ctl216  = "302";
     const step3Form = buildForm(hidden2, {
       __EVENTTARGET: "",
       __EVENTARGUMENT: "",
       __LASTFOCUS: "",
       Q: "RadioButton4",
       DDL_YM4: QUERY_CONFIG.DDL_YM,
-      ctl216: "111",
+      ctl216: ctl216,
     });
 
     // 確保 URL 包含 Q=111 參數
-    const finalUrl = urlStep3.includes("Q=") ? urlStep3 : `${BASE}/cosSelect/index.aspx?Q=111`;
+    const finalUrl = urlStep3.includes("Q=") ? urlStep3 : `${BASE}/cosSelect/index.aspx?Q=${ctl216}`;
 
     const r3 = await client.post(finalUrl, step3Form, {
       headers: {
