@@ -39,7 +39,6 @@ function loadPuppeteer() {
 class BackendService {
     constructor(sid, spwd) {
         this.root_url = "https://portalx.yzu.edu.tw/NewPortal/"
-        this.openDataAPIurl = "https://portalx.yzu.edu.tw/OpenData/"
 
         this.urls = {
             getUserAccessTokenUrl: "api/Auth/UserAccessToken",
@@ -69,16 +68,6 @@ class BackendService {
         // 設置帳號密碼
         this._setSidSpwd(sid, spwd);
 
-        this.openDataAPIurl = "https://portalx.yzu.edu.tw/OpenData/"
-        this.openDataAPI = {
-            "News": "api/Open/YzuNews",
-            "CosList": "api/Open/CosList?year=%s&smtr=%s",
-            "CosListByTeacher": "api/Open/CosListByTeacher?TeacherName=%s",
-            "ActBetweenDate": "api/Open/ActBetweenDate?startDate=%s&endDate=%s",
-            "CalContent": "api/Open/CalContent/%s",
-            "LibKeyword": "api/Open/LibKeyword?Scope=%s&QueryStr=%s",
-            "LibHolding": "api/Open/LibHolding/%s"
-        };
 
         // 簡易 GET：使用 Node https/http 並支援重導向
         this._httpGet = function(urlString, headers = {}, redirectCount = 0) {
@@ -199,148 +188,126 @@ class BackendService {
         }
     }
 
-    // 新增：使用 OpenData API 取得課程清單
-    async getCourseListFromOpenDataAPI(year, smtr) {
-        try {
-            const url = `${this.openDataAPIurl}api/Open/CosList?year=${year}&smtr=${smtr}`;
-            console.log("正在呼叫 OpenData API:", url);
+    /**
+     * 處理教師名稱，移除空的括號和重複內容
+     * @param {string} teacherText - 原始教師名稱
+     * @returns {string} - 處理後的教師名稱
+     */
+    processTeacherName(teacherText) {
+        if (!teacherText) return '';
+        
+        
+        // 先清理和標準化輸入
+        let cleanText = teacherText.trim();
+        
+        // 處理缺少開頭括號的情況，例如: "廖建勛Chien-Shiun Liao)" -> "廖建勛(Chien-Shiun Liao)"
+        // 匹配模式: 中文姓名 + 英文姓名 + 結尾括號
+        const missingBracketPattern = /^([\u4e00-\u9fff]+)([A-Za-z\s,]+)\)$/;
+        const missingBracketMatch = cleanText.match(missingBracketPattern);
+        if (missingBracketMatch) {
+            const chineseName = missingBracketMatch[1];
+            const englishName = missingBracketMatch[2].trim();
+            cleanText = `${chineseName}(${englishName})`;
+            return cleanText;
+        }
+        
+        // 處理重複的括號內容，例如: "師德霖Sterling Thomas Swallow)(Sterling Thomas Swallow)" 
+        // 先檢查是否有這種模式: 中文姓名 + 英文姓名 + 結尾括號 + 開頭括號 + 重複英文姓名 + 結尾括號
+        const duplicatePattern = /^([\u4e00-\u9fff]+)([A-Za-z\s,]+)\)\(([A-Za-z\s,]+)\)$/;
+        const duplicateMatch = cleanText.match(duplicatePattern);
+        if (duplicateMatch) {
+            const chineseName = duplicateMatch[1];
+            const englishName = duplicateMatch[2].trim();
+            const duplicateEnglishName = duplicateMatch[3].trim();
             
-            const response = await Axios.get(url, {
-                timeout: 15000
-            });
-
-            if (response.data && Array.isArray(response.data)) {
-                console.log(`OpenData API 成功取得 ${response.data.length} 門課程`);
+            // 如果英文姓名相同，只保留一個
+            if (englishName === duplicateEnglishName) {
+                cleanText = `${chineseName}(${englishName})`;
+            } else {
+                // 如果不同，保留兩個
+                cleanText = `${chineseName}(${englishName})(${duplicateEnglishName})`;
+            }
+            return cleanText;
+        }
+        
+        // 如果包含括號，檢查括號內是否有內容
+        if (cleanText.includes('(')) {
+            const parts = cleanText.split('(');
+            const name = parts[0].trim();
+            const bracketContent = parts.slice(1).join('(').trim();
+            
+            // 如果括號內沒有內容，只返回姓名部分
+            if (!bracketContent || bracketContent === ')') {
+                return name;
+            }
+            
+            // 檢查是否已經是正確格式（只有一個括號且格式正確）
+            const correctFormatPattern = /^[\u4e00-\u9fff]+\([A-Za-z\s,\-]+\)$/;
+            if (correctFormatPattern.test(cleanText)) {
+                // 在括號前添加換行符，讓英文名字換行顯示
+                const result = cleanText.replace('(', '\n(');
+                return result;
+            }
+            
+            // 處理重複的括號內容
+            let cleanBracketContent = bracketContent;
+            
+            // 檢查是否有重複的括號內容
+            // 使用更簡單的方法：檢查是否包含 ")((" 模式
+            if (bracketContent.includes(')(')) {
                 
-                // 轉換為標準格式
-                const courses = response.data.map(course => ({
-                    course_id: course.cos_id || 'N/A',
-                    course_name: course.cos_name || '未知課程',
-                    teacher: course.teacher || '未知教師',
-                    dept_name: course.dept_name || '未知系所',
-                    credits: parseInt(course.cos_credit) || 0,
-                    time_slots: course.WeekandRoom ? course.WeekandRoom.split(',') : [],
-                    is_selected: false, // OpenData 是公開資料，非個人選課
-                    source: "OpenData API",
-                    year: year,
-                    semester: smtr
-                }));
-
-                return {
-                    success: true,
-                    courses: courses,
-                    message: `成功從 OpenData API 取得 ${courses.length} 門課程`
-                };
-            } else {
-                throw new Error("API 回應格式錯誤");
+                // 分割並去重
+                const parts = bracketContent.split(')(');
+                const uniqueParts = new Set();
+                const resultParts = [];
+                
+                for (const part of parts) {
+                    const cleanPart = part.replace(/^\(|\)$/g, '').trim().replace(/\s+/g, ' ');
+                    if (cleanPart && !uniqueParts.has(cleanPart)) {
+                        uniqueParts.add(cleanPart);
+                        resultParts.push(cleanPart);
+                    }
+                }
+                
+                if (resultParts.length > 0) {
+                    const result = name + '\n(' + resultParts.join(')(') + ')';
+                    return result;
+                }
             }
-        } catch (error) {
-            console.error("OpenData API 呼叫失敗:", error.message);
-            return {
-                success: false,
-                courses: [],
-                message: `OpenData API 失敗: ${error.message}`
-            };
-        }
-    }
-
-    // 新增：取得校園新聞
-    async getNewsFromOpenDataAPI() {
-        try {
-            const url = `${this.openDataAPIurl}${this.openDataAPI.News}`;
-            console.log("正在取得校園新聞:", url);
             
-            const response = await Axios.get(url, {
-                timeout: 10000
-            });
-
-            if (response.data) {
-                console.log("校園新聞取得成功");
-                return {
-                    success: true,
-                    news: response.data,
-                    message: "校園新聞取得成功"
-                };
-            } else {
-                throw new Error("新聞資料為空");
+            // 檢查是否有重複的括號內容
+            const bracketPattern = /\(([^)]+)\)/g;
+            const matches = bracketContent.match(bracketPattern);
+            
+            if (matches && matches.length > 1) {
+                // 檢查是否有重複的內容
+                const uniqueContents = new Set();
+                const uniqueMatches = [];
+                
+                for (const match of matches) {
+                    const content = match.slice(1, -1).trim(); // 移除括號並清理空白
+                    if (!uniqueContents.has(content)) {
+                        uniqueContents.add(content);
+                        uniqueMatches.push(match);
+                    }
+                }
+                // 如果找到重複，使用去重後的內容
+                if (uniqueMatches.length < matches.length) {
+                    cleanBracketContent = uniqueMatches.join('');
+                    const result = name + '\n' + cleanBracketContent;
+                    return result;
+                }
             }
-        } catch (error) {
-            console.error("校園新聞取得失敗:", error.message);
-            return {
-                success: false,
-                news: [],
-                message: `校園新聞取得失敗: ${error.message}`
-            };
+            
+            const result = name + '\n' + cleanBracketContent;
+            return result;
         }
+        
+        return cleanText;
     }
 
-    async testOpenDataEndpoints() {
-        console.log("正在測試 OpenData API 端點可用性...");
-        
-        const testResults = {
-            openData: {},
-            availableEndpoints: [],
-            recommendations: []
-        };
 
-        // 測試 OpenData API 端點
-        const openDataUrls = {
-            news: `${this.openDataAPIurl}${this.openDataAPI.News}`,
-            courseList: `${this.openDataAPIurl}api/Open/CosList?year=114&smtr=1`
-        };
-        
-        // 測試新聞端點
-        try {
-            const newsResponse = await Axios.get(openDataUrls.news, {
-                timeout: 10000
-            });
-            testResults.openData.news = {
-                status: newsResponse.status,
-                available: newsResponse.status === 200,
-                note: "校園新聞端點"
-            };
-            testResults.availableEndpoints.push("YzuNews");
-            console.log("✅ OpenData 新聞端點可用");
-        } catch (error) {
-            testResults.openData.news = {
-                status: error.response?.status || "無回應",
-                available: false,
-                error: error.message
-            };
-            console.log("❌ OpenData 新聞端點無法連接:", error.message);
-        }
 
-        // 測試課程清單端點
-        try {
-            const courseResponse = await Axios.get(openDataUrls.courseList, {
-                timeout: 10000
-            });
-            testResults.openData.courseList = {
-                status: courseResponse.status,
-                available: courseResponse.status === 200,
-                note: "課程清單端點"
-            };
-            testResults.availableEndpoints.push("CosList");
-            console.log("✅ OpenData 課程清單端點可用");
-        } catch (error) {
-            testResults.openData.courseList = {
-                status: error.response?.status || "無回應",
-                available: false,
-                error: error.message
-            };
-            console.log("❌ OpenData 課程清單端點無法連接:", error.message);
-        }
-
-        // 生成建議
-        if (testResults.availableEndpoints.length > 0) {
-            testResults.recommendations.push(`可用的 OpenData 端點: ${testResults.availableEndpoints.join(', ')}`);
-        } else {
-            testResults.recommendations.push("所有 OpenData 端點都無法使用");
-        }
-
-        console.log("OpenData 端點測試完成:", testResults);
-        return testResults;
-    }
 
     // 保留基本登入功能 (使用 NewPortal API)
     loginService(sid, spwd) {
@@ -354,7 +321,7 @@ class BackendService {
                 return service._getUserAccessToken()
             })
             .then((service) => {
-                console.log("登入成功，但請注意只有 OpenData API 可用");
+                console.log("登入成功");
                 return service;
             })
             .catch((error) => {
@@ -780,7 +747,7 @@ class BackendService {
                 credit: this.extractCredit(cells[2] || '0'),
                 time: this.parseTimeSlot(cells[3] || ''),
                 room: cells[4] || '未知教室',
-                teacher_name: cells[5] || '未知教師',
+                teacher_name: this.processTeacherName(cells[5] || '未知教師'),
                 dept_name: '個人課程', // 從個人課表來的都標記為個人課程
                 is_selected: true,
                 source: "官方個人課表 HTML (table1)"
@@ -1689,7 +1656,7 @@ class BackendService {
             const courseInfo = {
                 course_id: courseId,
                 name: courseName,
-                teacher_name: teacher,
+                teacher_name: this.processTeacherName(teacher),
                 room: room,
                 time: timeInfo,
                 day: dayNum,
@@ -1761,7 +1728,7 @@ class BackendService {
                     const courseData = {
                         course_id: courseId,
                         name: courseName,
-                        teacher_name: '待查詢', // 從HTML中可能需要進一步解析
+                        teacher_name: this.processTeacherName('待查詢'), // 從HTML中可能需要進一步解析
                         room: room,
                         time: course.time_text || `第${course.period}節`,
                         days: course.day ? [course.day] : [],
@@ -2217,7 +2184,12 @@ class BackendService {
             const deptOptions = $("#DDL_Dept option");
             deptOptions.each((index, element) => {
                 const value = $(element).attr('value');
-                const text = $(element).text().trim();
+                const html = $(element).html() || "";
+                // 保留縮排格式，將HTML實體轉換為實際字符
+                const text = html
+                    .replace(/&nbsp;/g, ' ')  // 將 &nbsp; 轉換為空格
+                    .replace(/<[^>]*>/g, '')   // 移除HTML標籤
+                    .replace(/\s+$/g, '');     // 只移除尾端空白，保留前端縮排
                 if (value && text && value !== "") {
                     dept_list.push({
                         value: value,
@@ -2461,23 +2433,34 @@ class BackendService {
                             cos_class = courseIdMatch[2];
                         }
                         
-                        // 從課程名稱欄位提取第一行文字作為課程名稱
+                        // 從課程名稱欄位提取完整文字，保留換行格式
                         const courseNameHtml = $(cells[3]).html() || "";
-                        const courseNameMatch = courseNameHtml.match(/^([^<]+)/);
-                        const cos_name = courseNameMatch ? courseNameMatch[1].trim() : $(cells[3]).text().trim();
+                        // 將 <br> 標籤轉換為換行符號，保留完整格式
+                        const cos_name = courseNameHtml
+                            .replace(/<br\s*\/?>/gi, '\n')  // 將 <br> 轉換為換行
+                            .replace(/<[^>]*>/g, '')        // 移除其他HTML標籤
+                            .replace(/^\s+|\s+$/g, '')      // 只移除首尾空白
+                            .replace(/\n\s+/g, '\n')        // 移除換行後的多餘空白
+                            .replace(/\s+\n/g, '\n');       // 移除換行前的多餘空白
                         
                         // 從授課教師欄位提取教師姓名
-                        const teacherText = $(cells[6]).find("a").text().trim() || $(cells[6]).text().trim();
+                        const rawTeacherText = $(cells[6]).find("a").text().trim() || $(cells[6]).text().trim();
+                        const teacherText = this.processTeacherName(rawTeacherText);
                         
                         courses.push({
-                            cos_id: cos_id,
-                            cos_class: cos_class,
+                            cos_id: cos_id.trim(),
+                            cos_class: cos_class.trim(),
                             cos_name: cos_name,
                             type: $(cells[4]).text().trim(), // 選別
-                            time_room: $(cells[5]).text().trim(), // 時間,教室
+                            time_room: $(cells[5]).html()
+                                .replace(/<br\s*\/?>/gi, '\n')  // 將 <br> 轉換為換行
+                                .replace(/<[^>]*>/g, '')        // 移除其他HTML標籤
+                                .replace(/^\s+|\s+$/g, '')      // 只移除首尾空白
+                                .replace(/\n\s+/g, '\n')        // 移除換行後的多餘空白
+                                .replace(/\s+\n/g, '\n'),       // 移除換行前的多餘空白
                             teacher: teacherText, // 授課教師
                             credits: "", // 學分數在這個結構中不直接顯示
-                            dept_level: $(cells[2]).text().trim() // 開課系級
+                            dept_level: $(cells[2]).text().replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim() // 開課系級
                         });
                     }
                 }
@@ -2646,23 +2629,34 @@ class BackendService {
                             cos_class = courseIdMatch[2];
                         }
                         
-                        // 從課程名稱欄位提取第一行文字作為課程名稱
+                        // 從課程名稱欄位提取完整文字，保留換行格式
                         const courseNameHtml = $(cells[3]).html() || "";
-                        const courseNameMatch = courseNameHtml.match(/^([^<]+)/);
-                        const cos_name = courseNameMatch ? courseNameMatch[1].trim() : $(cells[3]).text().trim();
+                        // 將 <br> 標籤轉換為換行符號，保留完整格式
+                        const cos_name = courseNameHtml
+                            .replace(/<br\s*\/?>/gi, '\n')  // 將 <br> 轉換為換行
+                            .replace(/<[^>]*>/g, '')        // 移除其他HTML標籤
+                            .replace(/^\s+|\s+$/g, '')      // 只移除首尾空白
+                            .replace(/\n\s+/g, '\n')        // 移除換行後的多餘空白
+                            .replace(/\s+\n/g, '\n');       // 移除換行前的多餘空白
                         
                         // 從授課教師欄位提取教師姓名
-                        const teacherText = $(cells[6]).find("a").text().trim() || $(cells[6]).text().trim();
+                        const rawTeacherText = $(cells[6]).find("a").text().trim() || $(cells[6]).text().trim();
+                        const teacherText = this.processTeacherName(rawTeacherText);
                         
                         courses.push({
-                            cos_id: cos_id,
-                            cos_class: cos_class,
+                            cos_id: cos_id.trim(),
+                            cos_class: cos_class.trim(),
                             cos_name: cos_name,
                             type: $(cells[4]).text().trim(), // 選別
-                            time_room: $(cells[5]).text().trim(), // 時間,教室
+                            time_room: $(cells[5]).html()
+                                .replace(/<br\s*\/?>/gi, '\n')  // 將 <br> 轉換為換行
+                                .replace(/<[^>]*>/g, '')        // 移除其他HTML標籤
+                                .replace(/^\s+|\s+$/g, '')      // 只移除首尾空白
+                                .replace(/\n\s+/g, '\n')        // 移除換行後的多餘空白
+                                .replace(/\s+\n/g, '\n'),       // 移除換行前的多餘空白
                             teacher: teacherText, // 授課教師
                             credits: "", // 學分數在這個結構中不直接顯示
-                            dept_level: $(cells[2]).text().trim() // 開課系級
+                            dept_level: $(cells[2]).text().replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim() // 開課系級
                         });
                     }
                 }
@@ -2803,23 +2797,34 @@ class BackendService {
                             cos_class = courseIdMatch[2];
                         }
                         
-                        // 從課程名稱欄位提取第一行文字作為課程名稱
+                        // 從課程名稱欄位提取完整文字，保留換行格式
                         const courseNameHtml = $(cells[3]).html() || "";
-                        const courseNameMatch = courseNameHtml.match(/^([^<]+)/);
-                        const cos_name = courseNameMatch ? courseNameMatch[1].trim() : $(cells[3]).text().trim();
+                        // 將 <br> 標籤轉換為換行符號，保留完整格式
+                        const cos_name = courseNameHtml
+                            .replace(/<br\s*\/?>/gi, '\n')  // 將 <br> 轉換為換行
+                            .replace(/<[^>]*>/g, '')        // 移除其他HTML標籤
+                            .replace(/^\s+|\s+$/g, '')      // 只移除首尾空白
+                            .replace(/\n\s+/g, '\n')        // 移除換行後的多餘空白
+                            .replace(/\s+\n/g, '\n');       // 移除換行前的多餘空白
                         
                         // 從授課教師欄位提取教師姓名
-                        const teacherText = $(cells[6]).find("a").text().trim() || $(cells[6]).text().trim();
+                        const rawTeacherText = $(cells[6]).find("a").text().trim() || $(cells[6]).text().trim();
+                        const teacherText = this.processTeacherName(rawTeacherText);
                         
                         courses.push({
-                            cos_id: cos_id,
-                            cos_class: cos_class,
+                            cos_id: cos_id.trim(),
+                            cos_class: cos_class.trim(),
                             cos_name: cos_name,
                             type: $(cells[4]).text().trim(), // 選別
-                            time_room: $(cells[5]).text().trim(), // 時間,教室
+                            time_room: $(cells[5]).html()
+                                .replace(/<br\s*\/?>/gi, '\n')  // 將 <br> 轉換為換行
+                                .replace(/<[^>]*>/g, '')        // 移除其他HTML標籤
+                                .replace(/^\s+|\s+$/g, '')      // 只移除首尾空白
+                                .replace(/\n\s+/g, '\n')        // 移除換行後的多餘空白
+                                .replace(/\s+\n/g, '\n'),       // 移除換行前的多餘空白
                             teacher: teacherText, // 授課教師
                             credits: "", // 學分數在這個結構中不直接顯示
-                            dept_level: $(cells[2]).text().trim() // 開課系級
+                            dept_level: $(cells[2]).text().replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim() // 開課系級
                         });
                     }
                 }
@@ -3034,23 +3039,34 @@ class BackendService {
                             cos_class = courseIdMatch[2];
                         }
                         
-                        // 從課程名稱欄位提取第一行文字作為課程名稱
+                        // 從課程名稱欄位提取完整文字，保留換行格式
                         const courseNameHtml = $(cells[3]).html() || "";
-                        const courseNameMatch = courseNameHtml.match(/^([^<]+)/);
-                        const cos_name = courseNameMatch ? courseNameMatch[1].trim() : $(cells[3]).text().trim();
+                        // 將 <br> 標籤轉換為換行符號，保留完整格式
+                        const cos_name = courseNameHtml
+                            .replace(/<br\s*\/?>/gi, '\n')  // 將 <br> 轉換為換行
+                            .replace(/<[^>]*>/g, '')        // 移除其他HTML標籤
+                            .replace(/^\s+|\s+$/g, '')      // 只移除首尾空白
+                            .replace(/\n\s+/g, '\n')        // 移除換行後的多餘空白
+                            .replace(/\s+\n/g, '\n');       // 移除換行前的多餘空白
                         
                         // 從授課教師欄位提取教師姓名
-                        const teacherText = $(cells[6]).find("a").text().trim() || $(cells[6]).text().trim();
+                        const rawTeacherText = $(cells[6]).find("a").text().trim() || $(cells[6]).text().trim();
+                        const teacherText = this.processTeacherName(rawTeacherText);
                         
                         courses.push({
-                            cos_id: cos_id,
-                            cos_class: cos_class,
+                            cos_id: cos_id.trim(),
+                            cos_class: cos_class.trim(),
                             cos_name: cos_name,
                             type: $(cells[4]).text().trim(), // 選別
-                            time_room: $(cells[5]).text().trim(), // 時間,教室
+                            time_room: $(cells[5]).html()
+                                .replace(/<br\s*\/?>/gi, '\n')  // 將 <br> 轉換為換行
+                                .replace(/<[^>]*>/g, '')        // 移除其他HTML標籤
+                                .replace(/^\s+|\s+$/g, '')      // 只移除首尾空白
+                                .replace(/\n\s+/g, '\n')        // 移除換行後的多餘空白
+                                .replace(/\s+\n/g, '\n'),       // 移除換行前的多餘空白
                             teacher: teacherText, // 授課教師
                             credits: "", // 學分數在這個結構中不直接顯示
-                            dept_level: $(cells[2]).text().trim() // 開課系級
+                            dept_level: $(cells[2]).text().replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim() // 開課系級
                         });
                     }
                 }

@@ -24,7 +24,15 @@
     /* 課程列表樣式調整 */
     #courses-list-data-table th { white-space: nowrap; }
     #courses-list-data-table td { vertical-align: middle; }
-    #courses-list-data-table td.name-cell,
+    
+    /* 系所下拉選單樣式調整 */
+    #querySelectQueryDept option { white-space: pre; }
+    
+    /* 移除按鈕的 inline-flex 顯示，確保所有按鈕都使用 inline-block */
+    .btn { display: inline-block !important; }
+    #courses-list-data-table td.name-cell {
+        white-space: pre-line; word-break: keep-all; line-height: 1.3;
+    }
     #courses-list-data-table td.code-cell,
     #courses-list-data-table td.dept-cell,
     #courses-list-data-table td.type-cell,
@@ -54,17 +62,17 @@
         content: "\A";
         white-space: pre; /* 在 meta 前插入換行 */
     }
-    #courses-list-data-table td.time-room-cell { white-space: normal; word-break: keep-all; line-height: 1.3; }
-    #courses-list-data-table td.time-room-cell .time { white-space: normal; }
-    #courses-list-data-table td.time-room-cell .room { white-space: normal; color: #555; }
+    #courses-list-data-table td.time-room-cell { white-space: pre-line; word-break: keep-all; line-height: 1.3; }
+    #courses-list-data-table td.time-room-cell .time { white-space: pre-line; }
+    #courses-list-data-table td.time-room-cell .room { white-space: pre-line; color: #555; }
 
     /* 查詢區塊樣式強化 */
-    .btabs .content .row { margin-bottom: 10px; }
-    .query-actions { margin-top: 10px; text-align: right; }
+    .query-actions { text-align: right; }
     .query-actions .btn { min-width: 120px; }
     /* 適度收窄欄位寬度 */
     .form-group.narrow { max-width: 320px; }
     .form-group.medium { max-width: 480px; }
+    .query-actions { max-width: 320px; } /* 讓按鈕容器與其他欄位寬度一致 */
     @media (max-width: 576px) {
         .query-actions { text-align: center; }
         .query-actions .btn { width: 100%; }
@@ -72,9 +80,9 @@
     }
 
     /* 防止查詢區與課程列表在小視窗重疊 */
-    #section-School-timetable-Query .btabs { margin-bottom: 16px; }
-    #section-School-timetable-Query .btabs .content { position: relative; z-index: 2; padding-bottom: 8px; }
-    #section-School-timetable-Query .courses-list { position: relative; z-index: 1; margin-top: 16px; clear: both; }
+    #section-School-timetable-Query .btabs { margin-bottom: 0; }
+    #section-School-timetable-Query .btabs .content { position: relative; z-index: 2;}
+    #section-School-timetable-Query .courses-list { position: relative; z-index: 1; margin-top: 0; clear: both; }
     /* SimpleScrollbar 內容容器確保正常文流排列 */
     #section-School-timetable-Query .ss-wrapper, 
     #section-School-timetable-Query .ss-content { position: static !important; }
@@ -92,8 +100,8 @@
     .courses-table { border-collapse: collapse; }
     .content-padding { padding: 2rem; }
     @media (max-width: 992px) {
-        #section-School-timetable-Query .btabs .content { margin-bottom: 12px; }
-        #section-School-timetable-Query .courses-list { margin-top: 20px; }
+        #section-School-timetable-Query .btabs .content { margin-bottom: 0; }
+        #section-School-timetable-Query .courses-list { margin-top: 0; }
     }
     </style>
 
@@ -346,10 +354,7 @@
                                             class="form-control" :disabled="isCourseDataLoading">
                                             <option v-if="isCourseDataLoading" value="" selected disabled>載入中...</option>
                                             <option v-else value="" selected disabled>選擇學期...</option>
-                                            <option value="114,1  ">114,1</option>
-                                            <option value="114,2  ">114,2</option>
-                                            <option value="113,1  ">113,1</option>
-                                            <option value="113,2  ">113,2</option>
+                                            <option v-for="semester in semester_list_for_time" :key="semester.value" :value="semester.value">{{ semester.text }}</option>
                                         </select>
                                     </div>
                                     <div class="form-group col-md-3 col-sm-6 col-6 narrow">
@@ -374,7 +379,8 @@
                                             <option value="4">4年級</option>
                                         </select>
                                     </div>
-                                    <div class="col-md-3 col-sm-6 col-6 query-actions">
+                                    <div class="form-group col-md-3 col-sm-6 col-6 query-actions">
+                                        <label>&nbsp;</label>
                                         <button class="btn btn-primary w-100" @click="performDeptQuery" :disabled="isCourseDataLoading">送出查詢</button>
                                     </div>
                                 </div>
@@ -391,10 +397,7 @@
                                             class="form-control" :disabled="isCourseDataLoading">
                                             <option v-if="isCourseDataLoading" value="" selected disabled>載入中...</option>
                                             <option v-else value="" selected disabled>選擇學期...</option>
-                                            <option value="114,1  ">114,1</option>
-                                            <option value="114,2  ">114,2</option>
-                                            <option value="113,1  ">113,1</option>
-                                            <option value="113,2  ">113,2</option>
+                                            <option v-for="semester in semester_list_for_time" :key="semester.value" :value="semester.value">{{ semester.text }}</option>
                                         </select>
                                     </div>
                                     <div class="form-group col-md-6 col-sm-6 col-6 medium">
@@ -402,7 +405,8 @@
                                         <input v-model="queryInputQueryCourseName" type="text" class="form-control"
                                             id="queryInputQueryCourseName" placeholder="請輸入課程關鍵字" :disabled="isCourseDataLoading">
                                     </div>
-                                    <div class="col-md-3 col-sm-12 col-12 query-actions">
+                                    <div class="form-group col-md-3 col-sm-12 col-12 query-actions">
+                                        <label>&nbsp;</label>
                                         <button class="btn btn-primary w-100" @click="performNameQuery" :disabled="isCourseDataLoading">送出查詢</button>
                                     </div>
                                 </div>
@@ -418,10 +422,7 @@
                                             class="form-control" :disabled="isCourseDataLoading">
                                             <option v-if="isCourseDataLoading" value="" selected disabled>載入中...</option>
                                             <option v-else value="" selected disabled>選擇學期...</option>
-                                            <option value="114,1  ">114,1</option>
-                                            <option value="114,2  ">114,2</option>
-                                            <option value="113,1  ">113,1</option>
-                                            <option value="113,2  ">113,2</option>
+                                            <option v-for="semester in semester_list_for_time" :key="semester.value" :value="semester.value">{{ semester.text }}</option>
                                         </select>
                                     </div>
                                     <div class="form-group col-md-6 col-sm-6 col-6 medium">
@@ -429,7 +430,8 @@
                                         <input v-model="queryInputQueryTeacherName" type="text" class="form-control"
                                             id="queryInputQueryTeacherName" placeholder="請輸入教師姓名" :disabled="isCourseDataLoading">
                                     </div>
-                                    <div class="col-md-3 col-sm-12 col-12 query-actions">
+                                    <div class="form-group col-md-3 col-sm-12 col-12 query-actions">
+                                        <label>&nbsp;</label>
                                         <button class="btn btn-primary w-100" @click="performTeacherQuery" :disabled="isCourseDataLoading">送出查詢</button>
                                     </div>
                                 </div>
@@ -445,10 +447,7 @@
                                             class="form-control" :disabled="isCourseDataLoading">
                                             <option v-if="isCourseDataLoading" value="" selected disabled>載入中...</option>
                                             <option v-else value="" selected disabled>選擇學期...</option>
-                                            <option value="114,1  ">114,1</option>
-                                            <option value="114,2  ">114,2</option>
-                                            <option value="113,1  ">113,1</option>
-                                            <option value="113,2  ">113,2</option>
+                                            <option v-for="semester in semester_list_for_time" :key="semester.value" :value="semester.value">{{ semester.text }}</option>
                                         </select>
                                     </div>
                                     <div class="form-group col-md-3 col-sm-6 col-6 narrow">
@@ -487,7 +486,8 @@
                                             <option value="13">第 13 節 20:30~21:20</option>
                                         </select>
                                     </div>
-                                    <div class="col-md-3 col-sm-12 col-12 query-actions">
+                                    <div class="form-group col-md-3 col-sm-12 col-12 query-actions">
+                                        <label>&nbsp;</label>
                                         <button class="btn btn-primary w-100" @click="performTimeQuery" :disabled="isCourseDataLoading">送出查詢</button>
                                     </div>
                                 </div>
@@ -545,13 +545,13 @@
                                     <tr :key="'course-list'+course.hashid" v-for="(course, index) in queryResultForList"
                                         :data-hashid="course.hashid"
                                         class="accordion-toggle">
-                                        <td class="code-cell">{{ (course.cos_id || '').trim() }}{{ (course.cos_class || '').trim() }}</td>
+                                        <td class="code-cell">{{ course.cos_id || '' }}{{ course.cos_class || '' }}</td>
                                         <td class="dept-cell">{{course.dept_grade || course.dept_name || ''}}</td>
                                         <td class="point-it name-cell" :title="course.name" @click="showCourseDetail($event, course)">{{course.name}}</td>
                                         <td class="type-cell">{{course.type || course.cos_type_name || ''}}</td>
                                         <td class="time-room-cell">{{course.time_room || ''}}</td>
-                                        <td class="teacher-cell">
-                                            <span class="name">{{ (course.teacher_name || course.teacher || '').split('(')[0] }}</span><span class="meta" v-if="(course.teacher_name || course.teacher || '').includes('(')">{{ '(' + (course.teacher_name || course.teacher || '').split('(').slice(1).join('(') }}</span>
+                                        <td class="teacher-cell" style="white-space: pre-line;">
+                                            {{ course.teacher_name || course.teacher || '' }}
                                         </td>
                                         <td>
                                             <span v-if="isLoggedIn" @click.capture.self="addToSchedule($event, course)"

@@ -99,198 +99,89 @@ const app = Vue.createApp({
 		const std_account_infomation = ref({}); // 儲存學生資訊
 		const notify_list = ref([]);
 		const dept_list = ref([]); // 總學校系級，從 OpenData API 動態載入
+		const semester_list_for_time = ref([]); // 時間查詢用的學期清單，從 API 動態載入
 
-		// 系所代碼對應 cos_id 模式的對照表，支援學士/碩士/博士分離查詢
-		const deptCosIdMapping = {
-			// 工程學院各系所
-			"322": { prefix: "ME", level: "master" },    // 機械工程學系碩士班
-			"325": { prefix: "IE", level: "master" },    // 工業工程與管理學系碩士班
-			"352": { prefix: "ME", level: "doctoral" },  // 機械工程學系博士班
-			"353": { prefix: "CH", level: "doctoral" },  // 化學工程與材料科學學系博士班
-			"355": { prefix: "IE", level: "doctoral" },  // 工業工程與管理學系博士班
+		// 表單驗證函數
+		function validateFormFields(fields) {
+			let hasError = false;
 			
-			// 人文社會學院各系所
-			"621": { prefix: "FL", level: "master" },    // 應用外語學系碩士班
+			// 清除之前的錯誤樣式
+			document.querySelectorAll('.form-validation-error').forEach(el => {
+				el.classList.remove('form-validation-error');
+			});
+			document.querySelectorAll('.form-group-error').forEach(el => {
+				el.classList.remove('form-group-error');
+			});
 			
-			// 資訊學院各系所
-			"721": { prefix: "IM", level: "master" },    // 資訊管理學系碩士班
-			"722": { prefix: "GI", level: "master" },    // 資訊傳播學系碩士班
-			"724": { prefix: "CS", level: "master" },    // 資訊工程學系碩士班
-			"751": { prefix: "IM", level: "doctoral" },  // 資訊管理學系博士班
-			"754": { prefix: "CS", level: "doctoral" },  // 資訊工程學系博士班
-			
-			// 電機通訊學院各組別，支援學制層級區分
-			// 學士班
-			"311": { prefix: "EEA", level: "bachelor" }, // 電機系甲組
-			"312": { prefix: "EEB", level: "bachelor" }, // 電機系乙組  
-			"313": { prefix: "EEC", level: "bachelor" }, // 電機系丙組
-			
-			// 碩士班
-			"331": { prefix: "EEA", level: "master" },   // 電機碩甲組
-			"332": { prefix: "EEB", level: "master" },   // 電機碩乙組
-			"333": { prefix: "EEC", level: "master" },   // 電機碩丙組
-			
-			// 博士班
-			"359": { prefix: "EEA", level: "doctoral" }, // 電機博甲組
-			"360": { prefix: "EEB", level: "doctoral" }, // 電機博乙組
-			"361": { prefix: "EEC", level: "doctoral" }, // 電機博丙組
-			
-			// 舊制系所（106學年以前），按學制分類
-			"301": { prefix: "EE",  level: "bachelor" }, // (106學年以前)電機工程學系學士班
-			"356": { prefix: "EE",  level: "doctoral" }, // (106學年以前)電機工程學系博士班
-			
-			// 服務單位
-			"903": { prefix: "MT", level: null },        // 軍訓室
-			"904": { prefix: "PL", level: null },        // 體育室
-		};
-
-		// 根據學制定義課程編號範圍規則（基於實際資料分析）
-		const degreeRangeRules = {
-			bachelor: (cosId) => {
-				// 學士班課程編號範圍，基於實際資料分析
-				const match = cosId.match(/[A-Z]+(\d+)/);
-				if (match) {
-					const num = parseInt(match[1]);
-					// 大部分學士班課程在100-499範圍，但允許一些彈性
-					return num >= 100 && num <= 499;
-				}
-				return false;
-			},
-			master: (cosId) => {
-				// 碩士班課程編號範圍，允許一些高編號的碩士課程
-				const match = cosId.match(/[A-Z]+(\d+)/);
-				if (match) {
-					const num = parseInt(match[1]);
-					// 碩士班課程主要在500-799範圍，但部分可延伸到800+
-					return num >= 500 && num <= 899;
-				}
-				return false;
-			},
-			doctoral: (cosId) => {
-				// 博士班課程編號範圍，基於實際博士班資料
-				const match = cosId.match(/[A-Z]+(\d+)/);
-				if (match) {
-					const num = parseInt(match[1]);
-					// 實際博士班課程範圍較廣，包含特殊低編號(IP)和高編號(CM)
-					return num >= 700 || num <= 50; // CM: 724-977, IP: 3-35
-				}
-				return false;
-			}
-		};
-
-		// 學制判斷函數，僅使用數字範圍規則
-		function isCourseLevelMatch(course, targetLevel) {
-			// 如果 targetLevel 為 null，表示該系所不需要學制過濾（如軍訓室、體育室）
-			if (targetLevel === null) {
-				return true;
-			}
-			
-			const cosId = course.cos_id;
-			
-			// 使用數字範圍規則進行學制判斷
-			if (degreeRangeRules[targetLevel]) {
-				return degreeRangeRules[targetLevel](cosId);
-			}
-			
-			return true; // 如果無法判斷，則包含該課程
-		}
-
-		// 分析課程資料以確定實際的學制編號模式
-		function analyzeCoursePatterns() {
-			if (!CourseList || CourseList.length === 0) {
-				console.log("課程資料尚未載入，無法分析學制模式");
-				return;
-			}
-
-			const patterns = {};
-			
-			// 針對電機系各組別分析 cos_id 模式
-			["EEA", "EEB", "EEC"].forEach(prefix => {
-				const courses = CourseList.filter(x => x.cos_id && x.cos_id.startsWith(prefix));
-				if (courses.length > 0) {
-					patterns[prefix] = courses.map(x => ({
-						cos_id: x.cos_id,
-						name: x.name || x.cos_name,
-						dept_name: x.dept_name
-					}));
-					console.log(`${prefix} 課程範例:`, patterns[prefix].slice(0, 5));
+			// 檢查每個欄位
+			fields.forEach(field => {
+				const element = document.querySelector(field.selector);
+				if (!element) return;
+				
+				const isEmpty = field.required && (!field.value || field.value.trim() === '');
+				
+				if (isEmpty) {
+					hasError = true;
+					element.classList.add('form-validation-error');
+					
+					// 為表單群組添加錯誤提示
+					const formGroup = element.closest('.form-group');
+					if (formGroup) {
+						formGroup.classList.add('form-group-error');
+					}
+					
+					// 2秒後移除錯誤樣式
+					setTimeout(() => {
+						element.classList.remove('form-validation-error');
+						if (formGroup) {
+							formGroup.classList.remove('form-group-error');
+						}
+					}, 2000);
 				}
 			});
-
-			return patterns;
-		}
-
-		// 詳細分析特定系所的查詢結果（除錯用）
-		function debugDeptQuery(deptValue) {
-			if (!CourseList || CourseList.length === 0) {
-				console.log("課程資料尚未載入，無法進行除錯分析");
-				return;
-			}
-
-			const strategy = getDeptQueryStrategy(deptValue);
-			console.log("=== 系所查詢除錯分析 ===");
-			console.log("選擇的系所代碼:", deptValue);
-			console.log("查詢策略:", strategy);
-
-			if (strategy.usePattern && strategy.cosIdPrefix) {
-				const allPrefixCourses = CourseList.filter(x => 
-					x.cos_id && x.cos_id.startsWith(strategy.cosIdPrefix)
-				);
-				console.log(`所有 ${strategy.cosIdPrefix} 前綴課程:`, allPrefixCourses.length, "門");
-
-				// 按系所名稱分組
-				const byDept = {};
-				allPrefixCourses.forEach(course => {
-					const deptName = course.dept_name || 'Unknown';
-					if (!byDept[deptName]) byDept[deptName] = [];
-					byDept[deptName].push(course);
-				});
-
-				Object.keys(byDept).forEach(deptName => {
-					console.log(`  ${deptName}: ${byDept[deptName].length} 門課程`);
-					const numbers = byDept[deptName].map(c => {
-						const match = c.cos_id.match(/(\d+)$/);
-						return match ? parseInt(match[1]) : 0;
-					}).filter(n => n > 0).sort((a, b) => a - b);
-					console.log(`    編號範圍: ${numbers[0]} - ${numbers[numbers.length - 1]}`);
-				});
-
-				// 測試學制過濾
-				if (strategy.degreeLevel) {
-					const filtered = allPrefixCourses.filter(x => isCourseLevelMatch(x, strategy.degreeLevel));
-					console.log(`學制過濾後 (${strategy.degreeLevel}):`, filtered.length, "門課程");
-					
-					// 顯示過濾後的課程範例
-					console.log("過濾後課程範例:");
-					filtered.slice(0, 10).forEach(course => {
-						console.log(`  ${course.cos_id} - ${course.name} (${course.dept_name})`);
-					});
-				}
-			}
 			
-			return strategy;
+			return !hasError;
 		}
 
-		function getDeptQueryStrategy(deptValue) {
-			const deptName = getDeptTextByValue(deptValue);
-			const mappingInfo = deptCosIdMapping[deptValue];
+		// 過濾學期清單，只保留5年且只包含XXX1和XXX2格式
+		function filterSemesterListForTime(semesterList) {
+			if (!Array.isArray(semesterList)) return [];
 			
-			if (mappingInfo) {
-				return {
-					deptName: deptName,
-					cosIdPrefix: mappingInfo.prefix,
-					degreeLevel: mappingInfo.level,
-					usePattern: true
-				};
-			} else {
-				return {
-					deptName: deptName,
-					cosIdPrefix: null,
-					degreeLevel: null,
-					usePattern: false
-				};
-			}
+			// 取得當前學年（動態計算）
+			const currentYear = year_now;
+			const minYear = currentYear - 4; // 保留5年，包括現在
+			
+			return semesterList.filter(semester => {
+				// 檢查格式是否為 XXX1 或 XXX2
+				const value = semester.value;
+				if (!value || typeof value !== 'string') return false;
+				
+				// 提取學年數字
+				const yearMatch = value.match(/^(\d+),/);
+				if (!yearMatch) return false;
+				
+				const year = parseInt(yearMatch[1]);
+				const semesterNum = value.split(',')[1]?.trim();
+				
+				// 只保留XXX1和XXX2格式，且在5年範圍內
+				return (semesterNum === '1' || semesterNum === '2') && 
+					   year >= minYear && year <= currentYear;
+			}).sort((a, b) => {
+				// 按學年降序排列（最新的在前）
+				const yearA = parseInt(a.value.split(',')[0]);
+				const yearB = parseInt(b.value.split(',')[0]);
+				const semesterA = parseInt(a.value.split(',')[1]);
+				const semesterB = parseInt(b.value.split(',')[1]);
+				
+				if (yearA !== yearB) return yearB - yearA;
+				return semesterB - semesterA;
+			});
 		}
+
+
+
+
+
 
 
 		// School Timetable Query - New unified approach
@@ -320,8 +211,8 @@ const app = Vue.createApp({
 		const querySelectSemesterForTime = ref("")  // 學期
 		const querySelectDeptForTime = ref("")  // 系所
 		const querySelectGradeForTime = ref("")  // 年級
-		const querySelectQueryDay = ref("1")   // 欲搜尋的星期
-		const querySelectQueryPeriod = ref("01")  // 欲搜尋的課堂時間
+		const querySelectQueryDay = ref("")   // 欲搜尋的星期
+		const querySelectQueryPeriod = ref("")  // 欲搜尋的課堂時間
 
 		const queryResultForList = ref([]) // 用於儲存已查詢到的課程列表
 		const modalCourse = ref({}) // 用於儲存點擊的 Course Info 並顯示於 Modal 中
@@ -481,6 +372,20 @@ const app = Vue.createApp({
 					dept_list.value = data.dept_list;
 					console.log("系所清單載入完成（靜默模式），共", dept_list.value.length, "個系所");
 				}
+				// 更新學期清單（時間查詢用）
+				if (data.semester_list && Array.isArray(data.semester_list)) {
+					semester_list_for_time.value = filterSemesterListForTime(data.semester_list);
+					console.log("學期清單載入完成（靜默模式），共", semester_list_for_time.value.length, "個學期");
+					// 設定所有學期選擇器的預設值為最新的學期
+					if (semester_list_for_time.value.length > 0) {
+						const latestSemester = semester_list_for_time.value[0].value;
+						querySelectSemester.value = latestSemester;
+						querySelectSemesterForName.value = latestSemester;
+						querySelectSemesterForTeacher.value = latestSemester;
+						querySelectSemesterForTime.value = latestSemester;
+						console.log("已設定所有學期選擇器預設值為:", latestSemester);
+					}
+				}
 				isCourseListLoading = false;
 				isCourseDataLoading.value = false; // 清除UI載入狀態
 				console.log("課程資料載入完成（靜默模式）");
@@ -526,6 +431,20 @@ const app = Vue.createApp({
 					dept_list.value = data.dept_list;
 					console.log("系所清單載入完成，共", dept_list.value.length, "個系所");
 				}
+				// 更新學期清單（時間查詢用）
+				if (data.semester_list && Array.isArray(data.semester_list)) {
+					semester_list_for_time.value = filterSemesterListForTime(data.semester_list);
+					console.log("學期清單載入完成，共", semester_list_for_time.value.length, "個學期");
+					// 設定所有學期選擇器的預設值為最新的學期
+					if (semester_list_for_time.value.length > 0) {
+						const latestSemester = semester_list_for_time.value[0].value;
+						querySelectSemester.value = latestSemester;
+						querySelectSemesterForName.value = latestSemester;
+						querySelectSemesterForTeacher.value = latestSemester;
+						querySelectSemesterForTime.value = latestSemester;
+						console.log("已設定所有學期選擇器預設值為:", latestSemester);
+					}
+				}
 				isCourseListLoading = false;
 				isCourseDataLoading.value = false; // 清除UI載入狀態
 				console.log("全校課程資料載入完成，共", CourseList.length, "門課程");
@@ -547,6 +466,20 @@ const app = Vue.createApp({
 				if (data.dept_list && Array.isArray(data.dept_list)) {
 					dept_list.value = data.dept_list;
 					console.log("系所清單載入完成（登入流程），共", dept_list.value.length, "個系所");
+				}
+				// 更新學期清單（時間查詢用）
+				if (data.semester_list && Array.isArray(data.semester_list)) {
+					semester_list_for_time.value = filterSemesterListForTime(data.semester_list);
+					console.log("學期清單載入完成（登入流程），共", semester_list_for_time.value.length, "個學期");
+					// 設定所有學期選擇器的預設值為最新的學期
+					if (semester_list_for_time.value.length > 0) {
+						const latestSemester = semester_list_for_time.value[0].value;
+						querySelectSemester.value = latestSemester;
+						querySelectSemesterForName.value = latestSemester;
+						querySelectSemesterForTeacher.value = latestSemester;
+						querySelectSemesterForTime.value = latestSemester;
+						console.log("已設定所有學期選擇器預設值為:", latestSemester);
+					}
 				}
 				console.log("全校課程資料載入完成（登入流程），共", window.allCourseList.length, "門課程");
 				return Promise.resolve();
@@ -617,34 +550,6 @@ const app = Vue.createApp({
 			}
 		}
 
-		function getCourseList() {
-
-			loading_text.value = "下載課程資料中~";
-			isLoading.value = true;
-
-			apibackend.getCourseListFromYZUApi(`${querySelectQueryYear.value}`, `${querySelectQuerySmt.value}`).then((data) => {
-				CourseList = data.course_list;
-				// 更新系所清單
-				if (data.dept_list && Array.isArray(data.dept_list)) {
-					dept_list.value = data.dept_list;
-					console.log("系所清單載入完成，共", dept_list.value.length, "個系所");
-				}
-
-				loading_text.value = "下載完成";
-				isLoading.value = false;
-			}).catch((error) => {
-				// 確保下載失敗時清除載入狀態
-				console.error("課程資料下載失敗:", error);
-				isLoading.value = false;
-				loading_text.value = "課程資料下載失敗";
-				
-				// 2秒後清除錯誤訊息
-				setTimeout(() => {
-					loading_text.value = "";
-				}, 2000);
-			})
-
-		}
 
 		// 異步版本的 getCourseSchedule，用於登入流程中取得個人課表
 		function getCourseListAsync() {
@@ -702,8 +607,14 @@ const app = Vue.createApp({
 
 		// 新的查詢功能 - 使用 portalfun.yzu.edu.tw 方法
 		async function performDeptQuery() {
-			if (!querySelectSemester.value || !querySelectQueryDept.value || !querySelectGrade.value) {
-				console.log("系所查詢參數不完整");
+			// 驗證表單欄位
+			const isValid = validateFormFields([
+				{ selector: '#querySelectSemester', value: querySelectSemester.value, required: true },
+				{ selector: '#querySelectQueryDept', value: querySelectQueryDept.value, required: true },
+				{ selector: '#querySelectGrade', value: querySelectGrade.value, required: true }
+			]);
+			
+			if (!isValid) {
 				return;
 			}
 
@@ -743,6 +654,8 @@ const app = Vue.createApp({
 						type: course.type,
 						time_room: course.time_room,
 						teacher_name: course.teacher,
+						dept_grade: course.dept_level || course.dept_grade || course.dept_name || querySelectQueryDept.value?.trim(),
+						dept_name: course.dept_level || course.dept_name || querySelectQueryDept.value?.trim(),
 						credits: course.credits,
 						year: querySelectSemester.value.split(',')[0].trim(),
 						smtr: querySelectSemester.value.split(',')[1].trim()
@@ -762,8 +675,12 @@ const app = Vue.createApp({
 		}
 
 		async function performNameQuery() {
-			if (!queryInputQueryCourseName.value.trim()) {
-				console.log("課程名稱查詢參數不完整");
+			// 驗證表單欄位
+			const isValid = validateFormFields([
+				{ selector: '#queryInputQueryCourseName', value: queryInputQueryCourseName.value, required: true }
+			]);
+			
+			if (!isValid) {
 				return;
 			}
 			isCourseDataLoading.value = true;
@@ -788,6 +705,8 @@ const app = Vue.createApp({
 						type: course.type,
 						time_room: course.time_room,
 						teacher_name: course.teacher,
+						dept_grade: course.dept_level || course.dept_grade || course.dept_name || '',
+						dept_name: course.dept_level || course.dept_name || '',
 						credits: course.credits,
 						year: ddlYM.split(',')[0].trim(),
 						smtr: ddlYM.split(',')[1].trim()
@@ -806,8 +725,13 @@ const app = Vue.createApp({
 		}
 
 		async function performTeacherQuery() {
-			if (!querySelectSemesterForTeacher.value || !queryInputQueryTeacherName.value.trim()) {
-				console.log("教師姓名查詢參數不完整");
+			// 驗證表單欄位
+			const isValid = validateFormFields([
+				{ selector: '#querySelectSemesterForTeacher', value: querySelectSemesterForTeacher.value, required: true },
+				{ selector: '#queryInputQueryTeacherName', value: queryInputQueryTeacherName.value, required: true }
+			]);
+			
+			if (!isValid) {
 				return;
 			}
 
@@ -833,6 +757,8 @@ const app = Vue.createApp({
 						type: course.type,
 						time_room: course.time_room,
 						teacher_name: course.teacher,
+						dept_grade: course.dept_level || course.dept_grade || course.dept_name || '',
+						dept_name: course.dept_level || course.dept_name || '',
 						credits: course.credits,
 						year: querySelectSemesterForTeacher.value.split(',')[0].trim(),
 						smtr: querySelectSemesterForTeacher.value.split(',')[1].trim()
@@ -852,8 +778,14 @@ const app = Vue.createApp({
 		}
 
 		async function performTimeQuery() {
-			if (!querySelectSemesterForTime.value || !querySelectQueryDay.value || !querySelectQueryPeriod.value) {
-				console.log("時間查詢參數不完整");
+			// 驗證表單欄位
+			const isValid = validateFormFields([
+				{ selector: '#querySelectSemesterForTime', value: querySelectSemesterForTime.value, required: true },
+				{ selector: '#querySelectQueryDay', value: querySelectQueryDay.value, required: true },
+				{ selector: '#querySelectQueryPeriod', value: querySelectQueryPeriod.value, required: true }
+			]);
+			
+			if (!isValid) {
 				return;
 			}
 			isCourseDataLoading.value = true;
@@ -875,6 +807,8 @@ const app = Vue.createApp({
 						type: course.type,
 						time_room: course.time_room,
 						teacher_name: course.teacher,
+						dept_grade: course.dept_level || course.dept_grade || course.dept_name || '',
+						dept_name: course.dept_level || course.dept_name || '',
 						credits: course.credits,
 						year: querySelectSemesterForTime.value.split(',')[0].trim(),
 						smtr: querySelectSemesterForTime.value.split(',')[1].trim()
@@ -915,8 +849,18 @@ const app = Vue.createApp({
 			querySelectSemesterForTime.value = "";
 			querySelectDeptForTime.value = "";
 			querySelectGradeForTime.value = "";
-			querySelectQueryDay.value = "1";
-			querySelectQueryPeriod.value = "01";
+			querySelectQueryDay.value = "";
+			querySelectQueryPeriod.value = "";
+			
+			// 重新設定所有學期選擇器的預設值為最新的學期
+			if (semester_list_for_time.value.length > 0) {
+				const latestSemester = semester_list_for_time.value[0].value;
+				querySelectSemester.value = latestSemester;
+				querySelectSemesterForName.value = latestSemester;
+				querySelectSemesterForTeacher.value = latestSemester;
+				querySelectSemesterForTime.value = latestSemester;
+				console.log("切換查詢類型，已重新設定所有學期選擇器預設值為:", latestSemester);
+			}
 		});
 
 		watch(StealCourseInterval, (newInterval, prevInterval) => {
@@ -1067,6 +1011,7 @@ const app = Vue.createApp({
 			// UI controlling
 			isLoading, loading_text, isCourseDataLoading,
 			dept_list,
+			semester_list_for_time,
 			showSection,
 			// School Timetable Query - New variables
 			addToSchedule, showCourseInfo, showCourseDetail,
@@ -1087,8 +1032,6 @@ const app = Vue.createApp({
 			tasks, status,
 			// Settings
 			StealCourseInterval, StealCourseStage,
-			// Debug functions (kept for compatibility)
-			analyzeCoursePatterns, getDeptQueryStrategy, isCourseLevelMatch, debugDeptQuery,
 			// Course loading functions
 			isPersonalScheduleData, getCourseListForQuery, getCourseListForQueryAsync,
 		}
