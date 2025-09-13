@@ -23,6 +23,31 @@ window.apibackend = apibackend;
 var sqlite3 = require('sqlite3').verbose();
 const database = new sqlite3.Database('db.sqlite');
 
+// 初始化資料庫表格
+database.serialize(() => {
+    database.run(`CREATE TABLE IF NOT EXISTS tasks (
+        "id" INTEGER PRIMARY KEY AUTOINCREMENT, 
+        "year" TEXT,
+        "smtr" TEXT,
+        "stage" TEXT,
+        "cos_id" TEXT,
+        "cos_class" TEXT,
+        "cos_type_name" TEXT,
+        "credit" INTEGER,
+        "room" TEXT,
+        "name" TEXT,
+        "teacher_name" TEXT,
+        "dept_name" TEXT,
+        "status" INTEGER
+    )`, (err) => {
+        if (err) {
+            console.error('建立 tasks 表格失敗:', err.message);
+        } else {
+            console.log('✅ Tasks 資料庫表格已準備就緒');
+        }
+    });
+});
+
 // 確保 Enumerable 可用
 if (typeof Enumerable === 'undefined') {
     // 如果 Enumerable 未定義，建立簡單替代方案
@@ -913,46 +938,57 @@ const app = Vue.createApp({
 			event.preventDefault()
 			event.stopPropagation()
 			
-			// 提示使用新的 Python 自動選課系統
-			const useNewSystem = confirm(
-				`🐍 發現您要加入選課清單！\n\n` +
-				`建議使用全新的 Python yzuCourseBot 自動選課系統，\n` +
-				`具備 AI 驗證碼識別和更穩定的選課功能。\n\n` +
-				`點擊「確定」前往自動選課頁面，\n` +
-				`或「取消」繼續使用舊系統。`
-			);
+			// 直接添加課程到選課任務列表資料庫
+			const courseData = {
+				year: querySelectQueryYear.value,
+				smtr: querySelectQuerySmt.value,
+				stage: "1",
+				cos_id: course.cos_id || '',
+				cos_class: course.cos_class || 'A',
+				cos_type_name: course.cos_type_name || '',
+				credit: course.credit || 0,
+				room: course.room || '',
+				name: course.name || '',
+				teacher_name: course.teacher_name || '',
+				dept_name: course.dept_name || '',
+				status: 0 // 0 = 尚未選到
+			};
 			
-			if (useNewSystem) {
-				// 切換到新的自動選課頁面
-				showSection('Auto-Selection');
-				
-				// 嘗試自動填入課程資訊到新系統
-				setTimeout(() => {
-					if (typeof courseSelectionController !== 'undefined') {
-						// 提取課程資訊
-						const courseData = {
-							deptId: course.dept_name?.match(/\d+/)?.[0] || '',
-							courseId: course.cos_id || '',
-							classId: course.cos_class || 'A'
-						};
-						
-						// 自動新增課程到新系統
-						try {
-							courseSelectionController.addCourseItem(courseData);
-							alert(`✅ 已將課程 ${courseData.courseId}${courseData.classId} 加入到新的自動選課系統`);
-						} catch (error) {
-							console.warn('自動填入課程資訊失敗:', error);
-						}
+			// 檢查是否已存在相同課程
+			database.get(
+				`SELECT * FROM tasks WHERE cos_id = ? AND cos_class = ? AND year = ? AND smtr = ?`, 
+				[courseData.cos_id, courseData.cos_class, courseData.year, courseData.smtr],
+				(err, row) => {
+					if (err) {
+						console.error('檢查課程失敗:', err.message);
+						alert('❌ 加入選課清單失敗: ' + err.message);
+						return;
 					}
-				}, 500);
-			} else {
-				// 使用舊系統 (保持向後相容性)
-				var course_obj = JSON.parse(JSON.stringify(course))
-				console.log('使用舊系統加入課程:', course_obj);
-				
-				// 注意：舊的 worker 系統已被移除，這裡只是保留介面
-				alert('⚠️ 舊版選課系統已停用，建議使用新的 Python yzuCourseBot 系統');
-			}
+					
+					if (row) {
+						alert(`⚠️ 課程 ${courseData.cos_id}${courseData.cos_class} 已存在於選課清單中`);
+						return;
+					}
+					
+					// 插入新的選課任務
+					database.run(
+						`INSERT INTO tasks(year, smtr, stage, cos_id, cos_class, cos_type_name, credit, room, name, teacher_name, dept_name, status)
+						 VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+						[courseData.year, courseData.smtr, courseData.stage, courseData.cos_id, courseData.cos_class, 
+						 courseData.cos_type_name, courseData.credit, courseData.room, courseData.name, 
+						 courseData.teacher_name, courseData.dept_name, courseData.status],
+						function (err) {
+							if (err) {
+								console.error('新增課程失敗:', err.message);
+								alert('❌ 加入選課清單失敗: ' + err.message);
+							} else {
+								console.log(`✅ 課程 ${courseData.cos_id}${courseData.cos_class} 已加入選課清單`);
+								alert(`✅ 課程 ${courseData.cos_id}${courseData.cos_class} - ${courseData.name} 已加入選課清單！\n\n請前往「選課任務列表」查看，或使用「自動選課」功能。`);
+							}
+						}
+					);
+				}
+			);
 		}
 
 		function normalizeText(str) {

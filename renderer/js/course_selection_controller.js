@@ -13,7 +13,6 @@
 class CourseSelectionController {
     constructor() {
         this.pythonBot = new PythonCourseBot();
-        this.courseList = [];
         this.isInitialized = false;
         this.initializeUI();
     }
@@ -46,15 +45,15 @@ class CourseSelectionController {
             saveAccountBtn.addEventListener('click', () => this.saveAccount());
         }
 
-        // 課程清單管理
-        const addCourseBtn = document.getElementById('addCourseBtn');
-        if (addCourseBtn) {
-            addCourseBtn.addEventListener('click', () => this.addCourseItem());
+        // 任務列表管理
+        const refreshTaskListBtn = document.getElementById('refreshTaskListBtn');
+        if (refreshTaskListBtn) {
+            refreshTaskListBtn.addEventListener('click', () => this.refreshTaskList());
         }
-
-        const saveCourseListBtn = document.getElementById('saveCourseListBtn');
-        if (saveCourseListBtn) {
-            saveCourseListBtn.addEventListener('click', () => this.saveCourseList());
+        
+        const clearCompletedBtn = document.getElementById('clearCompletedBtn');
+        if (clearCompletedBtn) {
+            clearCompletedBtn.addEventListener('click', () => this.clearCompletedTasks());
         }
 
         // 機器人控制
@@ -117,6 +116,9 @@ class CourseSelectionController {
                 this.isInitialized = true;
                 this.appendOutput('system', '✅ Python yzuCourseBot 環境檢查完成，可以開始使用');
                 
+                // 自動載入任務列表
+                this.refreshTaskList();
+                
             } else {
                 this.updateStatus('pythonStatus', 'error', result.message);
                 this.appendOutput('system', `❌ 環境檢查失敗: ${result.message}`);
@@ -167,109 +169,100 @@ class CourseSelectionController {
     }
 
     /**
-     * 新增課程項目
+     * 重新載入任務列表
      */
-    addCourseItem(courseData = null) {
-        const container = document.getElementById('courseListContainer');
-        const template = document.querySelector('.course-item-template');
+    async refreshTaskList() {
+        console.log("🔄 重新載入任務列表...");
         
-        if (!container || !template) return;
-
-        const courseItem = template.cloneNode(true);
-        courseItem.style.display = 'block';
-        courseItem.classList.remove('course-item-template');
-        
-        const index = this.courseList.length;
-        courseItem.querySelector('.course-item').dataset.courseIndex = index;
-
-        // 填入預設值
-        if (courseData) {
-            courseItem.querySelector('.dept-id').value = courseData.deptId || '';
-            courseItem.querySelector('.course-id').value = courseData.courseId || '';
-            courseItem.querySelector('.class-id').value = courseData.classId || '';
-        }
-
-        // 綁定事件
-        const inputs = courseItem.querySelectorAll('input[type="text"]');
-        inputs.forEach(input => {
-            input.addEventListener('input', () => this.updateCoursePreview(courseItem));
-        });
-
-        const removeBtn = courseItem.querySelector('.remove-course');
-        removeBtn.addEventListener('click', () => this.removeCourseItem(courseItem));
-
-        container.appendChild(courseItem);
-        
-        // 加入到課程列表
-        this.courseList.push(courseData || { deptId: '', courseId: '', classId: '' });
-        this.updateCoursePreview(courseItem);
-        this.updateCourseCount();
-
-        // 聚焦到第一個輸入框
-        const firstInput = courseItem.querySelector('.dept-id');
-        if (firstInput) firstInput.focus();
-    }
-
-    /**
-     * 移除課程項目
-     */
-    removeCourseItem(courseItem) {
-        const index = parseInt(courseItem.querySelector('.course-item').dataset.courseIndex);
-        this.courseList.splice(index, 1);
-        courseItem.remove();
-        this.updateCourseCount();
-    }
-
-    /**
-     * 更新課程預覽
-     */
-    updateCoursePreview(courseItem) {
-        const deptId = courseItem.querySelector('.dept-id').value.trim();
-        const courseId = courseItem.querySelector('.course-id').value.trim();
-        const classId = courseItem.querySelector('.class-id').value.trim().toUpperCase();
-        
-        const preview = courseItem.querySelector('.preview-text');
-        if (deptId && courseId && classId) {
-            preview.textContent = `格式: "${deptId},${courseId}${classId}"`;
-            preview.style.color = '#28a745';
-        } else {
-            preview.textContent = '請填入完整的課程資訊';
-            preview.style.color = '#6c757d';
-        }
-
-        // 更新課程列表資料
-        const index = parseInt(courseItem.querySelector('.course-item').dataset.courseIndex);
-        if (this.courseList[index]) {
-            this.courseList[index] = { deptId, courseId, classId };
+        try {
+            const result = await this.pythonBot.loadCoursesFromDatabase();
+            
+            if (result.success) {
+                this.displayTaskList(result.courses);
+                this.appendOutput('system', `✅ 已載入 ${result.courses.length} 門待選課程`);
+            } else {
+                this.displayTaskList([]);
+                this.appendOutput('system', `ℹ️ ${result.message}`);
+            }
+            
+        } catch (error) {
+            console.error("載入任務列表失敗:", error);
+            this.appendOutput('system', `❌ 載入任務列表失敗: ${error.message}`);
         }
     }
 
     /**
-     * 儲存課程清單
+     * 顯示任務列表
      */
-    async saveCourseList() {
-        // 過濾出完整的課程
-        const validCourses = this.courseList.filter(course => 
-            course.deptId && course.courseId && course.classId
-        );
+    displayTaskList(tasks) {
+        const tbody = document.getElementById('taskListBody');
+        const taskCount = document.getElementById('taskCount');
+        
+        if (!tbody || !taskCount) return;
 
-        if (validCourses.length === 0) {
-            alert('請至少新增一門有效的課程');
+        // 清空現有內容
+        tbody.innerHTML = '';
+        
+        if (tasks.length === 0) {
+            tbody.innerHTML = `
+                <tr class="no-tasks">
+                    <td colspan="5" class="text-center">
+                        <div class="empty-state">
+                            <span class="empty-icon">📝</span>
+                            <p>尚無待選課程</p>
+                            <small>請前往「課程查詢」頁面，點擊「加入選課清單」按鈕加入課程</small>
+                        </div>
+                    </td>
+                </tr>
+            `;
+            taskCount.textContent = '待選課程: 0 門';
             return;
         }
 
-        try {
-            const result = await this.pythonBot.setupCoursesList(validCourses);
-            
-            if (result.success) {
-                this.appendOutput('system', `✅ 已儲存 ${result.coursesCount} 門課程到選課清單`);
-            } else {
-                this.appendOutput('system', `❌ 儲存課程清單失敗: ${result.message}`);
-            }
+        // 顯示任務列表
+        tasks.forEach(task => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td class="course-code">${task.courseId}${task.classId}</td>
+                <td class="course-name" title="${task.name}">${task.name}</td>
+                <td class="teacher-name">-</td>
+                <td class="credit">-</td>
+                <td class="status">
+                    <span class="status-badge status-pending">待選</span>
+                </td>
+            `;
+            tbody.appendChild(row);
+        });
 
+        taskCount.textContent = `待選課程: ${tasks.length} 門`;
+    }
+
+    /**
+     * 清除已完成的任務
+     */
+    async clearCompletedTasks() {
+        const confirmed = confirm('確定要清除所有已完成的選課任務嗎？');
+        if (!confirmed) return;
+
+        try {
+            const sqlite3 = require('sqlite3').verbose();
+            const database = new sqlite3.Database('db.sqlite');
+            
+            database.run('DELETE FROM tasks WHERE status != 0', (err) => {
+                database.close();
+                
+                if (err) {
+                    console.error("清除已完成任務失敗:", err);
+                    this.appendOutput('system', `❌ 清除失敗: ${err.message}`);
+                } else {
+                    this.appendOutput('system', '✅ 已清除所有已完成的任務');
+                    this.refreshTaskList(); // 重新載入列表
+                }
+            });
+            
         } catch (error) {
-            console.error("儲存課程清單失敗:", error);
-            this.appendOutput('system', `❌ 儲存課程清單異常: ${error.message}`);
+            console.error("清除已完成任務失敗:", error);
+            this.appendOutput('system', `❌ 清除失敗: ${error.message}`);
         }
     }
 
@@ -286,11 +279,6 @@ class CourseSelectionController {
         const status = this.pythonBot.getStatus();
         if (!status.hasAccounts) {
             alert('請先設定 Portal 帳號密碼');
-            return;
-        }
-
-        if (this.courseList.length === 0) {
-            alert('請先新增要選的課程');
             return;
         }
 
@@ -457,19 +445,6 @@ class CourseSelectionController {
                     <span class="message">輸出已清空</span>
                 </div>
             `;
-        }
-    }
-
-    /**
-     * 更新課程數量顯示
-     */
-    updateCourseCount() {
-        const countElement = document.getElementById('courseCount');
-        if (countElement) {
-            const validCount = this.courseList.filter(course => 
-                course.deptId && course.courseId && course.classId
-            ).length;
-            countElement.textContent = `課程數量: ${validCount}`;
         }
     }
 

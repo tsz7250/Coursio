@@ -205,6 +205,130 @@ Password=${password}`;
     }
 
     /**
+     * 從資料庫讀取選課任務列表並轉換為 Python bot 格式
+     * @returns {Promise<Object>} { success: boolean, courses: Array, message?: string }
+     */
+    async loadCoursesFromDatabase() {
+        console.log("📖 從資料庫載入選課清單...");
+        
+        return new Promise((resolve) => {
+            const sqlite3 = require('sqlite3').verbose();
+            const database = new sqlite3.Database('db.sqlite');
+            
+            // 查詢所有尚未選到的課程 (status = 0)
+            database.all(
+                `SELECT * FROM tasks WHERE status = 0 ORDER BY id`,
+                [],
+                (err, rows) => {
+                    database.close();
+                    
+                    if (err) {
+                        console.error("❌ 讀取選課清單失敗:", err.message);
+                        resolve({ success: false, message: err.message });
+                        return;
+                    }
+                    
+                    if (!rows || rows.length === 0) {
+                        console.warn("⚠️ 沒有待選課程");
+                        resolve({ success: false, message: "沒有找到待選課程，請先在課程查詢頁面加入課程到選課清單" });
+                        return;
+                    }
+                    
+                    // 轉換為 Python bot 格式：extractDeptId,courseIdclassId
+                    const courses = rows.map(row => {
+                        // 嘗試從 dept_name 或其他地方提取系所代碼
+                        let deptId = '';
+                        
+                        // 方法1: 從 dept_name 提取數字 (例如: "304 資訊工程學系" -> "304")
+                        const deptMatch = row.dept_name?.match(/^(\d+)/);
+                        if (deptMatch) {
+                            deptId = deptMatch[1];
+                        } else {
+                            // 方法2: 使用系所對照表從 cos_id 推斷
+                            const cosIdPrefix = row.cos_id?.substring(0, 3);
+                            const deptMapping = {
+                                'CS': '304', 'IM': '305', 'GI': '306', 'IE': '211', 'ME': '212',
+                                'CH': '213', 'FL': '401', 'EEA': '311', 'EEB': '312', 'EEC': '313',
+                                'MT': '901', 'PL': '902'
+                            };
+                            deptId = deptMapping[cosIdPrefix] || '000';
+                        }
+                        
+                        return {
+                            id: row.id,
+                            deptId: deptId,
+                            courseId: row.cos_id,
+                            classId: row.cos_class,
+                            name: row.name,
+                            formatted: `${deptId},${row.cos_id}${row.cos_class}`
+                        };
+                    });
+                    
+                    console.log(`✅ 載入 ${courses.length} 門待選課程:`, courses);
+                    resolve({ success: true, courses: courses });
+                }
+            );
+        });
+    }
+
+    /**
+     * 設定選課清單 (從資料庫自動載入)
+     */
+    async setupCoursesListFromDatabase() {
+        console.log("📝 從資料庫設定選課清單...");
+        
+        try {
+            // 從資料庫載入課程
+            const result = await this.loadCoursesFromDatabase();
+            if (!result.success) {
+                return result;
+            }
+            
+            const courses = result.courses;
+            
+            // 讀取 Python 檔案內容
+            let pythonContent = fs.readFileSync(this.botScriptPath, 'utf8');
+            
+            // 轉換為 Python 格式的字串陣列
+            const formattedCourses = courses.map(course => `'${course.formatted}'`);
+            
+            // 更新 coursesList 變數
+            const coursesListPattern = /coursesList\s*=\s*\[[^\]]*\]/;
+            const newCoursesList = `coursesList = [
+        ${formattedCourses.join(',\n        ')}
+    ]`;
+            
+            if (coursesListPattern.test(pythonContent)) {
+                pythonContent = pythonContent.replace(coursesListPattern, newCoursesList);
+            } else {
+                // 如果找不到現有的 coursesList，在 if __name__ == '__main__': 之前插入
+                const insertPoint = pythonContent.indexOf("if __name__ == '__main__':");
+                if (insertPoint !== -1) {
+                    pythonContent = pythonContent.slice(0, insertPoint) + 
+                                  `# 從資料庫載入的選課清單\n${newCoursesList}\n\n` + 
+                                  pythonContent.slice(insertPoint);
+                }
+            }
+            
+            // 寫回檔案
+            fs.writeFileSync(this.botScriptPath, pythonContent, 'utf8');
+            
+            console.log(`✅ 已設定 ${courses.length} 門課程到 Python bot`);
+            console.log('課程清單:', courses.map(c => `${c.courseId}${c.classId} - ${c.name}`));
+            
+            return { 
+                success: true, 
+                coursesCount: courses.length,
+                courses: courses
+            };
+            
+        } catch (error) {
+            console.error("❌ 設定選課清單失敗:", error.message);
+            return { success: false, message: error.message };
+        }
+    }
+
+    /**
      * 設定選課清單
      * @param {Array} coursesList - 課程清單，格式: [{ deptId, courseId, classId }, ...]
      */
@@ -264,6 +388,22 @@ Password=${password}`;
         const { delay = 2.5, maxAttempts = 100 } = options;
         
         try {
+            // 先從資料庫載入選課清單
+            console.log("📖 從資料庫載入選課清單...");
+            const coursesResult = await this.setupCoursesListFromDatabase();
+            if (!coursesResult.success) {
+                return { success: false, message: coursesResult.message };
+            }
+            
+            if (coursesResult.coursesCount === 0) {
+                return { 
+                    success: false, 
+                    message: "沒有待選課程，請先在「課程查詢」頁面加入課程到選課清單" 
+                };
+            }
+            
+            console.log(`✅ 已載入 ${coursesResult.coursesCount} 門課程`);
+            
             // 更新延遲時間設定
             await this.updateDelaySettings(delay);
             

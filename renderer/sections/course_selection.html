@@ -45,47 +45,47 @@
         <button id="saveAccountBtn" class="btn btn-primary">💾 儲存帳號設定</button>
     </div>
 
-    <!-- 選課清單設定 -->
-    <div class="course-list-setup" id="courseListSetup">
-        <h4>📝 選課清單設定</h4>
+    <!-- 選課清單顯示 (從資料庫讀取) -->
+    <div class="course-list-display" id="courseListDisplay">
+        <h4>📋 選課任務列表</h4>
+        <p class="section-description">
+            顯示從「課程查詢」頁面加入的選課任務，Python 機器人將會自動選取這些課程
+        </p>
+        
         <div class="course-list-container">
-            <div class="course-item-template" style="display: none;">
-                <div class="course-item" data-course-index="">
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>系所代碼:</label>
-                            <input type="text" class="dept-id" placeholder="ex: 304" maxlength="3">
-                        </div>
-                        <div class="form-group">
-                            <label>課程代碼:</label>
-                            <input type="text" class="course-id" placeholder="ex: CS352" maxlength="8">
-                        </div>
-                        <div class="form-group">
-                            <label>班級:</label>
-                            <input type="text" class="class-id" placeholder="ex: A" maxlength="2">
-                        </div>
-                        <div class="form-group">
-                            <button class="btn btn-danger btn-small remove-course">❌</button>
-                        </div>
-                    </div>
-                    <div class="course-preview">
-                        <small class="preview-text"></small>
-                    </div>
-                </div>
-            </div>
-            
-            <div id="courseListContainer">
-                <!-- 動態插入課程項目 -->
+            <div id="taskListPreview" class="task-list-preview">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>課程代號</th>
+                            <th>課程名稱</th>
+                            <th>授課教師</th>
+                            <th>學分</th>
+                            <th>狀態</th>
+                        </tr>
+                    </thead>
+                    <tbody id="taskListBody">
+                        <tr class="no-tasks">
+                            <td colspan="5" class="text-center">
+                                <div class="empty-state">
+                                    <span class="empty-icon">📝</span>
+                                    <p>尚無待選課程</p>
+                                    <small>請前往「課程查詢」頁面，點擊「加入選課清單」按鈕加入課程</small>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
             
             <div class="course-list-actions">
-                <button id="addCourseBtn" class="btn btn-outline">➕ 新增課程</button>
-                <button id="saveCourseListBtn" class="btn btn-primary">💾 儲存課程清單</button>
+                <button id="refreshTaskListBtn" class="btn btn-outline">🔄 重新載入</button>
+                <button id="clearCompletedBtn" class="btn btn-outline">🗑️ 清除已完成</button>
             </div>
         </div>
         
         <div class="course-list-stats">
-            <span id="courseCount">課程數量: 0</span>
+            <span id="taskCount">待選課程: 0 門</span>
         </div>
     </div>
 
