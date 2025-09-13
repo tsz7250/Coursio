@@ -271,12 +271,37 @@ const app = Vue.createApp({
 						
 						console.log("登入流程完成，準備載入課程資料...");
 						
-						// 依序載入個人課表、全校課程資料和通知，確保載入狀態正確管理
-						return Promise.all([
-							getCourseListAsync(),           // 載入個人課表
-							getCourseListForQueryAsync(),   // 載入全校課程資料用於查詢
-							getNotifyListAsync()            // 載入通知
-						]).then(() => {
+						// 觸發密碼儲存提示
+						setTimeout(() => {
+							triggerPasswordSave();
+						}, 500);
+						
+						// 簡化載入流程，避免卡住
+						loading_text.value = "載入完成中...";
+						
+						// 添加超時機制防止卡住
+						const loadTimeout = setTimeout(() => {
+							console.warn("載入超時，強制完成登入流程");
+							completeLogin();
+						}, 15000); // 15秒超時
+						
+						// 嘗試載入資料，但不等待完成
+						Promise.allSettled([
+							getCourseListAsync(),
+							getCourseListForQuery({ showLoading: false, returnPromise: true, storeInWindow: true }),
+							getNotifyListAsync()
+						]).then((results) => {
+							clearTimeout(loadTimeout);
+							console.log("所有載入任務完成:", results);
+							completeLogin();
+						}).catch((error) => {
+							clearTimeout(loadTimeout);
+							console.error("載入過程中發生錯誤:", error);
+							completeLogin();
+						});
+						
+						// 定義完成登入的函數
+						function completeLogin() {
 							// 所有資料載入完成後，等待2秒再切換到主畫面
 							setTimeout(() => {
 								isLoading.value = false;
@@ -291,9 +316,8 @@ const app = Vue.createApp({
 
 								// 顯示首頁
 								showSectionById("Main")
-
-							}, 2000)
-						});
+							}, 1000); // 縮短等待時間
+						}
 					}).catch((error) => {
 						// 確保登入失敗時清除載入狀態
 						console.error("登入失敗:", error);
@@ -349,7 +373,7 @@ const app = Vue.createApp({
 			// 訪客模式也需要預先載入全校課程資料用於查詢
 			if (!window.allCourseList || window.allCourseList.length === 0) {
 				console.log("訪客模式：開始預載入全校課程資料...");
-				getCourseListForQueryAsync();
+				getCourseListForQuery({ showLoading: false, returnPromise: true, storeInWindow: true });
 			}
 		}
 
@@ -412,29 +436,50 @@ const app = Vue.createApp({
 			return false;
 		}
 
-		// 為課程查詢載入全校課程資料（同步版本，用於頁面切換時）
-		function getCourseListForQuery() {
-			// 如果正在載入，則不重複載入
-			if (isCourseListLoading) {
+		// 為課程查詢載入全校課程資料（統一版本）
+		function getCourseListForQuery(options = {}) {
+			const {
+				showLoading = true,        // 是否顯示載入狀態
+				returnPromise = false,     // 是否返回 Promise
+				storeInWindow = false      // 是否存到 window.allCourseList
+			} = options;
+			
+			// 載入狀態檢查（僅在顯示載入時）
+			if (showLoading && isCourseListLoading) {
 				console.log("課程資料正在載入中，請稍候...");
-				return;
+				return returnPromise ? Promise.resolve() : undefined;
 			}
 			
-			isCourseListLoading = true;
-			isCourseDataLoading.value = true; // 設置UI載入狀態
-			console.log("開始載入全校課程資料用於查詢...");
+			if (showLoading) {
+				isCourseListLoading = true;
+				isCourseDataLoading.value = true;
+			}
 			
-			apibackend.getCourseListFromYZUApi(`${querySelectQueryYear.value}`, `${querySelectQuerySmt.value}`).then((data) => {
-				CourseList = data.course_list;
+			// 確保年份和學期有預設值
+			const year = querySelectQueryYear.value || new Date().getFullYear() - 1911;
+			const semester = querySelectQuerySmt.value || "1";
+			
+			const logPrefix = storeInWindow ? "（登入流程）" : "";
+			console.log(`開始載入全校課程資料用於查詢${logPrefix}...`);
+			
+			const promise = apibackend.getCourseListFromYZUApi(`${year}`, `${semester}`).then((data) => {
+				// 根據選項決定存儲位置
+				if (storeInWindow) {
+					window.allCourseList = data.course_list;
+				} else {
+					CourseList = data.course_list;
+				}
+				
 				// 更新系所清單
 				if (data.dept_list && Array.isArray(data.dept_list)) {
 					dept_list.value = data.dept_list;
-					console.log("系所清單載入完成，共", dept_list.value.length, "個系所");
+					console.log(`系所清單載入完成${logPrefix}，共`, dept_list.value.length, "個系所");
 				}
+				
 				// 更新學期清單（時間查詢用）
 				if (data.semester_list && Array.isArray(data.semester_list)) {
 					semester_list_for_time.value = filterSemesterListForTime(data.semester_list);
-					console.log("學期清單載入完成，共", semester_list_for_time.value.length, "個學期");
+					console.log(`學期清單載入完成${logPrefix}，共`, semester_list_for_time.value.length, "個學期");
 					// 設定所有學期選擇器的預設值為最新的學期
 					if (semester_list_for_time.value.length > 0) {
 						const latestSemester = semester_list_for_time.value[0].value;
@@ -445,57 +490,75 @@ const app = Vue.createApp({
 						console.log("已設定所有學期選擇器預設值為:", latestSemester);
 					}
 				}
-				isCourseListLoading = false;
-				isCourseDataLoading.value = false; // 清除UI載入狀態
-				console.log("全校課程資料載入完成，共", CourseList.length, "門課程");
-			}).catch((error) => {
-				isCourseListLoading = false;
-				isCourseDataLoading.value = false; // 清除UI載入狀態
-				console.error("全校課程資料載入失敗:", error);
-			})
-		}
-
-		// 為課程查詢載入全校課程資料（異步版本，用於登入流程中）
-		function getCourseListForQueryAsync() {
-			console.log("開始載入全校課程資料用於查詢（登入流程）...");
-			
-			return apibackend.getCourseListFromYZUApi(`${querySelectQueryYear.value}`, `${querySelectQuerySmt.value}`).then((data) => {
-				// 將全校課程資料存儲到全域變數中，供課程查詢使用
-				window.allCourseList = data.course_list;
-				// 更新系所清單
-				if (data.dept_list && Array.isArray(data.dept_list)) {
-					dept_list.value = data.dept_list;
-					console.log("系所清單載入完成（登入流程），共", dept_list.value.length, "個系所");
+				
+				if (showLoading) {
+					isCourseListLoading = false;
+					isCourseDataLoading.value = false;
 				}
-				// 更新學期清單（時間查詢用）
-				if (data.semester_list && Array.isArray(data.semester_list)) {
-					semester_list_for_time.value = filterSemesterListForTime(data.semester_list);
-					console.log("學期清單載入完成（登入流程），共", semester_list_for_time.value.length, "個學期");
-					// 設定所有學期選擇器的預設值為最新的學期
-					if (semester_list_for_time.value.length > 0) {
-						const latestSemester = semester_list_for_time.value[0].value;
-						querySelectSemester.value = latestSemester;
-						querySelectSemesterForName.value = latestSemester;
-						querySelectSemesterForTeacher.value = latestSemester;
-						querySelectSemesterForTime.value = latestSemester;
-						console.log("已設定所有學期選擇器預設值為:", latestSemester);
-					}
-				}
-				console.log("全校課程資料載入完成（登入流程），共", window.allCourseList.length, "門課程");
+				
+				const courseList = storeInWindow ? window.allCourseList : CourseList;
+				console.log(`全校課程資料載入完成${logPrefix}，共`, courseList.length, "門課程");
 				return Promise.resolve();
 			}).catch((error) => {
-				console.error("全校課程資料載入失敗（登入流程）:", error);
-				window.allCourseList = []; // 設置為空陣列，避免後續錯誤
-				return Promise.resolve(); // 不中斷登入流程
+				if (showLoading) {
+					isCourseListLoading = false;
+					isCourseDataLoading.value = false;
+				}
+				
+				if (storeInWindow) {
+					console.error(`全校課程資料載入失敗${logPrefix}:`, error);
+					window.allCourseList = []; // 設置為空陣列，避免後續錯誤
+					return Promise.resolve(); // 不中斷登入流程
+				} else {
+					console.error(`全校課程資料載入失敗${logPrefix}:`, error);
+					throw error;
+				}
 			});
+			
+			return returnPromise ? promise : undefined;
+		}
+
+		// 觸發密碼儲存提示
+		function triggerPasswordSave() {
+			try {
+				const usernameInput = document.getElementById('student_id');
+				const passwordInput = document.getElementById('student_pwd');
+				
+				if (usernameInput && passwordInput) {
+					// 方法1: 觸發自定義事件
+					const loginSuccessEvent = new CustomEvent('login-success', {
+						detail: { 
+							username: usernameInput.value, 
+							password: passwordInput.value 
+						}
+					});
+					document.dispatchEvent(loginSuccessEvent);
+					
+					// 方法2: 直接觸發表單提交事件
+					setTimeout(() => {
+						const form = document.querySelector('form');
+						if (form) {
+							// 創建一個新的提交事件
+							const submitEvent = new Event('submit', { 
+								bubbles: true, 
+								cancelable: true 
+							});
+							form.dispatchEvent(submitEvent);
+						}
+					}, 100);
+					
+					console.log("已觸發密碼儲存提示");
+				}
+			} catch (error) {
+				console.error("觸發密碼儲存失敗:", error);
+			}
 		}
 
 		// 返回登入頁面
 		function returnToLogin() {
-			// 重置狀態
+			// 重置狀態（保留輸入框內容以支援 Autofill）
 			isLoggedIn.value = false;
-			sid.value = "";
-			spwd.value = "";
+			// 不清空 sid.value 和 spwd.value，讓 Autofill 可以保存
 			login_infomation.value = {};
 			std_account_infomation.value = {};
 			
@@ -555,7 +618,11 @@ const app = Vue.createApp({
 		function getCourseListAsync() {
 			loading_text.value = "載入個人課表中~";
 			
-			return apibackend.getCourseSchedule(`${querySelectQueryYear.value}`, `${querySelectQuerySmt.value}`).then((service) => {
+			// 確保年份和學期有預設值
+			const year = querySelectQueryYear.value || new Date().getFullYear() - 1911;
+			const semester = querySelectQuerySmt.value || "1";
+			
+			return apibackend.getCourseSchedule(`${year}`, `${semester}`).then((service) => {
 				// 使用個人課表資料
 				if (service.course_schedule_data && service.course_schedule_data.course_list) {
 					CourseList = service.course_schedule_data.course_list;
@@ -1033,7 +1100,7 @@ const app = Vue.createApp({
 			// Settings
 			StealCourseInterval, StealCourseStage,
 			// Course loading functions
-			isPersonalScheduleData, getCourseListForQuery, getCourseListForQueryAsync,
+			isPersonalScheduleData, getCourseListForQuery,
 		}
 	}
 });

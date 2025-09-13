@@ -166,9 +166,9 @@
                         <h2>登入</h2>
                         <div class="login-block-inner-input-group">
                             <input v-model="sid" class="login-block-input-element" placeholder="學號" type="text"
-                                id="student_id" pattern="s[0-9]{7}" required>
+                                id="student_id" pattern="s[0-9]{7}" required @keydown.enter="login">
                             <input v-model="spwd" class="login-block-input-element" placeholder="密碼" type="password"
-                                id="student_pwd" required>
+                                id="student_pwd" required @keydown.enter="login">
                             <button @click="login" class="login-block-input-element" id="login-btn">開始搶課！</button>
                             <button @click="browseAsGuest" class="login-block-input-element guest-btn" id="guest-btn">訪客瀏覽課程</button>
                         </div>
