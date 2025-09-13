@@ -2280,61 +2280,164 @@ class BackendService {
                 console.warn(`找不到系所名稱 "${ddl_dept}" 對應的 option value，使用原值`);
             }
         }
-        const cheerio = require("cheerio");
 
-        const BASE = "https://portalfun.yzu.edu.tw/cosSelect/index.aspx?D=G";
+        const cheerio = require("cheerio");
+        const BASE = "https://portalfun.yzu.edu.tw/cosSelect/Index.aspx?D=G";
+
         const defaultHeaders = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:142.0) Gecko/20100101 Firefox/142.0",
             Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            Origin: "https://portalfun.yzu.edu.tw",
-            Referer: BASE,
+            "Accept-Language": "zh-TW,zh;q=0.9,en;q=0.8",
         };
 
-        // 取得隱藏欄位
-        async function fetchHiddenFields(ctx) {
-            const r = await ctx._httpGet(BASE, defaultHeaders);
-            const $ = cheerio.load(r.body);
-            const viewstate = $("#__VIEWSTATE").val() ?? "";
-            const viewstategen = $("#__VIEWSTATEGENERATOR").val() ?? "";
-            const eventvalid = $("#__EVENTVALIDATION").val() ?? "";
-
-            if (!viewstate || !eventvalid) {
-                throw new Error("無法取得必要的隱藏欄位：__VIEWSTATE 或 __EVENTVALIDATION");
+        // 生成隨機 CheckCode
+        function generateCheckCode() {
+            const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+            let result = "";
+            for (let i = 0; i < 4; i++) {
+                result += chars.charAt(Math.floor(Math.random() * chars.length));
             }
-
-            return { viewstate, viewstategen, eventvalid };
+            return result;
         }
 
-        // 建立表單
-        function buildForm({ viewstate, viewstategen, eventvalid }) {
-            const form = new URLSearchParams();
-            form.set("__EVENTTARGET", "");
-            form.set("__EVENTARGUMENT", "");
-            form.set("__LASTFOCUS", "");
-            form.set("__VIEWSTATE", viewstate);
-            form.set("__VIEWSTATEGENERATOR", viewstategen);
-            form.set("__EVENTVALIDATION", eventvalid);
+        // 解析隱藏欄位
+        function parseHiddenFields(html) {
+            const $ = cheerio.load(html);
+            
+            const pick = (name) => {
+                const element = $(`input[name="${name}"]`);
+                return element.val() || "";
+            };
 
-            // 查詢條件
-            form.set("Q", "RadioButton1");
-            form.set("DDL_YM", ddl_ym);
-            form.set("DDL_Dept", dept_value); // 使用映射後的 dept_value
-            form.set("DDL_Degree", ddl_degree);
-            form.set("Button1", "確定");
+            return {
+                __EVENTTARGET: "",
+                __EVENTARGUMENT: "",
+                __LASTFOCUS: "",
+                __VIEWSTATE: pick("__VIEWSTATE"),
+                __VIEWSTATEGENERATOR: pick("__VIEWSTATEGENERATOR"),
+                __EVENTVALIDATION: pick("__EVENTVALIDATION"),
+            };
+        }
+
+        // 檢查是否為重導向迴圈
+        function assertNotRedirectLoop(response) {
+            if (response.status >= 300 && response.status < 400) {
+                const location = response.headers.location || "";
+                if (location.includes("cosSelect/Index.aspx?D=G") || location.includes("cosSelect/index.aspx?D=G")) {
+                    throw new Error("伺服器重導回查詢首頁，通常是缺少 CheckCode 或隱藏欄位不正確造成。");
+                }
+            }
+        }
+
+        // 建立表單資料
+        function buildForm(hiddenFields, additionalFields = {}) {
+            const form = new URLSearchParams();
+            
+            // 隱藏欄位
+            for (const [key, value] of Object.entries(hiddenFields)) {
+                form.set(key, value);
+            }
+            
+            // 額外欄位
+            for (const [key, value] of Object.entries(additionalFields)) {
+                form.set(key, value);
+            }
             
             return form;
         }
 
+        // 尋找提交按鈕
+        function findSubmitButton(html) {
+            const $ = cheerio.load(html);
+            let btnName = null;
+            let btnValue = null;
+            let btnIsImage = false;
+
+            // 尋找「確定/送出/查詢」按鈕
+            $("input[type=submit], input[type=image], button").each((_, element) => {
+                const $el = $(element);
+                const text = ($el.attr("value") || $el.text() || "").trim();
+                
+                if (text.includes("確定") || text.includes("送出") || text.includes("查詢")) {
+                    btnName = $el.attr("name");
+                    btnValue = $el.attr("value") || text;
+                    btnIsImage = $el.attr("type") === "image";
+                    return false; // 找到就停止
+                }
+            });
+
+            return { btnName, btnValue, btnIsImage };
+        }
+
         try {
+            // 確保有 CheckCode cookie (使用現有的 cookie 存儲機制)
+            if (!this._cookieStore) this._cookieStore = {};
+            if (!this._cookieStore["CheckCode"]) {
+                this._cookieStore["CheckCode"] = generateCheckCode();
+            }
+
             // 1) 先 GET 取得 cookies + 隱藏欄位
-            const hidden = await fetchHiddenFields(this);
+            const r1 = await this._httpGet(BASE, defaultHeaders);
+            let hidden = parseHiddenFields(r1.body);
 
-            // 2) POST 查詢
-            const form = buildForm(hidden);
-            const r2 = await this._httpPostForm(BASE, form, defaultHeaders);
-            const html = r2.body;
+            // 防呆：檢查必要的隱藏欄位
+            const requiredFields = ["__VIEWSTATE", "__VIEWSTATEGENERATOR", "__EVENTVALIDATION"];
+            const missingFields = requiredFields.filter(field => !hidden[field]);
+            if (missingFields.length > 0) {
+                throw new Error(`抓不到隱藏欄位: ${missingFields.join(", ")}`);
+            }
 
-            // 3) 解析表格資料 (正確處理2行結構)
+            // 2) 第一段 POST：切換系所
+            const step1Form = buildForm(hidden, {
+                __EVENTTARGET: "DDL_Dept",
+                __EVENTARGUMENT: "",
+                __LASTFOCUS: "",
+                DDL_Dept: dept_value,
+            });
+
+            const r2 = await this._httpPostForm(BASE, step1Form, {
+                ...defaultHeaders,
+                Origin: "https://portalfun.yzu.edu.tw",
+                Referer: BASE,
+            });
+
+            // 更新隱藏欄位（切換系所後會更新）
+            hidden = parseHiddenFields(r2.body);
+
+            // 3) 第二段 POST：送出查詢（按下「確定」）
+            const { btnName, btnValue, btnIsImage } = findSubmitButton(r2.body);
+            
+            const step2Form = buildForm(hidden, {
+                __EVENTTARGET: "",
+                __EVENTARGUMENT: "",
+                __LASTFOCUS: "",
+                Q: "RadioButton1",
+                DDL_YM: ddl_ym,
+                DDL_Dept: dept_value,
+                DDL_Degree: ddl_degree,
+            });
+
+            // 加入按鈕資訊
+            if (btnName) {
+                if (btnIsImage) {
+                    step2Form.set(btnName + ".x", "8");
+                    step2Form.set(btnName + ".y", "8");
+                } else {
+                    step2Form.set(btnName, btnValue || "確定");
+                }
+            } else {
+                step2Form.set("Button1", "確定");
+            }
+
+            const r3 = await this._httpPostForm(BASE, step2Form, {
+                ...defaultHeaders,
+                Origin: "https://portalfun.yzu.edu.tw",
+                Referer: BASE,
+            });
+
+            const html = r3.body;
+
+            // 4) 擷取 #Table1 並解析課程資料
             const $ = cheerio.load(html);
             const table1 = $("#Table1");
 
