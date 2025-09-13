@@ -852,17 +852,16 @@ const app = Vue.createApp({
 		}
 
 		async function performTimeQuery() {
-			if (!querySelectQueryDay.value || !querySelectQueryPeriod.value) {
+			if (!querySelectSemesterForTime.value || !querySelectQueryDay.value || !querySelectQueryPeriod.value) {
 				console.log("時間查詢參數不完整");
 				return;
 			}
 			isCourseDataLoading.value = true;
 			try {
 				const ctl216 = querySelectQueryDay.value + querySelectQueryPeriod.value;
-				const ddlYM = `${querySelectQueryYear.value || year_now},${querySelectQuerySmt.value || smtr_now}  `;
-				console.log("開始時間查詢:", { semester: ddlYM, ctl216 });
+				console.log("開始時間查詢:", { semester: querySelectSemesterForTime.value, ctl216 });
 				const result = await apibackend.queryCourseByTime(
-					ddlYM,
+					querySelectSemesterForTime.value,
 					"",
 					"0",
 					ctl216
@@ -877,8 +876,8 @@ const app = Vue.createApp({
 						time_room: course.time_room,
 						teacher_name: course.teacher,
 						credits: course.credits,
-						year: ddlYM.split(',')[0].trim(),
-						smtr: ddlYM.split(',')[1].trim()
+						year: querySelectSemesterForTime.value.split(',')[0].trim(),
+						smtr: querySelectSemesterForTime.value.split(',')[1].trim()
 					}));
 					console.log(`時間查詢完成，找到 ${queryResultForList.value.length} 門課程`);
 				} else {
