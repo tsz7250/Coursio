@@ -2507,17 +2507,6 @@ class BackendService {
      * @param {string} cos_name - 課程名稱關鍵字
      */
     async queryCourseByName(ddl_ym, ddl_dept, ddl_degree, cos_name) {
-        // 將系所名稱轉換為對應的 option value
-        let dept_value = ddl_dept;
-        if (this.dept_options && Array.isArray(this.dept_options)) {
-            const deptOption = this.dept_options.find(opt => opt.dept_name === ddl_dept || opt.text === ddl_dept);
-            if (deptOption) {
-                dept_value = deptOption.value;
-                console.log(`系所名稱 "${ddl_dept}" 對應的 option value: "${dept_value}"`);
-            } else {
-                console.warn(`找不到系所名稱 "${ddl_dept}" 對應的 option value，使用原值`);
-            }
-        }
         const cheerio = require("cheerio");
 
         const BASE = "https://portalfun.yzu.edu.tw/cosSelect/Index.aspx?D=G";
@@ -2541,7 +2530,6 @@ class BackendService {
 
         // 確保有 CheckCode cookie
         function ensureCheckCodeCookie(ctx) {
-            // 若尚無 Cookie，補一個隨機 CheckCode 以符合後端需求
             if (!ctx._cookieStore || !ctx._cookieStore["CheckCode"]) {
                 const checkCode = generateCheckCode();
                 ctx._cookieStore["CheckCode"] = checkCode;
@@ -2565,6 +2553,16 @@ class BackendService {
                 __VIEWSTATEGENERATOR: pick("__VIEWSTATEGENERATOR"),
                 __EVENTVALIDATION: pick("__EVENTVALIDATION"),
             };
+        }
+
+        // 檢查是否為重導向迴圈
+        function assertNotRedirectLoop(response) {
+            if (response.status >= 300 && response.status < 400) {
+                const location = response.headers.location || "";
+                if (location.includes("cosSelect/Index.aspx?D=G") || location.includes("cosSelect/index.aspx?D=G")) {
+                    throw new Error("伺服器重導回查詢首頁，通常是缺少 CheckCode 或隱藏欄位不正確造成。");
+                }
+            }
         }
 
         // 建立表單資料
@@ -2592,15 +2590,21 @@ class BackendService {
             const step1Form = buildForm(hidden, {
                 Q: "RadioButton2",
                 DDL_YM: ddl_ym,
-                DDL_Dept: dept_value, // 使用映射後的 dept_value
-                DDL_Degree: ddl_degree,
+                DDL_Dept: "300", // 使用固定值，課程名稱查詢不需要特定系所
+                DDL_Degree: ddl_degree || "1",
             });
 
             const r2 = await this._httpPostForm(BASE, step1Form, defaultHeaders);
+            
+            // 檢查重導向
             let response = r2;
+            if (r2.status >= 300 && r2.status < 400 && r2.headers.location) {
+                response = await this._httpGet(r2.headers.location, defaultHeaders);
+            }
+
             hidden = parseHiddenFields(response.body);
 
-            // 3) 第二段 POST：送出查詢
+            // 3) 第二段 POST：送出查詢（按下「確定」）
             const step2Form = buildForm(hidden, {
                 Q: "RadioButton2",
                 DDL_YM2: ddl_ym,
@@ -2609,7 +2613,14 @@ class BackendService {
             });
 
             const r3 = await this._httpPostForm(BASE, step2Form, defaultHeaders);
-            const html = r3.body;
+            
+            // 檢查重導向
+            let finalResponse = r3;
+            if (r3.status >= 300 && r3.status < 400 && r3.headers.location) {
+                finalResponse = await this._httpGet(r3.headers.location, defaultHeaders);
+            }
+
+            const html = finalResponse.body;
 
             // 4) 解析表格資料 (正確處理2行結構)
             const $ = cheerio.load(html);
@@ -2838,17 +2849,6 @@ class BackendService {
      * @param {string} ctl216 - 時間代碼，格式如 "111" (星期一第1節)
      */
     async queryCourseByTime(ddl_ym, ddl_dept, ddl_degree, ctl216) {
-        // 將系所名稱轉換為對應的 option value
-        let dept_value = ddl_dept;
-        if (this.dept_options && Array.isArray(this.dept_options)) {
-            const deptOption = this.dept_options.find(opt => opt.dept_name === ddl_dept || opt.text === ddl_dept);
-            if (deptOption) {
-                dept_value = deptOption.value;
-                console.log(`系所名稱 "${ddl_dept}" 對應的 option value: "${dept_value}"`);
-            } else {
-                console.warn(`找不到系所名稱 "${ddl_dept}" 對應的 option value，使用原值`);
-            }
-        }
         const cheerio = require("cheerio");
 
         const BASE = "https://portalfun.yzu.edu.tw";
@@ -2856,12 +2856,12 @@ class BackendService {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:142.0) Gecko/20100101 Firefox/142.0",
             Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             "Accept-Language": "zh-TW,zh-HK;q=0.8,zh;q=0.6,en-US;q=0.4,en;q=0.2",
+            "Accept-Encoding": "gzip, deflate, br, zstd",
             "Upgrade-Insecure-Requests": "1",
             DNT: "1",
             "Sec-GPC": "1",
             Connection: "keep-alive",
             Origin: BASE,
-            Referer: `${BASE}/cosSelect/index.aspx?D=G`,
         };
 
         function generateCheckCode() {
@@ -2911,6 +2911,15 @@ class BackendService {
             return { data, action };
         }
 
+        function assertNotRedirectLoop(response) {
+            if (response.status >= 300 && response.status < 400) {
+                const location = response.headers.location || "";
+                if (location.includes("cosSelect/Index.aspx?D=G") || location.includes("cosSelect/index.aspx?D=G")) {
+                    throw new Error("伺服器重導回查詢首頁，通常是缺少 CheckCode 或隱藏欄位不正確造成。");
+                }
+            }
+        }
+
         function buildForm(hiddenFields, additionalFields = {}) {
             const form = new URLSearchParams();
             
@@ -2936,10 +2945,11 @@ class BackendService {
         }
 
         try {
-            // Step 1: GET 首頁
+            // Step 1: GET 首頁（D=G）
             const step1Url = `${BASE}/cosSelect/index.aspx?D=G`;
             const r1 = await this._httpGet(step1Url, defaultHeaders);
             ensureCheckCodeCookie(this);
+            
             const { data: hidden1, action: action1 } = parseHiddenFields(r1.body);
             const urlStep2 = buildFullUrl(step1Url, action1);
             
@@ -2956,15 +2966,26 @@ class BackendService {
                 __LASTFOCUS: "",
                 Q: "RadioButton4",
                 DDL_YM: ddl_ym,
-                DDL_Dept: dept_value, // 使用映射後的 dept_value
-                DDL_Degree: ddl_degree,
+                DDL_Dept: "300", // 使用固定值，時間查詢不需要特定系所
+                DDL_Degree: ddl_degree || "1",
             });
 
-            const r2 = await this._httpPostForm(urlStep2, step2Form, defaultHeaders);
-            const { data: hidden2, action: action2 } = parseHiddenFields(r2.body);
-            const urlStep3 = buildFullUrl(urlStep2, action2);
+            const r2 = await this._httpPostForm(urlStep2, step2Form, {
+                ...defaultHeaders,
+                Referer: step1Url
+            });
 
-            // Step 3: POST 送出實查
+            assertNotRedirectLoop(r2);
+
+            let response2 = r2;
+            if (r2.status >= 300 && r2.status < 400 && r2.headers.location) {
+                response2 = await this._httpGet(r2.headers.location, defaultHeaders);
+            }
+
+            const { data: hidden2, action: action2 } = parseHiddenFields(response2.body);
+            const urlStep3 = buildFullUrl(response2.config?.url || step1Url, action2);
+
+            // Step 3: POST 送出實查（Q=111）
             const step3Form = buildForm(hidden2, {
                 __EVENTTARGET: "",
                 __EVENTARGUMENT: "",
@@ -2975,8 +2996,20 @@ class BackendService {
             });
 
             const finalUrl = urlStep3.includes("Q=") ? urlStep3 : `${BASE}/cosSelect/index.aspx?Q=111`;
-            const r3 = await this._httpPostForm(finalUrl, step3Form, defaultHeaders);
-            const html = r3.body;
+
+            const r3 = await this._httpPostForm(finalUrl, step3Form, {
+                ...defaultHeaders,
+                Referer: `${BASE}/cosSelect/index.aspx?D=G`
+            });
+
+            assertNotRedirectLoop(r3);
+
+            let finalResponse = r3;
+            if (r3.status >= 300 && r3.status < 400 && r3.headers.location) {
+                finalResponse = await this._httpGet(r3.headers.location, defaultHeaders);
+            }
+
+            const html = finalResponse.body;
 
             const $ = cheerio.load(html);
             const table1 = $("#Table1");
