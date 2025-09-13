@@ -1,5 +1,10 @@
-const { ipcRenderer } = require('electron');
-const { PythonCourseBot } = require('./python_course_bot');
+// 使用 IIFE 避免全域變數衝突
+(function() {
+    'use strict';
+    
+    const { ipcRenderer } = require('electron');
+    // 使用全域的 PythonCourseBot 類別
+    const PythonCourseBot = window.PythonCourseBot;
 
 /**
  * 自動選課介面控制器
@@ -485,12 +490,19 @@ class CourseSelectionController {
     }
 }
 
-// 全域實例
-let courseSelectionController = null;
+    // 全域實例
+    let courseSelectionController = null;
 
-// 初始化控制器
-document.addEventListener('DOMContentLoaded', () => {
-    courseSelectionController = new CourseSelectionController();
-});
+    // 初始化控制器
+    document.addEventListener('DOMContentLoaded', () => {
+        courseSelectionController = new CourseSelectionController();
+    });
 
-module.exports = { CourseSelectionController };
+    // 將類別暴露到全域作用域
+    window.CourseSelectionController = CourseSelectionController;
+    
+    // 同時支援 CommonJS 模組系統
+    if (typeof module !== 'undefined' && module.exports) {
+        module.exports = { CourseSelectionController };
+    }
+})();

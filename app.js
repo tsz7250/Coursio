@@ -105,13 +105,13 @@ app.on('activate', () => {
 // IPC - Python Bot 輸出
 ipcMain.on("pythonBotOutput", (event, data)=>{
     // 轉發 Python 機器人輸出到主視窗
-    mainWindow.webContents.send("pythonBotOutput", data);
+    MainWindow.webContents.send("pythonBotOutput", data);
 })
 
 // IPC - Python Bot 狀態
 ipcMain.on("pythonBotStatus", (event, data)=>{
     // 轉發 Python 機器人狀態到主視窗
-    mainWindow.webContents.send("pythonBotStatus", data);
+    MainWindow.webContents.send("pythonBotStatus", data);
 })
 // IPC 開啟外部課程詳細頁面
 ipcMain.on("openCourseDetail", (event, data)=>{
