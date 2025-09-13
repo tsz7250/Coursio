@@ -898,23 +898,61 @@ const app = Vue.createApp({
 		watch(StealCourseInterval, (newInterval, prevInterval) => {
 			settings["interval"] = parseInt(newInterval)
 			saveSettingFile()
-			ipcRenderer.send("regetSettings", {})
+			// 舊的 worker 系統已被 Python yzuCourseBot 替代
+			console.log('選課間隔設定已更新:', newInterval, '(舊系統已停用)')
 		})
 
 		watch(StealCourseStage, (newStage, prevStage) => {
 			settings["stage"] = newStage
 			saveSettingFile()
-			ipcRenderer.send("regetSettings", {})
+			// 舊的 worker 系統已被 Python yzuCourseBot 替代
+			console.log('選課階段設定已更新:', newStage, '(舊系統已停用)')
 		})
 
 		function addToSchedule(event, course) {
 			event.preventDefault()
 			event.stopPropagation()
-			// 通知 worker 加入搶課列表
-			var course_obj = JSON.parse(JSON.stringify(course))
-			console.log(course_obj);
-			ipcRenderer.send("addTaskCourse", course_obj)
-
+			
+			// 提示使用新的 Python 自動選課系統
+			const useNewSystem = confirm(
+				`🐍 發現您要加入選課清單！\n\n` +
+				`建議使用全新的 Python yzuCourseBot 自動選課系統，\n` +
+				`具備 AI 驗證碼識別和更穩定的選課功能。\n\n` +
+				`點擊「確定」前往自動選課頁面，\n` +
+				`或「取消」繼續使用舊系統。`
+			);
+			
+			if (useNewSystem) {
+				// 切換到新的自動選課頁面
+				showSection('Auto-Selection');
+				
+				// 嘗試自動填入課程資訊到新系統
+				setTimeout(() => {
+					if (typeof courseSelectionController !== 'undefined') {
+						// 提取課程資訊
+						const courseData = {
+							deptId: course.dept_name?.match(/\d+/)?.[0] || '',
+							courseId: course.cos_id || '',
+							classId: course.cos_class || 'A'
+						};
+						
+						// 自動新增課程到新系統
+						try {
+							courseSelectionController.addCourseItem(courseData);
+							alert(`✅ 已將課程 ${courseData.courseId}${courseData.classId} 加入到新的自動選課系統`);
+						} catch (error) {
+							console.warn('自動填入課程資訊失敗:', error);
+						}
+					}
+				}, 500);
+			} else {
+				// 使用舊系統 (保持向後相容性)
+				var course_obj = JSON.parse(JSON.stringify(course))
+				console.log('使用舊系統加入課程:', course_obj);
+				
+				// 注意：舊的 worker 系統已被移除，這裡只是保留介面
+				alert('⚠️ 舊版選課系統已停用，建議使用新的 Python yzuCourseBot 系統');
+			}
 		}
 
 		function normalizeText(str) {

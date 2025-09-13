@@ -181,6 +181,10 @@
                         <img src="../assets/ion-search-outline.svg" alt="">
                         <span>課程查詢</span>
                     </div>
+                    <div @click="showSection('Auto-Selection')" id="Auto-Selection-sidebar-item" class="sidebar-item point-it" v-show="isLoggedIn">
+                        <img src="../assets/ion-send-sharp.svg" alt="">
+                        <span>自動選課</span>
+                    </div>
                     <div @click="showSection('Task-List')" id="Task-List-sidebar-item" class="sidebar-item point-it" v-show="isLoggedIn">
                         <img src="../assets/ion-list-outline.svg" alt="">
                         <span>選課任務列表</span>
@@ -531,6 +535,14 @@
                     </div>
                 </div> <!-- End of query section ( 查詢課程 ) -->
 
+                <!-- 自動選課 -->
+                <div ss-container id="section-Auto-Selection" class="inner-section">
+                    <!-- 載入自動選課介面 -->
+                    <div id="auto-selection-container">
+                        <!-- 內容將由 course_selection_controller.js 動態載入 -->
+                    </div>
+                </div> <!-- End of Auto-Selection section ( 自動選課 ) -->
+
                 <!-- 任務列表 -->
                 <div ss-container id="section-Task-List" class="inner-section">
                     <h4>選課任務列表</h4>
@@ -676,6 +688,38 @@
     <script src="./js/app_vue.js"></script>
     <script src="./js/landing.js"></script>
     <script src="./js/content.js"></script>
+    
+    <!-- Python Course Bot Integration -->
+    <script src="./js/python_course_bot.js"></script>
+    <script src="./js/course_selection_controller.js"></script>
+    
+    <script>
+        // 載入自動選課介面
+        document.addEventListener('DOMContentLoaded', function() {
+            const autoSelectionContainer = document.getElementById('auto-selection-container');
+            if (autoSelectionContainer) {
+                // 載入 HTML 內容
+                fetch('./sections/course_selection.html')
+                    .then(response => response.text())
+                    .then(html => {
+                        autoSelectionContainer.innerHTML = html;
+                        // HTML 載入後初始化控制器
+                        if (typeof CourseSelectionController !== 'undefined') {
+                            new CourseSelectionController();
+                        }
+                    })
+                    .catch(error => {
+                        console.error('載入自動選課介面失敗:', error);
+                        autoSelectionContainer.innerHTML = `
+                            <div class="alert alert-danger">
+                                <h4>❌ 載入失敗</h4>
+                                <p>無法載入自動選課介面。錯誤: ${error.message}</p>
+                            </div>
+                        `;
+                    });
+            }
+        });
+    </script>
 </body>
 
 </html>

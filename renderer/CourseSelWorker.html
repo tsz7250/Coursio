@@ -1,133 +1,45 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Get Course Window</title>
+    <title>Deprecated - Use Python yzuCourseBot Instead</title>
 </head>
-
 <body>
+    <div style="text-align: center; padding: 50px; font-family: Arial, sans-serif;">
+        <h1>🐍 已升級至 Python yzuCourseBot</h1>
+        <p>舊版 JavaScript 選課系統已被替換為更強大的 Python yzuCourseBot</p>
+        <p>請使用主介面的「自動選課」功能</p>
+        
+        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px auto; max-width: 600px;">
+            <h3>✨ 新功能亮點</h3>
+            <ul style="text-align: left;">
+                <li>🤖 AI 驗證碼自動識別</li>
+                <li>🔄 自動重試機制</li>
+                <li>📊 即時選課狀態回饋</li>
+                <li>⚙️ 靈活的參數設定</li>
+                <li>🛡️ 更穩定的選課邏輯</li>
+            </ul>
+        </div>
+        
+        <p style="color: #666;">
+            此頁面已不再使用，請關閉視窗並使用主介面的自動選課功能
+        </p>
+    </div>
+    
     <script>
-        const { ipcRenderer } = require("electron");
-        const { default: Axios } = require("axios")
-        var sqlite3 = require('sqlite3').verbose();
-        const path = require("path");
-        const { BackendService } = require("./js/yzu_backend");
-        var apibackend = new BackendService()
-
-        var TODAYYEAR = new Date().getFullYear() - 1911;
-        var TODAYSMT = new Date().getMonth() >= 7 ? 1 : 2;
-
-        var tasks = [];
-
-        var settingFilePath = "settings.json"
-
-        const fs = require('fs');
-        let settings = JSON.parse(fs.readFileSync(settingFilePath))
-        const database = new sqlite3.Database('db.sqlite');
-
-        var getCoursesIntervalController = null
-
-
-        function insertTaskList(course) {
-            database.run(`INSERT INTO 
-            tasks(year, smtr, stage, cos_id, cos_class, cos_type_name, credit, room, name, teacher_name, dept_name, status)
-            VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                [course["year"], course["smtr"], "1", course["cos_id"], course["cos_class"], course["cos_type_name"], course["credit"], course["room"], course["name"], course["teacher_name"], course["dept_name"], 0],
-                function (err) {
-                    if (err) {
-                        return console.log(err.message);
-                    }
-                    tasks.push(course)
-                });
+        // 通知主程序此視窗已不再使用
+        if (typeof require !== 'undefined') {
+            const { ipcRenderer } = require('electron');
+            ipcRenderer.send('deprecatedWorkerAccessed');
         }
-
-        function setStatus(id, status) {
-            database.run(`UPDATE tasks SET status=?  where id = ?`, [status, id], function (err) {
-                if (err) {
-                    return console.log(err.message);
-                }
-            });
-        }
-
-        function regetSettings(){
-            settings = JSON.parse(fs.readFileSync(settingFilePath))
-        }
-
-        // // 被通知又有一個 Schedule 加入
-        ipcRenderer.on("addTaskCourse", (event, data) => {
-            console.log(data);
-            insertTaskList(data)
-        })
-        ipcRenderer.on("regetSettings", (event, data) => {
-            regetSettings()
-            clearInterval(getCoursesIntervalController);
-            getCoursesIntervalController = setInterval(getCourses, settings.interval * 1000)
-        })
-
-
-        window.onload = function () {
-
-            database.run(
-                `CREATE TABLE IF NOT EXISTS  tasks (
-                    "id" INTEGER PRIMARY KEY AUTOINCREMENT, 
-                    "year" TEXT,
-                    "smtr" TEXT,
-                    "stage" TEXT,
-                    "cos_id" TEXT,
-                    "cos_class" TEXT,
-                    "cos_type_name" TEXT,
-                    "credit" INTEGER,
-                    "room" TEXT,
-                    "name" TEXT,
-                    "teacher_name" TEXT,
-                    "dept_name" TEXT,
-                    "status" INTEGER
-                    );`, [], function () {
-                getCoursesIntervalController = setInterval(getCourses, settings.interval * 1000)
-            });
-        }
-
-        function getCourses() {
-
-            if(settings.token === undefined){
-                regetSettings()
-                return
+        
+        // 3秒後自動關閉視窗
+        setTimeout(() => {
+            if (window.close) {
+                window.close();
             }
-
-
-            database.all(`SELECT * FROM tasks where status = 0`, [], (err, rows) => {
-                if (err) {
-                    throw err;
-                }
-                rows.forEach((element) => {
-                    console.log(element);
-
-                    if(element.status!=2 || element.status!=3){
-                        apibackend.selCourseInline(element).then((res) => {
-                            console.log(res);
-                            if (res["data"] === "選課系統尚未開放！") {
-                                // setStatus(element.id, Math.floor(Math.random() * 10))
-                                setStatus(element.id, 0)
-                            } else if (res["data"].indexOf("已選過")) {
-                                // 2 => 已選過
-                                setStatus(element.id, 2)
-                            } else if (res["data"].indexOf("加選訊息")) {
-                                // 1 => 已選 任務完成
-                                setStatus(element.id, 1)
-                            } else {
-                                // -9999 其他未知訊息
-                                setStatus(element.id, -9999)
-                            }
-                        }).catch((error) => {
-                            console.error(error)
-                        })
-                    }
-                });
-            });
-        }
+        }, 3000);
     </script>
 </body>
-
 </html>

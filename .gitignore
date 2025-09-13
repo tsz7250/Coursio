@@ -6,6 +6,13 @@ build/*
 config/settings.json
 settings.json
 
+# Python yzuCourseBot 相關檔案 (包含個人資訊)
+py/accounts.ini
+py/captcha.png
+py/__pycache__/
+py/*.pyc
+py/*.log
+
 .DS_Store
 .env
 .gclient_done

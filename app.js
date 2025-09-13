@@ -7,7 +7,7 @@ const renderer_dirpath = path.join("./", "renderer")
 var settingFilePath = "settings.json"
 
 let MainWindow = null
-let SelectCourseWorkerWindow = null
+// 移除舊的選課 Worker Window，改用 Python yzuCourseBot
 var initConfigSettingJson = {"interval":2, "stage": "1"};
 
 function readOrcreateSettingJson() {
@@ -49,32 +49,18 @@ function createWindow() {
 
 
 
-    // 建立選課worker window
-    SelectCourseWorkerWindow = new BrowserWindow({
-        width: 0,
-        height: 0,
-        show: false,
-        webPreferences: {
-            nodeIntegration: true,
-            contextIsolation: false,
-            // preload: path.join(renderer_dirpath, "js", "preload.js"),
-        }
-    })
-    SelectCourseWorkerWindow.loadFile(path.join(renderer_dirpath, "CourseSelWorker.html"))
-    // SelectCourseWorkerWindow.openDevTools()
-
-
-
-
-    // 在主畫面關閉時 關閉 Worker
+    // 在主畫面關閉時清理資源
     MainWindow.on("close", function () {
-        SelectCourseWorkerWindow.close()
-
         // 確保刪除登入 Token 
-        var settings = fs.readFileSync(settingFilePath, "utf-8")
-        settings["token"] = ""
-        fs.writeFile(settingFilePath, JSON.stringify(settings), "utf-8", function (err, data) {})
-
+        try {
+            var settings = JSON.parse(fs.readFileSync(settingFilePath, "utf-8") || '{}');
+            settings["token"] = "";
+            fs.writeFile(settingFilePath, JSON.stringify(settings), "utf-8", function (err, data) {
+                if (err) console.error("清理 token 失敗:", err);
+            });
+        } catch (error) {
+            console.error("清理設定檔失敗:", error);
+        }
     })
 
 
@@ -116,13 +102,16 @@ app.on('activate', () => {
 
 
 
-// IPC 
-ipcMain.on("addTaskCourse", (event, data)=>{
-    SelectCourseWorkerWindow.webContents.send("addTaskCourse", data);
+// IPC - Python Bot 輸出
+ipcMain.on("pythonBotOutput", (event, data)=>{
+    // 轉發 Python 機器人輸出到主視窗
+    mainWindow.webContents.send("pythonBotOutput", data);
 })
-// IPC 重讀設定檔
-ipcMain.on("regetSettings", (event, data)=>{
-    SelectCourseWorkerWindow.webContents.send("regetSettings", data);
+
+// IPC - Python Bot 狀態
+ipcMain.on("pythonBotStatus", (event, data)=>{
+    // 轉發 Python 機器人狀態到主視窗
+    mainWindow.webContents.send("pythonBotStatus", data);
 })
 // IPC 開啟外部課程詳細頁面
 ipcMain.on("openCourseDetail", (event, data)=>{
