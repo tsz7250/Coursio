@@ -904,7 +904,16 @@ class PuppeteerManager {
     }
 }
 
-module.exports = { 
-    PuppeteerManager, 
-    loadPuppeteer 
-};
+// Always make available globally in browser context
+if (typeof window !== 'undefined') {
+    window.PuppeteerManager = PuppeteerManager;
+    window.loadPuppeteer = loadPuppeteer;
+}
+
+// Export for CommonJS (Node.js)
+if (typeof module !== 'undefined' && typeof module.exports !== 'undefined') {
+    module.exports = { 
+        PuppeteerManager, 
+        loadPuppeteer 
+    };
+}

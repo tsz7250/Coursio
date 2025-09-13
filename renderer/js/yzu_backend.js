@@ -7,9 +7,19 @@ const fs = require("fs")
 const https = require('https');
 const http = require('http');
 
-// Import the new modules
-const { PuppeteerManager, loadPuppeteer } = require('./yzu_puppeteer.js');
-const { CourseQueryManager } = require('./yzu_course_query.js');
+// Import the new modules (with fallback for browser context)
+let PuppeteerManager, loadPuppeteer, CourseQueryManager;
+
+if (typeof window !== 'undefined') {
+    // Browser context - use global variables (set by script tags)
+    PuppeteerManager = window.PuppeteerManager;
+    loadPuppeteer = window.loadPuppeteer;
+    CourseQueryManager = window.CourseQueryManager;
+} else {
+    // Node.js context - use require
+    ({ PuppeteerManager, loadPuppeteer } = require('./yzu_puppeteer.js'));
+    ({ CourseQueryManager } = require('./yzu_course_query.js'));
+}
 
 // 配置 axios 以處理自簽名證書和網路問題
 Axios.defaults.httpsAgent = new https.Agent({
@@ -975,4 +985,12 @@ class BackendService {
     }
 }
 
-module.exports = { BackendService };
+// Always make available globally in browser context
+if (typeof window !== 'undefined') {
+    window.BackendService = BackendService;
+}
+
+// Export for CommonJS (Node.js)
+if (typeof module !== 'undefined' && typeof module.exports !== 'undefined') {
+    module.exports = { BackendService };
+}

@@ -699,4 +699,12 @@ class CourseQueryManager {
     }
 }
 
-module.exports = { CourseQueryManager };
+// Always make available globally in browser context
+if (typeof window !== 'undefined') {
+    window.CourseQueryManager = CourseQueryManager;
+}
+
+// Export for CommonJS (Node.js)
+if (typeof module !== 'undefined' && typeof module.exports !== 'undefined') {
+    module.exports = { CourseQueryManager };
+}
