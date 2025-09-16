@@ -17,93 +17,8 @@
     <!-- Compiled WannaClass Styles (includes all component styles) -->
     <link rel="stylesheet" href="./css/wannaclass.css">
 
-    <style>
-    /* 視覺隱藏但保留可存取性（立即生效，避免快取與編譯延遲） */
-    .sr-only { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0, 0, 0, 0) !important; white-space: nowrap !important; border: 0 !important; }
-
-    /* 課程列表樣式調整 */
-    #courses-list-data-table th { white-space: nowrap; }
-    #courses-list-data-table td { vertical-align: middle; }
-    
-    /* 系所下拉選單樣式調整 */
-    #querySelectQueryDept option { white-space: pre; }
-    
-    /* 移除按鈕的 inline-flex 顯示，確保所有按鈕都使用 inline-block */
-    .btn { display: inline-block !important; }
-    #courses-list-data-table td.name-cell {
-        white-space: pre-line; word-break: keep-all; line-height: 1.3;
-    }
-    #courses-list-data-table td.code-cell,
-    #courses-list-data-table td.dept-cell,
-    #courses-list-data-table td.type-cell,
-    #courses-list-data-table td.teacher-cell {
-        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    }
-    
-    /* 課程列表欄位寬度 */
-    #courses-list-data-table colgroup col:nth-child(1) { width: 110px; } /* 課號班別 */
-    #courses-list-data-table colgroup col:nth-child(2) { width: 180px; } /* 開課系級 */
-    #courses-list-data-table colgroup col:nth-child(3) { width: auto; }   /* 課程名稱 */
-    #courses-list-data-table colgroup col:nth-child(4) { width: 80px; }   /* 選別 */
-    #courses-list-data-table colgroup col:nth-child(5) { width: 200px; }  /* 時間,教室 */
-    #courses-list-data-table colgroup col:nth-child(6) { width: 90px; }   /* 授課教師 */
-    #courses-list-data-table colgroup col:nth-child(7) { width: 140px; }  /* 加入選課名單 */
-    
-    /* 教師欄：若含括號允許在括號前換行，並縮小欄寬 */
-    #courses-list-data-table td.teacher-cell {
-        white-space: normal;
-        word-break: keep-all;
-    }
-    #courses-list-data-table td.teacher-cell .name,
-    #courses-list-data-table td.teacher-cell .meta {
-        display: inline;
-    }
-    #courses-list-data-table td.teacher-cell .meta::before {
-        content: "\A";
-        white-space: pre; /* 在 meta 前插入換行 */
-    }
-    #courses-list-data-table td.time-room-cell { white-space: pre-line; word-break: keep-all; line-height: 1.3; }
-    #courses-list-data-table td.time-room-cell .time { white-space: pre-line; }
-    #courses-list-data-table td.time-room-cell .room { white-space: pre-line; color: #555; }
-
-    /* 查詢區塊樣式強化 */
-    .query-actions { text-align: right; }
-    .query-actions .btn { min-width: 120px; }
-    /* 適度收窄欄位寬度 */
-    .form-group.narrow { max-width: 320px; }
-    .form-group.medium { max-width: 480px; }
-    .query-actions { max-width: 320px; } /* 讓按鈕容器與其他欄位寬度一致 */
-    @media (max-width: 576px) {
-        .query-actions { text-align: center; }
-        .query-actions .btn { width: 100%; }
-        .form-group.narrow, .form-group.medium { max-width: 100%; }
-    }
-
-    /* 防止查詢區與課程列表在小視窗重疊 */
-    #section-School-timetable-Query .btabs { margin-bottom: 0; }
-    #section-School-timetable-Query .btabs .content { position: relative; z-index: 2;}
-    #section-School-timetable-Query .courses-list { position: relative; z-index: 1; margin-top: 0; clear: both; }
-    /* SimpleScrollbar 內容容器確保正常文流排列 */
-    #section-School-timetable-Query .ss-wrapper, 
-    #section-School-timetable-Query .ss-content { position: static !important; }
-    
-    /* 移除內嵌樣式改用CSS類別 */
-    .loading-panel-hidden { display: none; }
-    .login-icon { height: 100px; }
-    .guest-btn { background: #6c757d; }
-    .login-disabled-btn { background: #ccc; cursor: not-allowed; }
-    .schedule-controls { margin: 20px 0; }
-    .schedule-loading { text-align: center; padding: 40px; display: none; }
-    .schedule-error { display: none; text-align: center; padding: 40px; }
-    .schedule-error-text { color: #e74c3c; }
-    .schedule-info { margin-top: 30px; padding: 20px; background: #f8f9fa; border-radius: 8px; }
-    .courses-table { border-collapse: collapse; }
-    .content-padding { padding: 2rem; }
-    @media (max-width: 992px) {
-        #section-School-timetable-Query .btabs .content { margin-bottom: 0; }
-        #section-School-timetable-Query .courses-list { margin-top: 0; }
-    }
-    </style>
+    <!-- Component Styles -->
+    <link rel="stylesheet" href="./css/components.css">
 
     <!-- YZU Backend api module -->
     <script src="./js/yzu_backend.js"></script>
@@ -127,7 +42,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
 
     <!-- Import Linq -->
-    <script src="./js/linq.js"></script>
 
 
 </head>
@@ -151,15 +65,11 @@
             <div class="middle wc-container">
                 <div class="hero-image move-to-hidden">
                     <img class="" src="../assets/undraw_programming_2svr.svg" alt="">
-
                 </div>
                 <div class="hero-text move-to-hidden">
                     <h2>半夜依舊在電腦前守著?</h2>
                     <span class="hero-desc">黑眼圈熬出來也不一定搶得到課R?</span>
                     <span>專屬於元智人的搶課程式幫助妳/你！</span>
-
-
-                    <span class="cta"><span>開始使用</span><i class="fas fa-arrow-right"></i></span>
                 </div>
                 <div class="login-block">
                     <div class="login-block-inner wc-container">
@@ -172,22 +82,17 @@
                             <button @click="login" class="login-block-input-element" id="login-btn">開始搶課！</button>
                             <button @click="browseAsGuest" class="login-block-input-element guest-btn" id="guest-btn">訪客瀏覽課程</button>
                         </div>
-
                         <div class="login-block-lockimg"><i class="fas fa-user-lock"></i></div>
                     </div>
                 </div>
             </div>
             <div class="footer wc-container">
                 <ul>
-                    <li><a target="_blank" href="https://missterhao.me"><i class="fab fab fa-wordpress-simple"></i></a>
-                    </li>
-                    <li><a target="_blank" href="https://github.com/MissterHao/WannaClass"><i
-                                class="fab fa-github"></i></a></li>
-                    <li><a target="_blank" href="https://www.linkedin.com/in/haowei526/"><i
-                                class="fab fa-linkedin-in"></i></a></li>
+                    <li><a target="_blank" href="https://missterhao.me"><i class="fab fab fa-wordpress-simple"></i></a></li>
+                    <li><a target="_blank" href="https://github.com/MissterHao/WannaClass"><i class="fab fa-github"></i></a></li>
+                    <li><a target="_blank" href="https://www.linkedin.com/in/haowei526/"><i class="fab fa-linkedin-in"></i></a></li>
                 </ul>
             </div>
-
         </div><!-- End of Login Panel -->
 
 
@@ -226,100 +131,23 @@
                     </div>
                 </div>
 
-                <div id="author-sidebar-item" class="sidebar-item point-it" v-show="isLoggedIn">
+                <div id="author-sidebar-item" class="sidebar-item point-it" v-show="isLoggedIn" @click="showAboutModal">
                     <img src="../assets/ion-settings-outline.svg" alt="">
-                    <span><a id="author-sidebar-item-href" class="modal-trigger" href="#about-modal">Author</a></span>
+                    <span>Author</span>
                 </div>
 
                 <div id="guest-login-sidebar-item" class="sidebar-item point-it" v-show="!isLoggedIn" @click="returnToLogin">
                     <img src="../assets/ion-home-outline.svg" alt="">
                     <span>返回登入</span>
                 </div>
-
-
             </div> <!-- End of Sidebar -->
 
             <div id="inner-content-panel">
                 <!-- 首頁 -->
-                <div id="section-Main" class="inner-section">
-                    <div class="header">
-                        <h4>{{ greetings }} {{ std_account_infomation.CName }}, 今天想要來點什麼學分？</h4>
-                    </div>
-
-                    <div class="content-panel__infogrid">
-                        <div class="content-panel__notifylist">
-                            <div v-for="notify in notify_list" class="content-panel__notifylist-item">
-                                <span>{{notify.Title}}</span><span>{{ notify.SendDate }}</span>
-                            </div>
-                            <!-- * Title
-                            * Body
-                            * ETitle
-                            * EBody
-                            * 
-                            * NotifyType
-                            * PostID
-                            * SendDate -->
-                        </div>
-                        <div class="content-panel__coursetable">
-
-                        </div>
-                    </div>
-                </div><!-- End of Main ( 首頁 ) -->
+                <div id="main-dashboard-container"></div><!-- End of Main ( 首頁 ) -->
 
                 <!-- 課表 -->
-                <div ss-container id="section-Schedule" class="inner-section">
-                    <div class="page-header">
-                        <h2>📅 我的課表</h2>
-                        <p>114學年度第1學期課程時間表</p>
-                    </div>
-                    
-                    <div class="schedule-controls">
-                        <button id="refresh-schedule" class="btn btn-primary" onclick="refreshSchedule()">
-                            🔄 重新載入課表
-                        </button>
-                    </div>
-
-                    <div id="schedule-loading" class="schedule-loading">
-                        <div class="loading-spinner"></div>
-                        <p>正在載入課表資料...</p>
-                    </div>
-
-                    <div id="schedule-content">
-                        <div class="schedule-table-container">
-                            <table class="schedule-table">
-                                <thead>
-                                    <tr>
-                                        <th>時間</th>
-                                        <th>週一</th>
-                                        <th>週二</th>
-                                        <th>週三</th>
-                                        <th>週四</th>
-                                        <th>週五</th>
-                                        <th>週六</th>
-                                        <th>週日</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="schedule-tbody">
-                                    <!-- 課表內容將由 JavaScript 動態生成 -->
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    <div id="schedule-error" class="schedule-error">
-                        <p class="schedule-error-text">❌ 無法載入課表資料</p>
-                        <button onclick="refreshSchedule()" class="btn btn-secondary">重試</button>
-                    </div>
-
-                    <div class="schedule-info">
-                        <h4>📋 課表說明</h4>
-                        <ul>
-                            <li>點擊「重新載入課表」可更新最新的課程資料</li>
-                            <li>課表會顯示課程名稱、教室位置和授課教師</li>
-                            <li>如果沒有課程資料，請確認已正確登入系統</li>
-                        </ul>
-                    </div>
-                </div><!-- End of Schedule ( 課表 ) -->
+                <div id="schedule-container"></div><!-- End of Schedule ( 課表 ) -->
 
                 <!-- 查詢課程 -->
                 <div ss-container id="section-School-timetable-Query" class="inner-section">
@@ -327,7 +155,6 @@
 
                     <div class="btabs">
                         <!-- https://codepen.io/woranov/pen/NRqLWK/ -->
-
                         <input value="dept" type="radio" id="tab1" name="query-tab-control" v-model="queryType" checked>
                         <input value="courseName" type="radio" id="tab2" name="query-tab-control" v-model="queryType">
                         <input value="teacherName" type="radio" id="tab3" name="query-tab-control" v-model="queryType">
@@ -384,7 +211,6 @@
                                         <button class="btn btn-primary w-100" @click="performDeptQuery" :disabled="isCourseDataLoading">送出查詢</button>
                                     </div>
                                 </div>
-                            </section>
                             </section>
 
                             <!-- 課程關鍵字查詢 Section -->
@@ -494,12 +320,8 @@
                             </section>
                         </div>
                     </div>
-                    <!-- <div :key="'course-list'+course.hashid" v-for="(course, index) in queryResultForList">
-                        {{ course }}
-                    </div> -->
 
                     <div class="courses-list">
-
                         <!-- 控制 MHModal -->
                         <!-- https://codepen.io/joshuaward/pen/pwGgep?editors=1100 -->
                         <input type="checkbox" id="MHmodal" />
@@ -517,7 +339,6 @@
                                 </p>
                             </article>
                         </div>
-
 
                         <div class="col-lg-12">
                             <table id="courses-list-data-table" class="table table-striped table-hover courses-table">
@@ -559,7 +380,6 @@
                                             <span v-else class="btn disabled login-disabled-btn">需登入</span>
                                         </td>
                                     </tr>
-
                                 </tbody>
                             </table>
                         </div>
@@ -569,7 +389,7 @@
                 <!-- 自動選課 -->
                 <div ss-container id="section-Auto-Selection" class="inner-section">
                     <!-- 載入自動選課介面 -->
-                    <div id="auto-selection-container">
+                    <div id="auto-selection-inner-container">
                         <!-- 內容將由 course_selection_controller.js 動態載入 -->
                     </div>
                 </div> <!-- End of Auto-Selection section ( 自動選課 ) -->
@@ -577,7 +397,6 @@
                 <!-- 任務列表 -->
                 <div ss-container id="section-Task-List" class="inner-section">
                     <h4>選課任務列表</h4>
-
 
                     <div class="courses-list">
                         <div class="col-lg-12">
@@ -602,7 +421,6 @@
                                         <td class="point-it">{{task.credit}}</td>
                                         <td class="point-it">{{ status(task.status) }}</td>
                                     </tr>
-
                                 </tbody>
                             </table>
                         </div>
@@ -610,102 +428,13 @@
                 </div> <!-- End of query section ( 任務列表 ) -->
 
                 <!-- 設定 -->
-                <div ss-container id="section-Settings" class="inner-section">
-                    <div class="container">
-
-                        <div class="row">
-                            <div class="col">
-                                <h5>個人資訊</h5>
-                                <div class="card">
-                                    <div class="card-body">
-
-                                        <div class="mb-3">
-                                            <label for="studentnameforreadonly" class="form-label">妳/你的名字</label>
-                                            <input id="studentnameforreadonly" :value="std_account_infomation.CName"
-                                                class="form-control" type="text" placeholder="妳/你的名字"
-                                                aria-label="Student Name" disabled readonly>
-                                        </div>
-
-                                        <div class="mb-3">
-                                            <label for="studentidforreadonly" class="form-label">妳/你的學號</label>
-                                            <input id='studentidforreadonly' :value="std_account_infomation.StdNo"
-                                                class="form-control" type="text" placeholder="妳/你的學號"
-                                                aria-label="Student ID Number" disabled readonly>
-                                        </div>
-
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col">
-                                <h5>Settings</h5>
-                                <div class="card">
-                                    <div class="card-body">
-                                        <div class="mb-3">
-                                            <label for="StealCourseIntervalInput" class="form-label">檢查時間間隔({{
-                                                StealCourseInterval }}秒/選課一次)</label>
-                                            <input v-model="StealCourseInterval" type="range" class="form-range" min="2"
-                                                max="60" step="1" id="StealCourseIntervalInput">
-
-                                            <label for="StealCourseStageID" class="form-label">選擇選課階段</label>
-                                            <select v-model="StealCourseStage" id="StealCourseStageID"
-                                                class="form-select" aria-label="選課階段">
-                                                <option value="" selected disabled>選擇選課階段</option>
-                                                <option value="1">第一階段選課</option>
-                                                <option value="2">第二階段選課</option>
-                                                <option value="3">第三階段選課</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                </div>
-
-                            </div>
-                        </div>
-                    </div>
-                </div> <!-- End of settings section ( 設定 ) -->
+                <div id="settings-container"></div> <!-- End of settings section ( 設定 ) -->
             </div>
         </div> <!-- End of Content Panel -->
 
 
 
-        <div ss-container id="about-modal" class="modal">
-            <div class="content-padding">
-                <h4>Wanna Class</h4>
-                <p>使用元智 Portal 帳號密碼登入，不須擔心帳號密碼會被盜用或記錄，程式碼完全公開接受開源社群的檢驗，絕對安全。</p>
-                <p>左方列表功能：
-                    <ol>
-                        <li>首頁<br>
-                            未來將會加入 「portal 通知列表」、「圖書館還書通知」等功能。
-                        </li>
-                        <li>課程查詢<br>
-                            快速查詢每學期的課表，點擊列表可以顯示該課程資訊(學分數、上課教室、教授名稱等資訊)，列表最右方有「加入選課清單」按鈕可以加入選課任務列表中。
-                        </li>
-                        <li>選課任務列表<br>
-                            以列表方式顯示目前每一門課的選課進度(「尚未選到」、「已選到！恭喜！」、「此課程已選過喔！」以及「其他未明狀態 狀態碼 x」)，若出現未明狀態可以通知作者喔！
-                        </li>
-                        <li>設定<br>
-                            設定選課的階段，根據元智選課方法，需要設定目前需要選課的階段(第一、第二、第三階段)才可選課。
-                        </li>
-                    </ol>
-
-                </p>
-
-                <hr>
-
-                <h4>關於作者</h4>
-                <p>
-                    李晧暐(Hao-Wei, Li)，元智資工碩士班學生<br>
-                    直到大三後才開始搶到喜歡的選修課，因為不希望其他學生跟作者一樣修不到有興趣的課程，因此特地開發此軟體！<br>
-                    <br>
-                    
-                    <h5>聯絡方式</h5>
-                    Email: henryliking@gmail.com <br>
-                    <a href="https://github.com/MissterHao/WannaClass"> 此專案 Github </a>
-
-
-                </p>
-
-            </div>
-        </div>
+        <div id="about-modal-container"></div>
 
     </div> <!-- End of app div -->
 
@@ -714,41 +443,86 @@
 
     <!-- Import js -->
     <script src="./js/navigate.js"></script>
-    <script defer type="text/javascript" src="./js/query.js"></script>
     <script src="./js/app_vue.js"></script>
-    <script src="./js/landing.js"></script>
-    <script src="./js/content.js"></script>
     
     <!-- Python Course Bot Integration -->
     <script src="./js/python_course_bot.js"></script>
     <script src="./js/course_selection_controller.js"></script>
     
     <script>
-        // 載入自動選課介面
+        // 載入組件
         document.addEventListener('DOMContentLoaded', function() {
-            const autoSelectionContainer = document.getElementById('auto-selection-container');
-            if (autoSelectionContainer) {
+            // 首先隱藏所有區段
+            hideAllSection();
+            
+            // 載入首頁
+            loadComponent('main-dashboard-container', './components/main-dashboard.html');
+            
+            // 載入課表
+            loadComponent('schedule-container', './components/schedule.html');
+            
+            // 載入設定
+            loadComponent('settings-container', './components/settings.html');
+            
+            // 載入關於模態框
+            loadComponent('about-modal-container', './components/about-modal.html');
+            
+            // 載入自動選課介面（最後載入，因為它需要特殊處理）
+            const autoSelectionInnerContainer = document.getElementById('auto-selection-inner-container');
+            console.log('自動選課容器:', autoSelectionInnerContainer);
+            if (autoSelectionInnerContainer) {
+                console.log('開始載入自動選課介面...');
                 // 載入 HTML 內容
                 fetch('./sections/course_selection.html')
-                    .then(response => response.text())
+                    .then(response => {
+                        console.log('自動選課 HTML 載入響應:', response.status);
+                        return response.text();
+                    })
                     .then(html => {
-                        autoSelectionContainer.innerHTML = html;
+                        console.log('自動選課 HTML 載入成功，長度:', html.length);
+                        autoSelectionInnerContainer.innerHTML = html;
                         // HTML 載入後初始化控制器
                         if (typeof CourseSelectionController !== 'undefined') {
+                            console.log('初始化 CourseSelectionController...');
                             new CourseSelectionController();
+                        } else {
+                            console.warn('CourseSelectionController 未定義');
                         }
                     })
                     .catch(error => {
                         console.error('載入自動選課介面失敗:', error);
-                        autoSelectionContainer.innerHTML = `
+                        autoSelectionInnerContainer.innerHTML = `
                             <div class="alert alert-danger">
                                 <h4>❌ 載入失敗</h4>
                                 <p>無法載入自動選課介面。錯誤: ${error.message}</p>
                             </div>
                         `;
                     });
+            } else {
+                console.error('找不到 auto-selection-inner-container 元素');
             }
         });
+
+        // 組件載入函數
+        function loadComponent(containerId, componentPath) {
+            const container = document.getElementById(containerId);
+            if (container) {
+                fetch(componentPath)
+                    .then(response => response.text())
+                    .then(html => {
+                        container.innerHTML = html;
+                    })
+                    .catch(error => {
+                        console.error(`載入組件 ${componentPath} 失敗:`, error);
+                        container.innerHTML = `
+                            <div class="alert alert-danger">
+                                <h4>❌ 載入失敗</h4>
+                                <p>無法載入組件 ${componentPath}。錯誤: ${error.message}</p>
+                            </div>
+                        `;
+                    });
+            }
+        }
     </script>
 </body>
 

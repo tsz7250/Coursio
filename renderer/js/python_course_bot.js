@@ -14,34 +14,28 @@
 class PythonCourseBot {
     constructor() {
         this.pythonPath = null;
+        this.isInitialized = false;
+        this.pythonChecked = false;
         
         // 獲取正確的 Python 檔案路徑
         // Python 檔案位於 renderer/py 目錄中
         let pythonDir;
         
-        // 調試：輸出 __dirname 和 process.cwd() 的值
-        console.log('🔍 調試路徑信息:');
-        console.log('  - __dirname:', typeof __dirname !== 'undefined' ? __dirname : 'undefined');
-        console.log('  - process.cwd():', process.cwd());
         
         if (typeof __dirname !== 'undefined') {
             if (__dirname.includes('renderer/js')) {
                 // __dirname 指向 renderer/js，所以 py 目錄在 ../py
                 pythonDir = path.join(__dirname, '../py');
-                console.log('  - 使用 renderer/js 路徑邏輯');
             } else if (__dirname.endsWith('renderer')) {
                 // __dirname 指向 renderer 目錄，所以 py 目錄在 ./py
                 pythonDir = path.join(__dirname, 'py');
-                console.log('  - 使用 renderer 目錄路徑邏輯');
             } else {
                 // __dirname 可能指向專案根目錄，需要指向 renderer/py
                 pythonDir = path.join(__dirname, 'renderer/py');
-                console.log('  - 使用專案根目錄路徑邏輯');
             }
         } else {
             // 如果沒有 __dirname，使用 process.cwd() 並假設在 renderer/py
             pythonDir = path.join(process.cwd(), 'renderer/py');
-            console.log('  - 使用 process.cwd() 路徑邏輯');
         }
         
         this.botScriptPath = path.join(pythonDir, 'yzuCourseBot.py');
@@ -51,19 +45,16 @@ class PythonCourseBot {
         this.isRunning = false;
         this.currentProcess = null;
         
-        // 調試：輸出實際路徑
-        console.log('🐍 Python 檔案路徑 (Python 目錄:', pythonDir, '):');
-        console.log('  - Bot Script:', this.botScriptPath);
-        console.log('  - Model:', this.modelPath);
-        console.log('  - Requirements:', this.requirementsPath);
-        console.log('  - Accounts:', this.accountsPath);
     }
 
     /**
      * 初始化 Python 環境
      */
     async initialize() {
-        console.log("🐍 初始化 Python yzuCourseBot 環境...");
+        // 防止重複初始化
+        if (this.isInitialized) {
+            return { success: true, message: "Python 環境已初始化" };
+        }
         
         try {
             // 1. 檢查 Python 可用性
@@ -75,7 +66,7 @@ class PythonCourseBot {
             // 3. 檢查 Python 套件
             await this.checkPythonPackages();
             
-            console.log("✅ Python yzuCourseBot 環境初始化完成");
+            this.isInitialized = true;
             return { success: true, message: "Python 環境就緒" };
             
         } catch (error) {
@@ -88,6 +79,11 @@ class PythonCourseBot {
      * 檢查 Python 安裝狀況
      */
     async checkPythonInstallation() {
+        // 防止重複檢查
+        if (this.pythonChecked) {
+            return;
+        }
+        
         const pythonCommands = ['python', 'python3', 'py'];
         
         for (const cmd of pythonCommands) {
@@ -95,6 +91,7 @@ class PythonCourseBot {
                 const version = await this.runCommand(cmd, ['--version']);
                 if (version.includes('Python 3.')) {
                     this.pythonPath = cmd;
+                    this.pythonChecked = true;
                     console.log(`✅ 找到 Python: ${cmd} (${version.trim()})`);
                     return;
                 }
@@ -129,7 +126,6 @@ class PythonCourseBot {
      * 檢查並安裝 Python 套件
      */
     async checkPythonPackages() {
-        console.log("📦 檢查 Python 套件...");
         
         try {
             // 嘗試 import 主要套件
@@ -151,14 +147,12 @@ except ImportError as e:
             const result = await this.runCommand(this.pythonPath, ['-c', testScript]);
             
             if (result.includes('SUCCESS')) {
-                console.log("✅ Python 套件檢查完成");
+                // Python 套件檢查完成
             } else {
-                console.log("📦 安裝缺少的套件...");
                 await this.installPythonPackages();
             }
             
         } catch (error) {
-            console.log("📦 Python 套件不完整，開始安裝...");
             await this.installPythonPackages();
         }
     }
@@ -167,7 +161,6 @@ except ImportError as e:
      * 安裝 Python 套件
      */
     async installPythonPackages() {
-        console.log("📦 安裝 yzuCourseBot 相依套件...");
         
         try {
             const installResult = await this.runCommand(this.pythonPath, [
@@ -175,7 +168,6 @@ except ImportError as e:
             ], { timeout: 300000 }); // 5分鐘超時
             
             console.log("✅ Python 套件安裝完成");
-            console.log(installResult);
             
         } catch (error) {
             throw new Error(`Python 套件安裝失敗: ${error.message}\n\n請手動執行：\n${this.pythonPath} -m pip install -r py/requirements.txt`);
@@ -188,7 +180,6 @@ except ImportError as e:
      * @param {string} password - 密碼
      */
     async setupAccount(account, password) {
-        console.log("🔐 設定 Portal 帳號...");
         
         const accountsConfig = `[Default]
 Account=${account}
@@ -196,7 +187,6 @@ Password=${password}`;
         
         try {
             fs.writeFileSync(this.accountsPath, accountsConfig, 'utf8');
-            console.log("✅ 帳號設定完成");
             return { success: true };
         } catch (error) {
             console.error("❌ 帳號設定失敗:", error.message);
@@ -209,8 +199,6 @@ Password=${password}`;
      * @returns {Promise<Object>} { success: boolean, courses: Array, message?: string }
      */
     async loadCoursesFromDatabase() {
-        console.log("📖 從資料庫載入選課清單...");
-        
         return new Promise((resolve) => {
             const sqlite3 = require('sqlite3').verbose();
             const database = new sqlite3.Database('db.sqlite');
@@ -275,7 +263,6 @@ Password=${password}`;
      * 設定選課清單 (從資料庫自動載入)
      */
     async setupCoursesListFromDatabase() {
-        console.log("📝 從資料庫設定選課清單...");
         
         try {
             // 從資料庫載入課程
@@ -314,7 +301,6 @@ Password=${password}`;
             fs.writeFileSync(this.botScriptPath, pythonContent, 'utf8');
             
             console.log(`✅ 已設定 ${courses.length} 門課程到 Python bot`);
-            console.log('課程清單:', courses.map(c => `${c.courseId}${c.classId} - ${c.name}`));
             
             return { 
                 success: true, 
@@ -333,7 +319,6 @@ Password=${password}`;
      * @param {Array} coursesList - 課程清單，格式: [{ deptId, courseId, classId }, ...]
      */
     async setupCoursesList(coursesList) {
-        console.log("📝 設定選課清單...");
         
         try {
             // 讀取 Python 檔案內容
@@ -365,7 +350,6 @@ Password=${password}`;
             // 寫回檔案
             fs.writeFileSync(this.botScriptPath, pythonContent, 'utf8');
             
-            console.log(`✅ 已設定 ${coursesList.length} 門課程`);
             return { success: true, coursesCount: coursesList.length };
             
         } catch (error) {
@@ -383,13 +367,11 @@ Password=${password}`;
             return { success: false, message: "選課機器人已在執行中" };
         }
         
-        console.log("🚀 啟動 Python 自動選課機器人...");
         
         const { delay = 2.5, maxAttempts = 100 } = options;
         
         try {
             // 先從資料庫載入選課清單
-            console.log("📖 從資料庫載入選課清單...");
             const coursesResult = await this.setupCoursesListFromDatabase();
             if (!coursesResult.success) {
                 return { success: false, message: coursesResult.message };
@@ -402,7 +384,6 @@ Password=${password}`;
                 };
             }
             
-            console.log(`✅ 已載入 ${coursesResult.coursesCount} 門課程`);
             
             // 更新延遲時間設定
             await this.updateDelaySettings(delay);
@@ -424,7 +405,6 @@ Password=${password}`;
             // 監聽輸出
             this.currentProcess.stdout.on('data', (data) => {
                 const output = data.toString('utf8');
-                console.log('🐍 Python 輸出:', output);
                 
                 // 傳送輸出到前端
                 ipcRenderer.send('pythonBotOutput', {
@@ -450,7 +430,6 @@ Password=${password}`;
             
             this.currentProcess.stderr.on('data', (data) => {
                 const error = data.toString('utf8');
-                console.error('🐍 Python 錯誤:', error);
                 
                 ipcRenderer.send('pythonBotOutput', {
                     type: 'stderr',
@@ -460,7 +439,6 @@ Password=${password}`;
             });
             
             this.currentProcess.on('close', (code) => {
-                console.log(`🐍 Python 程序結束，退出碼: ${code}`);
                 this.isRunning = false;
                 this.currentProcess = null;
                 
@@ -471,7 +449,6 @@ Password=${password}`;
                 });
             });
             
-            console.log("✅ Python 自動選課機器人已啟動");
             return { 
                 success: true, 
                 message: "自動選課機器人已啟動",
@@ -494,7 +471,6 @@ Password=${password}`;
             return { success: true, message: "選課機器人未在執行中" };
         }
         
-        console.log("⏹️ 停止 Python 自動選課機器人...");
         
         try {
             // 嘗試優雅地結束程序
@@ -503,14 +479,12 @@ Password=${password}`;
             // 等待 3 秒，如果還沒結束就強制終止
             setTimeout(() => {
                 if (this.currentProcess && !this.currentProcess.killed) {
-                    console.log("🔥 強制終止 Python 程序");
                     this.currentProcess.kill('SIGKILL');
                 }
             }, 3000);
             
             this.isRunning = false;
             
-            console.log("✅ Python 自動選課機器人已停止");
             return { success: true, message: "選課機器人已停止" };
             
         } catch (error) {
@@ -556,7 +530,6 @@ Password=${password}`;
             }
             
             fs.writeFileSync(this.botScriptPath, pythonContent, 'utf8');
-            console.log(`✅ 已更新延遲設定: ${delay} 秒`);
             
         } catch (error) {
             console.warn("⚠️ 更新延遲設定失敗:", error.message);

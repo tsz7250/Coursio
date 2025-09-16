@@ -82,15 +82,20 @@ class CourseSelectionController {
             this.updateBotStatus(data);
         });
 
-        // 初始化檢查
-        setTimeout(() => this.checkEnvironment(), 1000);
+        // 初始化檢查（延遲執行以避免重複）
+        if (!this.isInitialized) {
+            setTimeout(() => this.checkEnvironment(), 1000);
+        }
     }
 
     /**
      * 檢查 Python 環境
      */
     async checkEnvironment() {
-        console.log("🔍 檢查 Python yzuCourseBot 環境...");
+        // 防止重複檢查
+        if (this.isInitialized) {
+            return;
+        }
 
         this.updateStatus('pythonStatus', 'loading', '檢查 Python 安裝...');
         this.updateStatus('packagesStatus', 'loading', '檢查 Python 套件...');
@@ -172,8 +177,6 @@ class CourseSelectionController {
      * 重新載入任務列表
      */
     async refreshTaskList() {
-        console.log("🔄 重新載入任務列表...");
-        
         try {
             const result = await this.pythonBot.loadCoursesFromDatabase();
             

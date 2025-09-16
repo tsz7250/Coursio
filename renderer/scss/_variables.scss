@@ -20,7 +20,30 @@ $primary-color-dark: darken($primary-color, 15%) !default;
 $secondary-color: color("teal", "lighten-4") !default;
 
 $primary-text-color: white; 
-$secondary-text-color: Black; 
+$secondary-text-color: Black;
+
+// 統一的主題色彩系統
+$theme-colors: (
+  "primary": $primary-color,
+  "primary-light": $primary-color-light,
+  "primary-dark": $primary-color-dark,
+  "secondary": $secondary-color,
+  "success": #28a745,
+  "danger": #dc3545,
+  "warning": #ffc107,
+  "info": #17a2b8,
+  "light": #f8f9fa,
+  "dark": #343a40
+) !default;
+
+// 文字顏色系統
+$text-colors: (
+  "primary": $primary-text-color,
+  "secondary": $secondary-text-color,
+  "muted": #6c757d,
+  "white": #ffffff,
+  "black": #000000
+) !default; 
 
 
 // $primary-color: color("materialize-red", "lighten-2") !default;
@@ -65,3 +88,27 @@ $h3-fontsize: 2.92rem !default;
 $h4-fontsize: 2.28rem !default;
 $h5-fontsize: 1.64rem !default;
 $h6-fontsize: 1.15rem !default;
+
+// 21. Z-Index System
+// ==========================================================================
+// 統一的 z-index 層級系統，避免模態框和組件衝突
+
+$z-index-dropdown: 1000 !default;
+$z-index-sticky: 1020 !default;
+$z-index-fixed: 1030 !default;
+$z-index-modal-backdrop: 1040 !default;
+$z-index-modal: 1050 !default;
+$z-index-popover: 1060 !default;
+$z-index-tooltip: 1070 !default;
+
+// 22. Helper Functions
+// ==========================================================================
+// 輔助函數來使用統一的變數系統
+
+@function theme-color($key: "primary") {
+  @return map-get($theme-colors, $key);
+}
+
+@function text-color($key: "primary") {
+  @return map-get($text-colors, $key);
+}

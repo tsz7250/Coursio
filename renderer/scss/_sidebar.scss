@@ -6,13 +6,13 @@ $sidebar-item-normal-text-color: black;
 $sidebar-item-normal-background-color: white;
 
 // hover state
-$sidebar-item-hover-text-color: white;
-$sidebar-item-hover-background-color: $primary-color-light;
+$sidebar-item-hover-text-color: text-color("white");
+$sidebar-item-hover-background-color: theme-color("primary-light");
 $sidebar-item-hover-radius: 0;
 
 // active state
-$sidebar-item-active-text-color: white;
-$sidebar-item-active-background-color: $primary-color-dark;
+$sidebar-item-active-text-color: text-color("white");
+$sidebar-item-active-background-color: theme-color("primary-dark");
 $sidebar-item-active-radius: 0;
 
 
@@ -44,7 +44,7 @@ $sidebar-item-active-radius: 0;
             
             &:hover {
                 border-radius: 0;
-                color: $primary-color-dark;
+                color: theme-color("primary-dark");
             }
             > img {
                 margin: 0;
