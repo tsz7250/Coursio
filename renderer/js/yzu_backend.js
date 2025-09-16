@@ -8,9 +8,12 @@ const https = require('https');
 const http = require('http');
 const cheerio = require('cheerio');
 
-// Puppeteer for automated browser actions (懶加載)
-let puppeteer = null;
-let puppeteerLoaded = false;
+ 
+
+// Browserless for production-grade browser control (懶加載)
+let createBrowser = null;
+let browserlessRoot = null; // 單例根瀏覽器管理器
+let browserlessLoaded = false;
 
 // 配置 axios 以處理自簽名證書和網路問題
 Axios.defaults.httpsAgent = new https.Agent({
@@ -22,19 +25,25 @@ Axios.defaults.httpsAgent = new https.Agent({
 Axios.defaults.timeout = 30000;
 Axios.defaults.maxRedirects = 5;
 
-// 🎯 懶加載 Puppeteer
-function loadPuppeteer() {
-    if (!puppeteerLoaded) {
+ 
+
+// 🎯 懶加載 Browserless
+function loadBrowserless() {
+    if (!browserlessLoaded) {
         try {
-            puppeteer = require('puppeteer-core');
-            puppeteerLoaded = true;
-            console.log("✅ Puppeteer-core 已載入，支援完全自動化課表獲取");
+            createBrowser = require('browserless');
+            browserlessLoaded = true;
+            if (!browserlessRoot) {
+                browserlessRoot = createBrowser();
+            }
+            console.log("✅ Browserless 已載入");
         } catch (error) {
-            console.warn("⚠️ Puppeteer-core 未安裝，將使用傳統HTTP方法");
-            puppeteer = null;
+            console.warn("⚠️ Browserless 未安裝或載入失敗");
+            createBrowser = null;
+            browserlessRoot = null;
         }
     }
-    return puppeteer;
+    return browserlessRoot;
 }
 
 class BackendService {
@@ -417,14 +426,6 @@ class BackendService {
     getCourseSchedule(year, smtr) {
         console.log("🚀 使用改進版 Puppeteer 完全自動化課表獲取...");
         
-        // 🎯 懶加載 Puppeteer
-        const puppeteerInstance = loadPuppeteer();
-        if (!puppeteerInstance) {
-            console.error("❌ Puppeteer 不可用，請安裝 puppeteer-core");
-            this.setEmptyPersonalSchedule("Puppeteer 不可用，請安裝 puppeteer-core");
-            return Promise.resolve(this);
-        }
-        
         if (!this.ALLDATA["original_account"] || !this.ALLDATA["original_password"]) {
             console.error("❌ 缺少登入憑證");
             this.setEmptyPersonalSchedule("缺少登入憑證");
@@ -466,7 +467,7 @@ class BackendService {
             });
     }
 
-    // 🎯 完整的課表獲取流程（基於 complete_schedule.js）
+    // 課表獲取流程
     async getCompleteScheduleData(year = "114", smtr = "1") {
         let browser = null;
         let page = null;
@@ -475,12 +476,6 @@ class BackendService {
             console.log("🚀 開始完整課表獲取流程...");
             console.log(`👤 學號: ${this.ALLDATA["original_account"]}`);
             console.log(`📚 學期: ${year}年第${smtr}學期`);
-
-            // 確保 Puppeteer 已載入
-            const puppeteerInstance = loadPuppeteer();
-            if (!puppeteerInstance) {
-                throw new Error("Puppeteer 不可用");
-            }
 
             // 啟動瀏覽器
             console.log("📱 啟動瀏覽器...");
@@ -538,7 +533,7 @@ class BackendService {
         }
     }
 
-    // 新增：解析課表 HTML，專門提取 label1 和 table1，返回詳細資訊
+    // 解析課表 HTML，提取 label1 與 table1 並回傳詳細資訊
     parseScheduleHTMLWithDetails(htmlContent) {
         try {
             console.log("開始解析課表 HTML，尋找 label1 和 table1...");
@@ -804,135 +799,38 @@ class BackendService {
         return Promise.resolve(this);
     }
 
-    // 🎯 新增：Puppeteer完全自動化課表獲取方法
-    async getPuppeteerSchedule(year = "114", smtr = "1") {
-        const puppeteerInstance = loadPuppeteer();
-        if (!puppeteerInstance) {
-            throw new Error("Puppeteer 不可用");
-        }
+ 
 
-        let browser = null;
-        let page = null;
-        
-        try {
-            console.log("🚀 啟動 Puppeteer 自動化課表獲取...");
-            console.log(`📚 目標學期: ${year}年第${smtr}學期`);
-            console.log(`👤 使用帳號: ${this.ALLDATA["original_account"]}`);
-
-            // 🔧 啟動瀏覽器
-            browser = await this.launchPuppeteerBrowser();
-            page = await browser.newPage();
-            
-            // 設置用戶代理
-            await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
-
-            // 🔐 執行登入
-            const loginResult = await this.puppeteerLogin(page);
-            if (!loginResult.success) {
-                throw new Error(`登入失敗: ${loginResult.message}`);
-            }
-
-            // 📋 載入課表
-            const scheduleResult = await this.puppeteerLoadSchedule(page);
-            if (!scheduleResult.success) {
-                throw new Error(`課表載入失敗: ${scheduleResult.message}`);
-            }
-
-            // 📊 解析課表數據
-            const parseResult = await this.puppeteerParseSchedule(page);
-            if (!parseResult.success) {
-                throw new Error(`課表解析失敗: ${parseResult.message}`);
-            }
-
-            // ✅ 設置課表數據
-            this.course_schedule_data = {
-                course_list: parseResult.data.course_list,
-                is_personal: true,
-                source: "Puppeteer 完全自動化課表獲取",
-                warning: null,
-                message: `成功從 Puppeteer 載入 ${parseResult.data.course_list.length} 門個人課程`,
-                label1_info: parseResult.data.label1_info,
-                raw_table_html: parseResult.data.raw_table_html,
-                extraction_time: parseResult.data.extraction_time,
-                puppeteer_success: true
-            };
-
-            // 🎯 生成標準課表HTML
-            try {
-                const scheduleHTML = this.generateScheduleTableHTML(parseResult.data.course_list);
-                this.course_schedule_data.schedule_table_html = scheduleHTML;
-                console.log("✅ 課表HTML已生成並保存");
-            } catch (htmlError) {
-                console.warn("⚠️ 生成課表HTML時發生錯誤:", htmlError.message);
-                this.course_schedule_data.schedule_table_html = null;
-            }
-
-            console.log("🎉 Puppeteer 課表獲取完全成功！");
-            return { success: true, message: "Puppeteer 課表獲取成功" };
-
-        } catch (error) {
-            console.error("❌ Puppeteer 課表獲取失敗:", error.message);
-            return { success: false, error: error.message };
-        } finally {
-            // 🧹 清理資源
-            if (browser) {
-                await this.cleanupPuppeteerBrowser(browser);
-            }
-        }
-    }
-
-    // 🔧 啟動Puppeteer瀏覽器（處理各種瀏覽器問題）
+    // 🔧 啟動瀏覽器（以 Browserless 取代 Puppeteer 啟動流程）
     async launchPuppeteerBrowser() {
         try {
-            console.log("🔍 尋找Chrome瀏覽器...");
-            
-            // 🎯 解決問題1: Chrome路徑檢測
-            const chromePath = this.findChromePath();
-            if (!chromePath) {
-                throw new Error("找不到Chrome瀏覽器，請確保已安裝Chrome");
-            }
-            
-            console.log("✅ 找到Chrome:", chromePath);
-            
-            // 🎯 解決問題2: 瀏覽器啟動參數（避免權限和安全問題）
-            const launchOptions = {
-                executablePath: chromePath,
-                headless: true, // 🎯 解決問題4: 生產環境使用headless
-                defaultViewport: null,
-                args: [
-                    '--no-sandbox',                    // 避免沙盒權限問題
-                    '--disable-setuid-sandbox',       // 避免setuid沙盒問題
-                    '--disable-dev-shm-usage',        // 避免/dev/shm空間不足
-                    '--disable-web-security',         // 允許跨域請求
-                    '--disable-features=VizDisplayCompositor',
-                    '--disable-gpu',                  // 避免GPU相關問題
-                    '--disable-extensions',           // 禁用擴展避免干擾
-                    '--disable-plugins',              // 禁用插件
-                    '--disable-images',               // 加速載入
-                    '--disable-javascript-harmony-shipping',
-                    '--disable-background-timer-throttling',
-                    '--disable-renderer-backgrounding',
-                    '--disable-backgrounding-occluded-windows',
-                    '--disable-ipc-flooding-protection',
-                    '--window-size=1280,720'          // 固定視窗大小
-                ],
-                // 🎯 解決問題3: 超時和資源管理
-                timeout: 60000,
-                handleSIGINT: false,
-                handleSIGTERM: false,
-                handleSIGHUP: false
+            console.log("🚀 以 Browserless 啟動上下文...");
+            const root = loadBrowserless();
+            if (!root) throw new Error("Browserless 不可用");
+
+            // 建立 browserless context
+            const browserless = await root.createContext();
+
+            // 輕量 Browser 介面轉接器，與現有呼叫相容（newPage/pages/close）
+            const adapter = {
+                _browserless: browserless,
+                async newPage() {
+                    return await browserless.page();
+                },
+                async pages() {
+                    // browserless 不提供列舉頁面的API，回傳空陣列以符合清理流程
+                    return [];
+                },
+                async close() {
+                    if (typeof browserless.destroyContext === 'function') {
+                        await browserless.destroyContext();
+                    } else if (typeof browserless.destroy === 'function') {
+                        await browserless.destroy();
+                    }
+                }
             };
 
-            console.log("🚀 啟動瀏覽器...");
-            const puppeteerInstance = loadPuppeteer(); // 確保已載入
-            const browser = await puppeteerInstance.launch(launchOptions);
-            
-            // 🎯 解決問題3: 設置瀏覽器事件監聽
-            browser.on('disconnected', () => {
-                console.log("🔄 瀏覽器連接已斷開");
-            });
-
-            return browser;
+            return adapter;
             
         } catch (error) {
             console.error("❌ 瀏覽器啟動失敗:", error.message);
@@ -947,57 +845,7 @@ class BackendService {
         }
     }
 
-    // 🔍 Chrome路徑檢測（跨平台支援）
-    findChromePath() {
-        const possiblePaths = [
-            // Windows 路徑
-            'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-            'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
-            `C:\\Users\\${process.env.USERNAME}\\AppData\\Local\\Google\\Chrome\\Application\\chrome.exe`,
-            
-            // macOS 路徑
-            '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-            
-            // Linux 路徑
-            '/usr/bin/google-chrome',
-            '/usr/bin/google-chrome-stable',
-            '/usr/bin/chromium-browser',
-            '/snap/bin/chromium'
-        ];
-
-        for (const path of possiblePaths) {
-            try {
-                if (fs.existsSync(path)) {
-                    console.log("✅ 找到Chrome路徑:", path);
-                    return path;
-                }
-            } catch (error) {
-                // 繼續檢查下一個路徑
-            }
-        }
-
-        // 🎯 嘗試系統環境變數
-        const envPaths = [
-            process.env.CHROME_BIN,
-            process.env.GOOGLE_CHROME_BIN
-        ].filter(Boolean);
-
-        for (const path of envPaths) {
-            try {
-                if (fs.existsSync(path)) {
-                    console.log("✅ 從環境變數找到Chrome:", path);
-                    return path;
-                }
-            } catch (error) {
-                // 繼續檢查
-            }
-        }
-
-        console.error("❌ 找不到Chrome瀏覽器");
-        return null;
-    }
-
-    // 🔐 Puppeteer登入流程（改進版，基於 complete_schedule.js）
+    // 登入流程
     async puppeteerLogin(page) {
         try {
             console.log("🔐 開始Puppeteer登入流程...");
@@ -1058,7 +906,7 @@ class BackendService {
         }
     }
 
-    // 🎯 處理iframe中的課表內容（基於 complete_schedule.js）
+    // 處理 iframe 中的課表內容
     async handleScheduleIframe(page) {
         try {
             console.log("🔍 尋找課表iframe...");
@@ -1190,7 +1038,7 @@ class BackendService {
         }
     }
 
-    // 📋 Puppeteer載入課表（改進版，基於 complete_schedule.js）
+    // 載入課表
     async puppeteerLoadSchedule(page) {
         try {
             console.log("📋 開始載入課表...");
@@ -1351,7 +1199,7 @@ class BackendService {
         }
     }
 
-    // 📊 Puppeteer解析課表數據（改進版，基於 complete_schedule.js）
+    // 解析課表數據
     async puppeteerParseSchedule(page) {
         try {
             console.log("📊 解析課表數據...");
@@ -1417,7 +1265,7 @@ class BackendService {
         }
     }
 
-    // 🎯 處理並標準化課表數據 - 基於 complete_schedule.js，解析課程資料
+    // 處理並標準化課表數據
     processScheduleDataFromComplete(rawData) {
         const cleanLabel1 = (text) => {
             if (!text) return '';
@@ -1600,7 +1448,7 @@ class BackendService {
         }
     }
 
-    // 📊 處理Puppeteer課表數據（保留舊版本兼容性）
+    // 處理從課表頁面抓取的數據（相容既有資料結構）
     processPuppeteerScheduleData(rawData) {
         const processed = {
             is_personal: true,
@@ -1908,17 +1756,26 @@ class BackendService {
         return html;
     }
 
-    // 🧹 清理Puppeteer瀏覽器
+    // 🧹 清理瀏覽器（相容 Browserless 與 Puppeteer）
     async cleanupPuppeteerBrowser(browser) {
         try {
             console.log("🧹 正在清理瀏覽器資源...");
             
-            // 關閉所有頁面
-            const pages = await browser.pages();
-            await Promise.all(pages.map(page => page.close().catch(() => {})));
-            
-            // 關閉瀏覽器
-            await browser.close();
+            // Browserless 轉接器
+            if (browser && browser._browserless) {
+                await browser.close();
+                console.log("✅ Browserless 上下文已銷毀");
+                return;
+            }
+
+            // Puppeteer：關閉所有頁面與瀏覽器
+            if (browser && typeof browser.pages === 'function') {
+                const pages = await browser.pages();
+                await Promise.all(pages.map(page => page.close().catch(() => {})));
+            }
+            if (browser && typeof browser.close === 'function') {
+                await browser.close();
+            }
             
             console.log("✅ 瀏覽器資源清理完成");
             
