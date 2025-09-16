@@ -1141,6 +1141,7 @@ window.generateScheduleTable = function() {
 					
 					if (period >= 1 && period <= 13 && day >= 1 && day <= 7) {
 						scheduleGrid[period - 1][day - 1] = {
+							code: (`${course.cos_id || course.course_id || ''}`.trim()).replace(/\s*\(\s*\d+\s*\)\s*$/, ''),
 							name: course.name,
 							teacher: course.teacher_name || '未知教師',
 							room: course.room || '未知教室'
@@ -1159,6 +1160,7 @@ window.generateScheduleTable = function() {
 							
 							if (period >= 1 && period <= 13) {
 								scheduleGrid[period - 1][day - 1] = {
+									code: (`${course.cos_id || course.course_id || ''}`.trim()).replace(/\s*\(\s*\d+\s*\)\s*$/, ''),
 									name: course.name,
 									teacher: course.teacher_name || '未知教師',
 									room: course.room || '未知教室'
@@ -1179,6 +1181,7 @@ window.generateScheduleTable = function() {
 										const period = parseInt(periods.charAt(i));
 										if (period >= 1 && period <= 13 && day >= 1 && day <= 7) {
 											scheduleGrid[period - 1][day - 1] = {
+												code: (`${course.cos_id || course.course_id || ''}`.trim()).replace(/\s*\(\s*\d+\s*\)\s*$/, ''),
 												name: course.name,
 												teacher: course.teacher_name || '未知教師',
 												room: course.room || '未知教室'
@@ -1231,35 +1234,17 @@ window.generateScheduleTable = function() {
 			const courseData = scheduleGrid[timeIndex][dayIndex];
 			const cell = document.createElement('td');
 			cell.className = 'schedule-cell';
+			cell.style.padding = '6px';
 			
 			if (courseData) {
-				// 有課程
-				const courseDiv = document.createElement('div');
-				courseDiv.className = 'course-item';
-				courseDiv.style.padding = '6px';
-				courseDiv.style.borderRadius = '4px';
-				courseDiv.style.fontSize = '13px';
-				courseDiv.style.lineHeight = '1.2';
-				courseDiv.style.fontWeight = '500';
-				
-				const nameDiv = document.createElement('div');
-				nameDiv.style.fontWeight = 'bold';
-				nameDiv.textContent = `${courseData.name.substring(0, 8)}${courseData.name.length > 8 ? '...' : ''}`;
-				
-				const teacherDiv = document.createElement('div');
-				teacherDiv.style.fontSize = '11px';
-				teacherDiv.style.opacity = '0.9';
-				teacherDiv.textContent = courseData.teacher;
-				
-				const roomDiv = document.createElement('div');
-				roomDiv.style.fontSize = '11px';
-				roomDiv.style.opacity = '0.8';
-				roomDiv.textContent = courseData.room;
-				
-				courseDiv.appendChild(nameDiv);
-				courseDiv.appendChild(teacherDiv);
-				courseDiv.appendChild(roomDiv);
-				cell.appendChild(courseDiv);
+				// 直接把三行文字放進 td
+				cell.style.whiteSpace = 'pre-line';
+				cell.style.fontSize = '16px';
+				cell.style.lineHeight = '1.2';
+				const fullName = `${courseData.name || ''}`;
+				const codeText = courseData.code || '';
+				const roomText = courseData.room || '';
+				cell.textContent = `${fullName}\n${codeText}\n${roomText}`;
 			} else {
 				// 沒課程
 				const emptyDiv = document.createElement('div');
