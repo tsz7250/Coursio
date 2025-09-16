@@ -209,7 +209,7 @@ class CourseSelectionController {
         if (tasks.length === 0) {
             tbody.innerHTML = `
                 <tr class="no-tasks">
-                    <td colspan="5" class="text-center">
+                    <td colspan="6" class="text-center">
                         <div class="empty-state">
                             <span class="empty-icon">📝</span>
                             <p>尚無待選課程</p>
@@ -225,19 +225,75 @@ class CourseSelectionController {
         // 顯示任務列表
         tasks.forEach(task => {
             const row = document.createElement('tr');
+            row.setAttribute('data-task-id', task.id ?? '');
+            const statusText = (s => {
+                if (s === 0) return '待選';
+                if (s === 1) return '已選到';
+                if (s === 2) return '已選過';
+                return `狀態 ${s}`;
+            })(task.status);
+            const statusClass = (s => {
+                if (s === 0) return 'status-pending';
+                if (s === 1) return 'status-success';
+                if (s === 2) return 'status-warning';
+                return 'status-info';
+            })(task.status);
+
             row.innerHTML = `
                 <td class="course-code">${task.courseId}${task.classId}</td>
                 <td class="course-name" title="${task.name}">${task.name}</td>
-                <td class="teacher-name">-</td>
-                <td class="credit">-</td>
+                <td class="teacher-name">${task.teacher_name ?? '-'}</td>
+                <td class="credit">${task.credit ?? '-'}</td>
                 <td class="status">
-                    <span class="status-badge status-pending">待選</span>
+                    <span class="status-badge ${statusClass}">${statusText}</span>
+                </td>
+                <td class="actions">
+                    <button class="btn btn-outline btn-small delete-task-btn" data-id="${task.id}">🗑️ 刪除</button>
                 </td>
             `;
             tbody.appendChild(row);
         });
 
+        // 綁定刪除按鈕事件（事件委派）
+        tbody.addEventListener('click', (e) => {
+            const target = e.target;
+            if (target && target.classList.contains('delete-task-btn')) {
+                const id = parseInt(target.getAttribute('data-id'));
+                if (!isNaN(id)) {
+                    this.deleteTask(id);
+                }
+            }
+        }, { once: true });
+
         taskCount.textContent = `待選課程: ${tasks.length} 門`;
+    }
+
+    /**
+     * 刪除指定任務
+     */
+    async deleteTask(id) {
+        const confirmed = confirm('確定要刪除此課程嗎？');
+        if (!confirmed) return;
+
+        try {
+            const sqlite3 = require('sqlite3').verbose();
+            const database = new sqlite3.Database('db.sqlite');
+
+            database.run('DELETE FROM tasks WHERE id = ?', [id], (err) => {
+                database.close();
+
+                if (err) {
+                    console.error('刪除任務失敗:', err);
+                    this.appendOutput('system', `❌ 刪除失敗: ${err.message}`);
+                } else {
+                    this.appendOutput('system', `🗑️ 已刪除任務 #${id}`);
+                    this.refreshTaskList();
+                }
+            });
+        } catch (error) {
+            console.error('刪除任務異常:', error);
+            this.appendOutput('system', `❌ 刪除異常: ${error.message}`);
+        }
     }
 
     /**

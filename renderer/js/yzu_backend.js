@@ -143,6 +143,11 @@ class BackendService {
             if (!entries.length) return '';
             return entries.map(([k, v]) => `${k}=${v}`).join('; ');
         }
+
+        // 預熱瀏覽器快取
+        this._prewarmed = null; // { browser, page, expiresAt }
+        this._prewarmPromise = null;
+        this._prewarmTtlMs = 2 * 60 * 1000; // 2 分鐘 TTL
         this._httpPostForm = function(urlString, form, headers = {}, redirectCount = 0) {
             return new Promise((resolve, reject) => {
                 try {
@@ -477,10 +482,20 @@ class BackendService {
             console.log(`👤 學號: ${this.ALLDATA["original_account"]}`);
             console.log(`📚 學期: ${year}年第${smtr}學期`);
 
-            // 啟動瀏覽器
-            console.log("📱 啟動瀏覽器...");
-            browser = await this.launchPuppeteerBrowser();
-            page = await browser.newPage();
+            // 優先重用預熱資源（僅 context，當前才建立 page）
+            if (this._prewarmed && this._prewarmed.expiresAt > Date.now()) {
+                console.log("🔥 使用預熱的 Browserless context");
+                browser = this._prewarmed.browser;
+                // 於實際使用時才開新頁面
+                page = await browser.newPage();
+                // 使用後清空快取，避免被重複佔用
+                this._prewarmed = null;
+            } else {
+                // 啟動瀏覽器
+                console.log("📱 啟動瀏覽器...");
+                browser = await this.launchPuppeteerBrowser();
+                page = await browser.newPage();
+            }
             
             // 設置用戶代理
             await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
@@ -801,7 +816,7 @@ class BackendService {
 
  
 
-    // 🔧 啟動瀏覽器（以 Browserless 取代 Puppeteer 啟動流程）
+    // 🔧 啟動瀏覽器
     async launchPuppeteerBrowser() {
         try {
             console.log("🚀 以 Browserless 啟動上下文...");
@@ -845,10 +860,67 @@ class BackendService {
         }
     }
 
+    // 預熱 Browserless（只建立 context，不自動開頁或導向）
+    async prewarmBrowser() {
+        try {
+            // 已有且未過期，直接回傳
+            if (this._prewarmed && this._prewarmed.expiresAt > Date.now()) {
+                return this._prewarmed;
+            }
+            // 進行中的預熱，等待完成
+            if (this._prewarmPromise) {
+                return await this._prewarmPromise;
+            }
+
+            console.log("🧊 開始預熱 Browserless context...");
+            this._prewarmPromise = (async () => {
+                const browser = await this.launchPuppeteerBrowser();
+
+                this._prewarmed = {
+                    browser,
+                    page: null,
+                    expiresAt: Date.now() + this._prewarmTtlMs
+                };
+                console.log("✅ 預熱完成");
+                return this._prewarmed;
+            })();
+
+            return await this._prewarmPromise;
+        } catch (e) {
+            // 預熱失敗不影響後續登入
+            this._prewarmed = null;
+            throw e;
+        } finally {
+            this._prewarmPromise = null;
+        }
+    }
+
     // 登入流程
     async puppeteerLogin(page) {
         try {
             console.log("🔐 開始Puppeteer登入流程...");
+
+            // 監聽原生 alert/confirm 對話框以偵測登入失敗
+            let loginFailedByDialog = false;
+            const onDialog = async (dialog) => {
+                try {
+                    const msg = dialog && dialog.message ? (dialog.message() || '') : '';
+                    if (msg.includes('Login Failed') || msg.includes('登入失敗')) {
+                        loginFailedByDialog = true;
+                        await dialog.accept().catch(() => {});
+                    } else {
+                        await dialog.dismiss().catch(() => {});
+                    }
+                } catch (_) {}
+            };
+            try { page.on('dialog', onDialog); } catch (_) {}
+
+            let cleaned = false;
+            const cleanup = () => {
+                if (cleaned) return;
+                cleaned = true;
+                try { page.off('dialog', onDialog); } catch (_) {}
+            };
 
             // 前往登入頁面
             await page.goto('https://portalx.yzu.edu.tw/PortalSocialVB/Login.aspx', {
@@ -876,18 +948,56 @@ class BackendService {
             // 點擊登入按鈕
             await page.click('#ibnSubmit');
 
-            // 等待登入完成
+            // 等待登入成功或對話框失敗（擇一先發生）
             console.log("⏱️ 等待登入完成...");
-            await page.waitForFunction(() => {
-                return window.location.href.includes('DefaultPage.aspx') || 
-                       document.body.innerText.includes('個人portal') ||
-                       document.body.innerText.includes('登入失敗');
-            }, { timeout: 15000 });
+            const successWait = page.waitForFunction(() => {
+                return window.location.href.includes('DefaultPage.aspx') ||
+                       document.body.innerText.includes('個人portal');
+            }, { timeout: 20000 }).then(() => 'SUCCESS');
+
+            // 掃描主頁與所有 iframe 的失敗訊息或模態選擇器
+            const failurePoll = async () => {
+                const hasFailInFrame = async (f) => {
+                    try {
+                        return await f.evaluate(() => {
+                            const text = (document.body && (document.body.innerText || '')) || '';
+                            if (text.includes('Login Failed') || text.includes('登入失敗')) return true;
+                            // 常見 UI 框架的容器
+                            const selectors = ['.swal2-container', '.swal2-popup', '.modal', '.sweet-alert', '#errorBox'];
+                            return selectors.some(sel => document.querySelector(sel));
+                        });
+                    } catch (_) { return false; }
+                };
+
+                // 檢查主頁
+                if (await hasFailInFrame(page.mainFrame())) return true;
+                // 檢查所有子 frame
+                const frames = page.frames();
+                for (const f of frames) {
+                    if (f === page.mainFrame()) continue;
+                    if (await hasFailInFrame(f)) return true;
+                }
+                return false;
+            };
+
+            const dialogOrDomWait = new Promise((resolve) => {
+                const tick = async () => {
+                    if (loginFailedByDialog) return resolve('DIALOG_FAILED');
+                    try {
+                        const failed = await failurePoll();
+                        if (failed) return resolve('DOM_FAILED');
+                    } catch (_) {}
+                    setTimeout(tick, 150);
+                };
+                tick();
+            });
+
+            const outcome = await Promise.race([successWait, dialogOrDomWait]);
 
             const currentUrl = page.url();
             const pageContent = await page.content();
 
-            if (currentUrl.includes('DefaultPage.aspx') || pageContent.includes('個人portal')) {
+            if (outcome === 'SUCCESS' || currentUrl.includes('DefaultPage.aspx') || pageContent.includes('個人portal')) {
                 console.log("✅ 登入成功！");
                 console.log("⏱️ 等待頁面完全載入...");
                 // 以條件式等待主介面可互動
@@ -899,15 +1009,21 @@ class BackendService {
                         return text.includes('課表') && onclick.includes('S5');
                     });
                 }, { timeout: 8000 }).catch(() => {});
+                cleanup();
                 return { success: true };
             } else {
                 console.error("❌ 登入失敗");
-                return { success: false, message: "登入失敗，可能是帳號密碼錯誤" };
+                const message = loginFailedByDialog ? "登入失敗（對話框）" : "登入失敗，可能是帳號密碼錯誤";
+                cleanup();
+                return { success: false, message };
             }
 
         } catch (error) {
             console.error("❌ 登入過程出錯:", error.message);
             return { success: false, message: error.message };
+        } finally {
+            // 確保釋放監聽器
+            try { page.removeAllListeners && page.removeAllListeners('dialog'); } catch (_) {}
         }
     }
 

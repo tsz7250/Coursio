@@ -20,6 +20,58 @@ var apibackend = new BackendService()
 // 讓 apibackend 全域可用
 window.apibackend = apibackend;
 
+// 等登入畫面顯示後再預熱（避免初始畫面空白）
+document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(() => {
+        try {
+            apibackend.prewarmBrowser().catch(() => {});
+        } catch (_) {}
+    }, 600); // 稍微延後，讓登入UI先渲染
+    
+    // 覆寫全域對話框：攔截登入失敗提示，派發事件給 Vue 以避免流程卡住
+    try {
+        const originalAlert = window.alert;
+        const originalConfirm = window.confirm;
+
+        function maybeDispatchLoginFailed(message, source) {
+            const text = String(message || '');
+            if (text.includes('Login Failed') || text.includes('登入失敗')) {
+                window.dispatchEvent(new CustomEvent('yzu:login-failed', {
+                    detail: { message: text, source }
+                }));
+            }
+        }
+
+        window.alert = function() {
+            try { maybeDispatchLoginFailed(arguments[0], 'alert'); } catch (_) {}
+            return originalAlert.apply(window, arguments);
+        };
+
+        window.confirm = function() {
+            try { maybeDispatchLoginFailed(arguments[0], 'confirm'); } catch (_) {}
+            return originalConfirm.apply(window, arguments);
+        };
+    } catch (_) {}
+
+    // 注入 toast 樣式，避免白底白字
+    try {
+        if (!document.getElementById('login-error-toast-style')) {
+            const style = document.createElement('style');
+            style.id = 'login-error-toast-style';
+            style.textContent = `
+                .login-error-toast {
+                    background-color: #c62828 !important; /* red darken-3 */
+                    color: #fff !important;
+                    border-radius: 8px !important;
+                    box-shadow: 0 6px 20px rgba(0,0,0,0.25) !important;
+                }
+                .login-error-toast i, .login-error-toast strong, .login-error-toast span { color: #fff !important; }
+            `;
+            document.head.appendChild(style);
+        }
+    } catch (_) {}
+});
+
 var sqlite3 = require('sqlite3').verbose();
 const database = new sqlite3.Database('db.sqlite');
 
@@ -205,68 +257,71 @@ const app = Vue.createApp({
 		/**
 		 * Functions
 		 */
-		// 登入並取得學生名字
-		function login() {
+		function escapeHtml(str) {
+			return String(str || '')
+				.replace(/&/g, '&amp;')
+				.replace(/</g, '&lt;')
+				.replace(/>/g, '&gt;')
+				.replace(/"/g, '&quot;')
+				.replace(/'/g, '&#039;');
+		}
+
+		function showToastError(message, title = '登入失敗') {
+			const html = `<span style="display:flex;align-items:center;gap:8px">
+				<i class="fas fa-exclamation-circle" style="color:#fff;font-size:18px"></i>
+				<strong style="color:#fff">${escapeHtml(title)}</strong>
+				<span style="color:#ffe;opacity:0.95">${escapeHtml(message)}</span>
+			</span>`;
+			if (typeof M !== 'undefined' && M && M.toast) {
+				M.toast({ html, displayLength: 4000, classes: 'red darken-2 rounded login-error-toast' });
+			} else {
+				alert(`${title}：${message}`);
+			}
+		}
+		// 登入並取得學生名字（先驗證後切頁）
+		async function login() {
 			if (sid.value !== "" && spwd.value !== "") {
 				loading_text.value = "登入中";
 				isLoading.value = true;
 
-				apibackend._getRSAKey()
-					.then((service) => {
-						return service._encryptData(sid.value, spwd.value)
-					})
-					.then((service) => {
-						isLoggedIn.value = true;  // 設置登入狀態
-						
-						// 載入必要的課程資料
-						loading_text.value = "載入課程資料中...";
-						
-						// 載入個人課表和全校課程資料
-						Promise.allSettled([
-							getCourseListAsync(),
-							getCourseListForQuery({ showLoading: false, returnPromise: true, storeInWindow: true }),
-						]).then((results) => {
-							// 載入完成後切換到主畫面
-							isLoading.value = false;
-							loading_text.value = "";
-							document.querySelector(".login-panel").classList.add("slide-up")
+				try {
+					// 1) 準備加密參數
+					const service1 = await apibackend._getRSAKey();
+					await service1._encryptData(sid.value, spwd.value);
 
-							setTimeout(() => {
-								document.querySelector(".login-panel").style.display = "none";
-								document.querySelector(".login-panel").classList.remove("slide-up")
-								document.querySelector(".content-panel").style.display = "flex";
-								
-								// 顯示首頁
-								showSectionById("Main")
-								setTimeout(() => updateMainHeader(), 50);
-							}, 800);
-						}).catch((error) => {
-							console.error("載入課程資料時發生錯誤:", error);
-							// 即使載入失敗也要切換到主畫面
-							isLoading.value = false;
-							loading_text.value = "";
-							document.querySelector(".login-panel").classList.add("slide-up")
+					// 2) 後端以 Puppeteer 驗證帳密
+					loading_text.value = "驗證帳密中...";
+					const verify = await apibackend.getCompleteScheduleData(`${year_now}`, `${smtr_now}`);
+					if (!verify || !verify.success) {
+						throw new Error(verify && verify.message ? verify.message : '登入失敗');
+					}
 
-							setTimeout(() => {
-								document.querySelector(".login-panel").style.display = "none";
-								document.querySelector(".login-panel").classList.remove("slide-up")
-								document.querySelector(".content-panel").style.display = "flex";
-								
-								// 顯示首頁
-								showSectionById("Main")
-							}, 800);
-						});
-					}).catch((error) => {
-						// 確保登入失敗時清除載入狀態
-						console.error("登入失敗:", error);
-						isLoading.value = false;
-						loading_text.value = "登入失敗，請檢查帳號密碼";
-						
-						// 2秒後清除錯誤訊息
-						setTimeout(() => {
-							loading_text.value = "";
-						}, 2000);
-					})
+					// 3) 驗證通過才切頁並載入資料
+					isLoggedIn.value = true;
+					loading_text.value = "載入課程資料中...";
+					await Promise.allSettled([
+						getCourseListAsync(),
+						getCourseListForQuery({ showLoading: false, returnPromise: true, storeInWindow: true }),
+					]);
+
+					isLoading.value = false;
+					loading_text.value = "";
+					document.querySelector(".login-panel").classList.add("slide-up")
+					setTimeout(() => {
+						document.querySelector(".login-panel").style.display = "none";
+						document.querySelector(".login-panel").classList.remove("slide-up")
+						document.querySelector(".content-panel").style.display = "flex";
+						showSectionById("Main")
+						setTimeout(() => updateMainHeader(), 50);
+					}, 800);
+
+				} catch (error) {
+					console.error("登入失敗:", error);
+					isLoading.value = false;
+					loading_text.value = "";
+					showToastError(error.message || String(error));
+					// 保持在登入頁，不切換
+				}
 			} else {
 				alert("請輸入學號和密碼");
 			}
@@ -857,6 +912,36 @@ const app = Vue.createApp({
 			}
 		}
 
+		// 刪除任務並立即刷新
+		function deleteTask(id) {
+			if (!id && id !== 0) return;
+			const confirmed = confirm('確定要刪除此課程嗎？');
+			if (!confirmed) return;
+
+			database.run('DELETE FROM tasks WHERE id = ?', [id], (err) => {
+				if (err) {
+					console.error('刪除任務失敗:', err);
+					if (typeof M !== 'undefined' && M && M.toast) {
+						M.toast({ html: `刪除失敗：${err.message}`, displayLength: 3000, classes: 'red' });
+					} else {
+						alert(`刪除失敗：${err.message}`);
+					}
+					return;
+				}
+
+				// 立即刷新列表（不等輪詢）
+				database.all('SELECT * FROM tasks', [], (qerr, rows) => {
+					if (!qerr) {
+						tasks.value = rows;
+					}
+				});
+
+				if (typeof M !== 'undefined' && M && M.toast) {
+					M.toast({ html: `🗑️ 已刪除任務 #${id}`, displayLength: 2000 });
+				}
+			});
+		}
+
 		// 顯示關於模態框
 		function showAboutModal() {
 			const modal = document.getElementById('about-modal');
@@ -887,6 +972,16 @@ const app = Vue.createApp({
 		onUpdated(() => { })
 
 		onMounted(() => {
+			// 監聽全域登入失敗事件（由覆寫的 alert/confirm 觸發）
+			window.addEventListener('yzu:login-failed', (ev) => {
+				try {
+					isLoading.value = false;
+					loading_text.value = '';
+					const msg = (ev && ev.detail && ev.detail.message) ? ev.detail.message : '登入失敗';
+					showToastError(msg);
+				} catch (e) { console.warn('處理登入失敗事件時發生錯誤', e); }
+			});
+
 			setInterval(() => {
 				database.all(`SELECT * FROM tasks`, [], (err, rows) => {
 					if (err) {
@@ -995,7 +1090,7 @@ const app = Vue.createApp({
 			// Query functions
 			performDeptQuery, performNameQuery, performTeacherQuery, performTimeQuery,
 			// Task List 
-			tasks, status,
+			tasks, status, deleteTask,
 			// Settings
 			StealCourseInterval, StealCourseStage,
 			// Course loading functions

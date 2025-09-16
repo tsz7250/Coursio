@@ -248,6 +248,10 @@ Password=${password}`;
                             courseId: row.cos_id,
                             classId: row.cos_class,
                             name: row.name,
+                            teacher_name: row.teacher_name,
+                            credit: row.credit,
+                            status: row.status,
+                            dept_name: row.dept_name,
                             formatted: `${deptId},${row.cos_id}${row.cos_class}`
                         };
                     });
