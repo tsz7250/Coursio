@@ -491,9 +491,9 @@ class BackendService {
                 throw new Error(`登入失敗: ${loginResult.message}`);
             }
 
-            // 額外等待時間確保頁面元素完全載入
+            // 以網路空閒取代固定等待，確保頁面元素載入完成
             console.log("🔄 確保頁面元素完全載入...");
-            await new Promise(resolve => setTimeout(resolve, 1500));
+            await this.waitForNetworkIdle(page, 600, 8000).catch(() => {});
 
             // 步驟2: 載入課表數據
             const scheduleResult = await this.puppeteerLoadSchedule(page);
@@ -858,14 +858,11 @@ class BackendService {
 
             // 等待表單元素載入
             await page.waitForSelector('#Txt_UserID', { timeout: 10000 });
-            await new Promise(resolve => setTimeout(resolve, 800)); // 等待reCaptcha初始化
 
             // 填入帳號密碼
             console.log("📝 填入登入資訊...");
             await page.type('#Txt_UserID', this.ALLDATA["original_account"]);
-            await new Promise(resolve => setTimeout(resolve, 50));
             await page.type('#Txt_Password', this.ALLDATA["original_password"]);
-            await new Promise(resolve => setTimeout(resolve, 50));
 
             // 等待reCaptcha token生成
             console.log("🔒 等待reCaptcha驗證...");
@@ -893,7 +890,15 @@ class BackendService {
             if (currentUrl.includes('DefaultPage.aspx') || pageContent.includes('個人portal')) {
                 console.log("✅ 登入成功！");
                 console.log("⏱️ 等待頁面完全載入...");
-                await new Promise(resolve => setTimeout(resolve, 1000)); // 等待頁面完全載入
+                // 以條件式等待主介面可互動
+                await this.waitForNetworkIdle(page, 600, 8000).catch(() => {});
+                await page.waitForFunction(() => {
+                    return document.getElementById('tdS14') || Array.from(document.querySelectorAll('*[onclick]')).some(el => {
+                        const text = (el.textContent || el.innerText || '').trim();
+                        const onclick = el.getAttribute('onclick') || '';
+                        return text.includes('課表') && onclick.includes('S5');
+                    });
+                }, { timeout: 8000 }).catch(() => {});
                 return { success: true };
             } else {
                 console.error("❌ 登入失敗");
@@ -928,12 +933,15 @@ class BackendService {
                     if (src && (src.includes('IFrameSub') || src.includes('Schedule') || src.includes('portalfun'))) {
                         console.log(`✅ 找到課表iframe: ${src}`);
                         
-                        // 等待iframe載入
-                        await new Promise(resolve => setTimeout(resolve, 1700));
+                        // 等待 iframe 可取得內容或目標URL
+                        let frame = await iframe.contentFrame();
+                        if (!frame) {
+                            await page.waitForFunction((el) => !!el && !!el.contentWindow, { timeout: 6000 }, iframe).catch(() => {});
+                            frame = await iframe.contentFrame();
+                        }
                         
                         // 嘗試獲取iframe內容
                     try {
-                        const frame = await iframe.contentFrame();
                         if (frame) {
                             
                                 // 等待iframe內容載入
@@ -1007,8 +1015,8 @@ class BackendService {
                                         return { success: true, data: iframeScheduleData };
                 }
             } else {
-                                    console.log("⏱️ iframe尚未導向課表頁面，等待更長時間...");
-                                    await new Promise(resolve => setTimeout(resolve, 3000));
+                                    console.log("⏱️ iframe尚未導向課表頁面，等待網路空閒...");
+                                    await this.waitForNetworkIdle(page, 600, 8000).catch(() => {});
                                     
                                     // 再次檢查URL
                                     const newFrameUrl = await frame.url();
@@ -1043,8 +1051,14 @@ class BackendService {
         try {
             console.log("📋 開始載入課表...");
 
-            // 等待頁面完全載入
-            await new Promise(resolve => setTimeout(resolve, 1700));
+            // 等待主頁面可互動（存在課表選單或相關 onclick）
+            await page.waitForFunction(() => {
+                return document.getElementById('tdS14') || Array.from(document.querySelectorAll('*[onclick]')).some(el => {
+                    const text = (el.textContent || el.innerText || '').trim();
+                    const onclick = el.getAttribute('onclick') || '';
+                    return (text.includes('課表') && onclick.includes('S5')) || onclick.includes("GoToURL('App_','S5')");
+                });
+            }, { timeout: 12000 }).catch(() => {});
 
             // 🎯 直接點擊課表菜單項
             const currentUrl = page.url();
@@ -1116,7 +1130,7 @@ class BackendService {
                         if (frame === page.mainFrame() && !navigationCompleted) {
                             navigationCompleted = true;
                             console.log("✅ 檢測到頁面導航完成");
-                            setTimeout(resolve, 1000);
+                            resolve();
                         }
                     });
                     
@@ -1127,7 +1141,7 @@ class BackendService {
                              response.url().includes('FFB_Login')) && !navigationCompleted) {
                             navigationCompleted = true;
                             console.log("✅ 檢測到課表相關請求完成");
-                            setTimeout(resolve, 1500);
+                            resolve();
                         }
                     });
                     
@@ -1161,6 +1175,7 @@ class BackendService {
                 // 等待導航或AJAX完成
                 console.log("⏱️ 等待課表頁面載入...");
                 await navigationPromise;
+                await this.waitForNetworkIdle(page, 600, 12000).catch(() => {});
 
                 // 🎯 檢查並處理iframe中的課表內容
                 console.log("🔍 檢查iframe中的課表內容...");
@@ -1218,8 +1233,8 @@ class BackendService {
                 };
             }
 
-            // 等待可能的頁面載入
-            await new Promise(resolve => setTimeout(resolve, 800));
+            // 等待可能的頁面載入（Label1 或 Table1 出現）
+            await page.waitForFunction(() => !!document.getElementById('Label1') || !!document.getElementById('Table1'), { timeout: 8000 }).catch(() => {});
 
             // 只抓取 Label1 與 Table1
             const scheduleData = await page.evaluate(() => {
@@ -1618,6 +1633,70 @@ class BackendService {
     extractCreditFromText(text) {
         const match = text.match(/\((\d+)\)/);
         return match ? parseInt(match[1]) : 0;
+    }
+
+    // ==================== 通用等待輔助方法 ====================
+    
+    /**
+     * 等待網路空閒：連續 idleMs 期間沒有進行中的請求，或 timeoutMs 超時
+     * @param {import('puppeteer-core').Page} page
+     * @param {number} idleMs 連續空閒毫秒數
+     * @param {number} timeoutMs 總超時毫秒數
+     */
+    async waitForNetworkIdle(page, idleMs = 600, timeoutMs = 8000) {
+        let inflightRequests = 0;
+        let idleTimer = null;
+        let resolved = false;
+
+        const cleanup = () => {
+            try {
+                page.off('request', onRequestStarted);
+                page.off('requestfinished', onRequestCompleted);
+                page.off('requestfailed', onRequestCompleted);
+            } catch (_) {}
+            if (idleTimer) clearTimeout(idleTimer);
+        };
+
+        const onRequestStarted = () => {
+            inflightRequests++;
+            if (idleTimer) {
+                clearTimeout(idleTimer);
+                idleTimer = null;
+            }
+        };
+
+        const onRequestCompleted = () => {
+            inflightRequests = Math.max(0, inflightRequests - 1);
+            if (inflightRequests === 0 && !resolved) {
+                idleTimer = setTimeout(() => {
+                    if (!resolved) {
+                        resolved = true;
+                        cleanup();
+                        resolver();
+                    }
+                }, idleMs);
+            }
+        };
+
+        page.on('request', onRequestStarted);
+        page.on('requestfinished', onRequestCompleted);
+        page.on('requestfailed', onRequestCompleted);
+
+        let resolver;
+        const idlePromise = new Promise((resolve) => { resolver = resolve; });
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => {
+            if (!resolved) {
+                resolved = true;
+                cleanup();
+                reject(new Error('network idle timeout'));
+            }
+        }, timeoutMs));
+
+        try {
+            await Promise.race([idlePromise, timeoutPromise]);
+        } finally {
+            cleanup();
+        }
     }
 
     // 🎯 生成標準課表HTML

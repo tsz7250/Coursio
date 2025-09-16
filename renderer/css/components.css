@@ -1,3 +1,37 @@
+/* 顯著的登入提示 Toast 樣式 */
+.auth-toast {
+  background: #e74c3c !important;
+  color: #fff !important;
+  font-weight: 600;
+  text-align: center;
+  box-shadow: 0 6px 18px rgba(231, 76, 60, 0.45);
+}
+
+/* 將 Materialize Toast 置於上方置中，並移除左下進場延遲 */
+#toast-container {
+  position: fixed !important;
+  top: 16px !important;
+  bottom: auto !important;
+  left: 50% !important;
+  right: auto !important;
+  transform: translateX(-50%) !important;
+  margin: 0 auto !important;
+  z-index: 9999 !important;
+  pointer-events: none;
+}
+#toast-container .toast {
+  pointer-events: all;
+}
+
+/* 訪客模式下的側邊欄弱化樣式 */
+.guest-disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: grayscale(20%);
+}
+.guest-disabled:hover {
+  opacity: 0.55;
+}
 /* 組件樣式 - 從 index.html 提取的內嵌樣式 */
 
 /* .sr-only 樣式已移至 _global.scss，避免重複定義 */

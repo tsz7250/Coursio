@@ -104,11 +104,11 @@
                 </div>
 
                 <div class="sidebar-funcitonal-items point-it">
-                    <div @click="showSection('Main')" id="Main-sidebar-item" class="sidebar-item" v-show="isLoggedIn">
+                    <div @click="showSection('Main')" id="Main-sidebar-item" class="sidebar-item">
                         <img src="../assets/ion-home-outline.svg" alt="">
                         <span>首頁</span>
                     </div>
-                    <div @click="showSection('Schedule')" id="Schedule-sidebar-item" class="sidebar-item point-it" v-show="isLoggedIn">
+                    <div @click="showSection('Schedule')" id="Schedule-sidebar-item" class="sidebar-item point-it" data-requires-auth="true" :class="!isLoggedIn ? 'guest-disabled' : ''">
                         <img src="../assets/ion-schedule-outline.svg" alt="">
                         <span>我的課表</span>
                     </div>
@@ -117,26 +117,25 @@
                         <img src="../assets/ion-search-outline.svg" alt="">
                         <span>課程查詢</span>
                     </div>
-                    <div @click="showSection('Auto-Selection')" id="Auto-Selection-sidebar-item" class="sidebar-item point-it" v-show="isLoggedIn">
+                    <div @click="showSection('Auto-Selection')" id="Auto-Selection-sidebar-item" class="sidebar-item point-it" data-requires-auth="true" :class="!isLoggedIn ? 'guest-disabled' : ''">
                         <img src="../assets/ion-send-sharp.svg" alt="">
                         <span>自動選課</span>
                     </div>
-                    <div @click="showSection('Task-List')" id="Task-List-sidebar-item" class="sidebar-item point-it" v-show="isLoggedIn">
+                    <div @click="showSection('Task-List')" id="Task-List-sidebar-item" class="sidebar-item point-it" data-requires-auth="true" :class="!isLoggedIn ? 'guest-disabled' : ''">
                         <img src="../assets/ion-list-outline.svg" alt="">
                         <span>選課任務列表</span>
                     </div>
-                    <div @click="showSection('Settings')" id="Settings-sidebar-item" class="sidebar-item point-it" v-show="isLoggedIn">
+                    <div @click="showSection('Settings')" id="Settings-sidebar-item" class="sidebar-item point-it" data-requires-auth="true" :class="!isLoggedIn ? 'guest-disabled' : ''">
                         <img src="../assets/ion-settings-outline.svg" alt="">
                         <span>設定</span>
                     </div>
                 </div>
 
-                <div id="author-sidebar-item" class="sidebar-item point-it" v-show="isLoggedIn" @click="showAboutModal">
-                    <img src="../assets/ion-settings-outline.svg" alt="">
-                    <span>Author</span>
+                <div id="author-sidebar-item" class="sidebar-item point-it" @click="showAboutModal">
+                    <span>關於</span>
                 </div>
 
-                <div id="guest-login-sidebar-item" class="sidebar-item point-it" v-show="!isLoggedIn" @click="returnToLogin">
+                <div id="guest-login-sidebar-item" class="sidebar-item point-it" @click="returnToLogin">
                     <img src="../assets/ion-home-outline.svg" alt="">
                     <span>返回登入</span>
                 </div>
@@ -511,6 +510,20 @@
                     .then(response => response.text())
                     .then(html => {
                         container.innerHTML = html;
+
+                        // schedule 載入後綁定 refresh-schedule 事件
+                        if (componentPath.includes('schedule.html')) {
+                            const btn = document.getElementById('refresh-schedule');
+                            if (btn) {
+                                btn.addEventListener('click', () => {
+                                    if (typeof window.refreshSchedule === 'function') {
+                                        window.refreshSchedule();
+                                    } else {
+                                        console.warn('refreshSchedule 尚未定義');
+                                    }
+                                });
+                            }
+                        }
                     })
                     .catch(error => {
                         console.error(`載入組件 ${componentPath} 失敗:`, error);

@@ -238,6 +238,7 @@ const app = Vue.createApp({
 								
 								// 顯示首頁
 								showSectionById("Main")
+								setTimeout(() => updateMainHeader(), 50);
 							}, 800);
 						}).catch((error) => {
 							console.error("載入課程資料時發生錯誤:", error);
@@ -441,13 +442,14 @@ const app = Vue.createApp({
 		}
 
 		function showSection(id) {
-			// 檢查是否訪客，如果是訪客只允許訪問課程查詢
-			if (!isLoggedIn.value && id !== 'School-timetable-Query') {
-				return;
-			}
-			
+			// 放寬：訪客可切換到所有區段
 			showSectionById(id)
 			
+			// 當切換到首頁時，更新問候語（顯示學號或訪客）
+			if (id === 'Main') {
+				setTimeout(() => updateMainHeader(), 50);
+			}
+
 			// 當切換到課表頁面時，自動載入課表資料
 			if (id === 'Schedule') {
 				// 使用 setTimeout 確保頁面完全顯示後再載入課表
@@ -813,6 +815,21 @@ const app = Vue.createApp({
 			document.querySelector("#MHmodal").checked = true;
 		}
 
+		// 更新首頁標題的學號/訪客顯示
+		function updateMainHeader() {
+			try {
+				const headerEl = document.querySelector('#section-Main > div.header > h4');
+				if (!headerEl) return;
+				const studentId = String(sid.value || '').trim();
+				const nameText = isLoggedIn.value && studentId ? studentId : '訪客';
+				const suffix = '，今天想要來點什麼學分？';
+				// 組裝文字（避免重複疊加）
+				headerEl.textContent = `${nameText}${suffix}`;
+			} catch (e) {
+				console.warn('更新首頁標題失敗:', e);
+			}
+		}
+
 		function showCourseDetail(event, course) {
 			event.preventDefault();
 			event.stopPropagation();
@@ -886,10 +903,26 @@ const app = Vue.createApp({
 				var instances = M.Modal.init(elems, options);
 			})
 
+			// 全域攔截需登入的功能入口（訪客顯示提示）
+			document.addEventListener('click', function (e) {
+				const restricted = e.target && e.target.closest('[data-requires-auth="true"]');
+				if (restricted && !isLoggedIn.value) {
+					e.preventDefault();
+					e.stopPropagation();
+					if (typeof M !== 'undefined' && M && M.toast) {
+						M.toast({ html: '需登入才能使用此功能', displayLength: 4000, classes: 'auth-toast' });
+					} else {
+						alert('需登入才能使用此功能');
+					}
+					return false;
+				}
+			}, true)
+
 			// 先顯示登入畫面，然後在背景載入系所和學期選項
 			// 延遲載入，讓登入畫面先顯示
 			setTimeout(() => {
 				loadInitialCourseOptions();
+				setTimeout(() => updateMainHeader(), 50);
 			}, 500); // 延遲500ms，讓登入畫面先顯示
 		})
 
@@ -975,113 +1008,110 @@ const app = Vue.createApp({
 
 // 課表相關功能
 window.refreshSchedule = async function() {
-	
 	const scheduleLoading = document.getElementById('schedule-loading');
 	const scheduleContent = document.getElementById('schedule-content');
 	const scheduleError = document.getElementById('schedule-error');
+	const refreshBtn = document.getElementById('refresh-schedule');
+	const scheduleInfoInner = document.querySelector('#section-Schedule > div.schedule-info > div');
 	
-	// 顯示載入狀態
+	// DOM 保護
+	if (!scheduleLoading || !scheduleContent || !scheduleError) {
+		console.warn('課表 DOM 尚未載入完成');
+		return;
+	}
+
+	// 顯示載入狀態並禁用按鈕
+	if (refreshBtn) refreshBtn.disabled = true;
 	scheduleLoading.style.display = 'block';
 	scheduleContent.style.display = 'none';
 	scheduleError.style.display = 'none';
-	
+	if (scheduleInfoInner) scheduleInfoInner.style.display = 'none';
+
 	try {
-		// 檢查是否已經有課表資料
-		if (window.apibackend && window.apibackend.course_schedule_data) {
-			generateScheduleTable();
-			
-			scheduleLoading.style.display = 'none';
-			scheduleContent.style.display = 'block';
-			return;
-		}
-		
-		// 如果沒有資料，重新載入
+		// 固定目前學年學期
 		const currentYear = "114";
 		const currentSemester = "1";
-		
-		// 取得課表資料（現在會嘗試個人課表）
-		await apibackend.getCourseSchedule(currentYear, currentSemester).then((service) => {
-			generateScheduleTable();
-			
-			scheduleLoading.style.display = 'none';
-			scheduleContent.style.display = 'block';
-		});
-		
+
+		// 清除舊的課表資料快取，確保強制重抓
+		if (window.apibackend) {
+			window.apibackend.course_schedule_data = null;
+		}
+
+		// 檢查登入憑證
+		if (!window.apibackend || !window.apibackend.ALLDATA?.original_account || !window.apibackend.ALLDATA?.original_password) {
+			throw new Error('缺少登入憑證，請先登入後再重試');
+		}
+
+		// 重新登入
+		await window.apibackend.loginService(
+			window.apibackend.ALLDATA.original_account,
+			window.apibackend.ALLDATA.original_password
+		);
+
+		// Puppeteer 流程重新抓課表
+		await window.apibackend.getCourseSchedule(currentYear, currentSemester);
+
+		// 成功後更新畫面
+		generateScheduleTable();
+		scheduleLoading.style.display = 'none';
+		scheduleContent.style.display = 'block';
+		// 不再使用舊的 schedule-info 區塊
 	} catch (error) {
-		console.error("載入課表失敗:", error);
+		console.error('重新載入課表失敗:', error);
 		scheduleLoading.style.display = 'none';
 		scheduleError.style.display = 'block';
+	} finally {
+		if (refreshBtn) refreshBtn.disabled = false;
 	}
 }
 
 window.generateScheduleTable = function() {
 	// 顯示課表類型和資料來源
 	const scheduleTitle = document.querySelector('.page-header h2');
-	let scheduleInfo = document.querySelector('.schedule-info');
-	
-	// 如果找不到 schedule-info，創建一個
-	if (!scheduleInfo) {
-		scheduleInfo = createScheduleInfoElement();
+	const scheduleSubTitle = document.querySelector('.page-header p');
+	const scheduleContentContainer = document.querySelector('#schedule-content > div');
+	const scheduleTable = document.querySelector('#schedule-content > div > table');
+	// 清理舊的資訊樣式（若有）
+	if (scheduleSubTitle) {
+		scheduleSubTitle.classList.remove('alert', 'alert-light', 'py-2', 'px-3', 'mb-3');
 	}
 	
 	// 檢查課表資料
 	if (window.apibackend && window.apibackend.course_schedule_data) {
 		const data = window.apibackend.course_schedule_data;
 		
-		// 更新標題和說明
+		// 更新標題與資訊區塊（合併顯示於副標題）
 		if (data.is_personal) {
 			if (scheduleTitle) scheduleTitle.textContent = '📋 我的課表';
-			
-			if (data.course_list && data.course_list.length > 0) {
-				// 有個人課表資料
-				let infoHtml = `
-					<div class="alert alert-success">
-						<strong>✅ 個人課表</strong> - 資料來源：${data.source}
-						<br><small>📚 共 ${data.course_list.length} 門課程</small>
-				`;
-				
-				// 如果有 label1 資訊，顯示出來
+			if (scheduleSubTitle) {
 				if (data.label1_info) {
-					infoHtml += `<br><small>📋 課表資訊：${data.label1_info}</small>`;
+					// 只顯示：課表資訊：{label1_info}
+					scheduleSubTitle.textContent = `課表資訊：${data.label1_info}`;
+					// 套用輕量提示樣式
+					scheduleSubTitle.classList.add('alert', 'alert-light', 'py-2', 'px-3', 'mb-3');
+				} else {
+					// 無 label1 時保留原始文案或清空
+					// 若需要固定文案，可改為：'114學年度第1學期課程時間表'
+					// 現在採用清空避免與表格重複
+					scheduleSubTitle.textContent = '';
 				}
-				
-				infoHtml += `</div>`;
-				scheduleInfo.innerHTML = infoHtml;
-			} else {
-				// 個人課表為空
-				let infoHtml = `
-					<div class="alert alert-info">
-						<strong>📝 個人課表（空白）</strong>
-						<br><small>⚠️ ${data.warning || '目前沒有個人課表資料'}</small>
-				`;
-				
-				// 如果有 label1 資訊，顯示出來
-				if (data.label1_info) {
-					infoHtml += `<br><small>📋 課表資訊：${data.label1_info}</small>`;
-				}
-				
-				infoHtml += `<br><small>💡 提示：請確認已登入並且有選修課程</small></div>`;
-				scheduleInfo.innerHTML = infoHtml;
 			}
 		} else {
 			// 這個分支現在不應該被執行到，因為已移除回退機制
 			if (scheduleTitle) scheduleTitle.textContent = '❌ 課表載入失敗';
-			scheduleInfo.innerHTML = `
-				<div class="alert alert-danger">
-					<strong>❌ 無法載入課表</strong>
-					<br><small>${data.warning || '課表載入失敗'}</small>
-				</div>
-			`;
+			if (scheduleSubTitle) {
+				scheduleSubTitle.textContent = '';
+				scheduleSubTitle.classList.remove('alert', 'alert-light', 'py-2', 'px-3', 'mb-3');
+			}
 		}
 	} else {
 		// 沒有課表資料
 		if (scheduleTitle) scheduleTitle.textContent = '📅 我的課表';
-		scheduleInfo.innerHTML = `
-			<div class="alert alert-warning">
-				<strong>⏳ 正在準備課表資料</strong>
-				<br><small>💡 請稍候或點擊「重新載入課表」按鈕</small>
-			</div>
-		`;
+		if (scheduleSubTitle) {
+			// 顯示預設副標題或清空（避免與後續內容重複）
+			scheduleSubTitle.textContent = '';
+			scheduleSubTitle.classList.remove('alert', 'alert-light', 'py-2', 'px-3', 'mb-3');
+		}
 	}
 	
 	// 時間段定義
