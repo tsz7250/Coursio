@@ -456,7 +456,8 @@
                         // HTML 載入後初始化控制器
                         if (typeof CourseSelectionController !== 'undefined') {
                             console.log('初始化 CourseSelectionController...');
-                            new CourseSelectionController();
+                            // 建立並掛到全域，供切頁時呼叫檢查
+                            window.courseSelectionController = new CourseSelectionController();
                         } else {
                             console.warn('CourseSelectionController 未定義');
                         }

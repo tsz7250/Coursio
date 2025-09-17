@@ -18,7 +18,6 @@ function readOrcreateSettingJson() {
     }
 }``
 
-
 function createWindow() {
     readOrcreateSettingJson()
 
@@ -45,10 +44,6 @@ function createWindow() {
     MainWindow.loadFile(path.join(renderer_dirpath, "index.html"))
     MainWindow.webContents.openDevTools();
 
-
-
-
-
     // 在主畫面關閉時清理資源
     MainWindow.on("close", function () {
         // 確保刪除登入 Token 
@@ -62,14 +57,7 @@ function createWindow() {
             console.error("清理設定檔失敗:", error);
         }
     })
-
-
-
-
 }
-
-
-
 
 // 有些 API 只能在這個事件發生後才能用。
 app.whenReady().then(createWindow)

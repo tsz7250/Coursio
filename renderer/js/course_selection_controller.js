@@ -81,11 +81,6 @@ class CourseSelectionController {
         ipcRenderer.on('pythonBotStatus', (event, data) => {
             this.updateBotStatus(data);
         });
-
-        // 初始化檢查（延遲執行以避免重複）
-        if (!this.isInitialized) {
-            setTimeout(() => this.checkEnvironment(), 1000);
-        }
     }
 
     /**
@@ -346,7 +341,10 @@ class CourseSelectionController {
         const maxAttemptsInput = document.getElementById('maxAttempts');
         
         const delay = delayInput ? parseFloat(delayInput.value) || 2.5 : 2.5;
-        const maxAttempts = maxAttemptsInput ? parseInt(maxAttemptsInput.value) || 100 : 100;
+        let maxAttempts = maxAttemptsInput ? parseInt(maxAttemptsInput.value) : 0;
+        if (!Number.isFinite(maxAttempts) || maxAttempts < 0) {
+            maxAttempts = 0; // 0 代表無上限
+        }
 
         try {
             this.appendOutput('system', '🚀 正在啟動 Python 自動選課機器人...');

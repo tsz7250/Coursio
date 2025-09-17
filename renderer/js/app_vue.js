@@ -374,11 +374,21 @@ const app = Vue.createApp({
 						throw new Error(verify && verify.message ? verify.message : '登入失敗');
 					}
 
+					// 登入成功後，回填個人課表資料以供「我的課表」直接使用
+					try {
+						if (window.apibackend && verify.data) {
+							window.apibackend.course_schedule_data = Object.assign({}, verify.data, {
+								is_personal: true,
+								year: String(year_now),
+								smtr: String(smtr_now)
+							});
+						}
+					} catch (_) {}
+
 					// 3) 驗證通過才切頁並載入資料
 					isLoggedIn.value = true;
 					loading_text.value = "載入課程資料中...";
 					await Promise.allSettled([
-						getCourseListAsync(),
 						getCourseListForQuery({ showLoading: false, returnPromise: true, storeInWindow: true }),
 					]);
 
@@ -610,34 +620,24 @@ const app = Vue.createApp({
 					}
 				}, 100);
 			}
+
+			// 當切換到自動選課頁面時，才執行一次性 Python 環境檢查
+			if (id === 'Auto-Selection') {
+				setTimeout(() => {
+					try {
+						if (window.courseSelectionController && typeof window.courseSelectionController.checkEnvironment === 'function') {
+							// 僅在尚未初始化時觸發
+							if (!window.courseSelectionController.isInitialized) {
+								window.courseSelectionController.checkEnvironment();
+							}
+						}
+					} catch (e) {
+						console.warn('進入自動選課頁時觸發檢查失敗:', e);
+					}
+				}, 100);
+			}
 		}
-
-
-
-
-
-		// 異步版本的 getCourseSchedule，用於登入流程中取得個人課表
-		function getCourseListAsync() {
-			// 確保年份和學期有預設值
-			const year = querySelectQueryYear.value || new Date().getFullYear() - 1911;
-			const semester = querySelectQuerySmt.value || "1";
-			
-			return apibackend.getCourseSchedule(`${year}`, `${semester}`).then((service) => {
-				// 使用個人課表資料
-				if (service.course_schedule_data && service.course_schedule_data.course_list) {
-					CourseList = service.course_schedule_data.course_list;
-				} else {
-					CourseList = [];
-				}
-				
-				return Promise.resolve();
-			}).catch((error) => {
-				console.error("個人課表載入失敗:", error);
-				CourseList = [];
-				return Promise.resolve(); // 不中斷載入流程，繼續進行
-			});
-		}
-
+		
 		// 新的查詢功能 - 使用 portalfun.yzu.edu.tw 方法
 		async function performDeptQuery() {
 			// 驗證表單欄位

@@ -87,34 +87,27 @@ class CourseBot:
             self.log("錯誤：captcha.png 檔案不存在")
             return "ERROR"
         
-        self.log("正在讀取驗證碼圖片...")
         captchaImg = cv2.imread('captcha.png')
         if captchaImg is None:
             self.log("錯誤：無法讀取 captcha.png 檔案")
             return "ERROR"
         
-        self.log("正在進行圖片預處理...")
         captchaImg = captchaImg / 255.0
         
-        self.log("正在進行AI預測...")
         result = self.predict(captchaImg)
-        self.log(f"驗證碼識別結果: {result}")
         return result
 
     # login into system and get session
     def login(self):
         
         while True:
-            self.log("開始登入流程...")
             # clear Session object
             self.session.cookies.clear()
 
             # download and recognize captch
-            self.log("正在下載驗證碼...")
             with self.session.get(self.captchaUrl, stream= True) as captchaHtml:
                 with open('captcha.png', 'wb') as img:
                     img.write(captchaHtml.content)
-            self.log("驗證碼下載完成")
             
             captcha = self.captchaOCR()
 
@@ -200,6 +193,13 @@ class CourseBot:
 
 
     def selectCourses(self, coursesList, delay = 5):
+        # 從環境變數讀取最大循環次數（0 或未設定視為無上限）
+        try:
+            max_attempts_env = int(os.environ.get('MAX_ATTEMPTS', '0'))
+        except Exception:
+            max_attempts_env = 0
+
+        attemptCount = 0
         while len(coursesList) > 0:
             for course in coursesList.copy():
                 tokens = course.split(',')
@@ -247,6 +247,9 @@ class CourseBot:
                     self.login()
 
                 time.sleep(delay)
+            attemptCount += 1
+            if max_attempts_env > 0 and attemptCount >= max_attempts_env:
+                break
 
     def log(self, msg):
         print(time.strftime("[%Y-%m-%d %H:%M:%S]", time.localtime()), msg)
@@ -266,7 +269,7 @@ if __name__ == '__main__':
 
 # the courses you want to select, format: '`deptId`,`courseId``classId`'
     coursesList = [
-        '304,CS658A'
+        '　　機械工程學系學士班,ME105A'
     ]
 
     # Time Parameter, sleep n seconds

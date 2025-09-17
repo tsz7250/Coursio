@@ -68,3 +68,4 @@ ts-gen
 patches/mtime-cache.json
 
 spec/fixtures/logo.png
+renderer/py/captcha.png

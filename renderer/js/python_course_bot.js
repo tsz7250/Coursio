@@ -374,6 +374,7 @@ Password=${password}`;
             await this.updateDelaySettings(delay);
             
             // 啟動 Python 程序
+            const envMaxAttempts = Number.isFinite(maxAttempts) ? Number(maxAttempts) : 0;
             this.currentProcess = spawn(this.pythonPath, ['-u', this.botScriptPath], {
                 cwd: path.dirname(this.botScriptPath),
                 stdio: ['pipe', 'pipe', 'pipe'],
@@ -381,7 +382,8 @@ Password=${password}`;
                     ...process.env,
                     PYTHONIOENCODING: 'utf-8',
                     PYTHONUTF8: '1',
-                    PYTHONUNBUFFERED: '1'  // 禁用 Python 輸出緩衝
+                    PYTHONUNBUFFERED: '1',  // 禁用 Python 輸出緩衝
+                    MAX_ATTEMPTS: String(envMaxAttempts || 0)
                 }
             });
             
