@@ -2110,6 +2110,100 @@ class BackendService {
     }
 
     /**
+     * 從課程詳細頁面取得學分數
+     * @param {string} year - 學年
+     * @param {string} smtr - 學期
+     * @param {string} cos_id - 課程代號
+     * @param {string} cos_class - 班級
+     * @returns {Promise<number>} 學分數
+     */
+    async getCourseCredit(year, smtr, cos_id, cos_class) {
+        try {
+            const url = `https://portalfun.yzu.edu.tw/cosSelect/Cos_Plan.aspx?y=${year}&s=${smtr}&id=${cos_id}&c=${cos_class}`;
+            console.log(`正在取得課程學分數: ${url}`);
+            
+            const response = await this._httpGet(url, {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+                Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            });
+            
+            if (response.statusCode >= 300) {
+                throw new Error(`HTTP ${response.statusCode}`);
+            }
+            
+            // 使用cheerio解析HTML
+            const cheerio = require("cheerio");
+            const $ = cheerio.load(response.body);
+            
+            // 尋找包含學分數的td元素
+            const creditCell = $('td.record[title*="授課時數"]');
+            if (creditCell.length > 0) {
+                // 先嘗試從td的內容中取得學分數
+                const cellText = creditCell.text().trim();
+                if (cellText && cellText !== '') {
+                    const credit = parseInt(cellText);
+                    if (!isNaN(credit) && credit > 0) {
+                        console.log(`成功從td內容取得學分數: ${credit}`);
+                        return credit;
+                    }
+                }
+                
+                // 如果td內容為空，再嘗試從title屬性取得
+                const title = creditCell.attr('title');
+                if (title) {
+                    const creditMatch = title.match(/授課時數:(\d+)/);
+                    if (creditMatch) {
+                        const credit = parseInt(creditMatch[1]);
+                        console.log(`成功從title屬性取得學分數: ${credit}`);
+                        return credit;
+                    }
+                }
+            }
+            
+            // 如果找不到，嘗試其他可能的選擇器
+            const alternativeSelectors = [
+                'td.record',
+                'td[title*="授課時數"]',
+                'td[title*="時數"]',
+                'td:contains("授課時數")'
+            ];
+            
+            for (const selector of alternativeSelectors) {
+                const element = $(selector);
+                if (element.length > 0) {
+                    // 優先從td內容取得
+                    const cellText = element.text().trim();
+                    if (cellText && cellText !== '') {
+                        const credit = parseInt(cellText);
+                        if (!isNaN(credit) && credit > 0) {
+                            console.log(`透過備用選擇器從td內容取得學分數: ${credit}`);
+                            return credit;
+                        }
+                    }
+                    
+                    // 如果td內容為空，再嘗試從title屬性取得
+                    const title = element.attr('title');
+                    if (title) {
+                        const creditMatch = title.match(/(\d+)/);
+                        if (creditMatch) {
+                            const credit = parseInt(creditMatch[1]);
+                            console.log(`透過備用選擇器從title屬性取得學分數: ${credit}`);
+                            return credit;
+                        }
+                    }
+                }
+            }
+            
+            console.log(`無法從頁面中取得學分數: ${url}`);
+            return 0;
+            
+        } catch (error) {
+            console.error(`取得學分數失敗 (${cos_id}):`, error.message);
+            return 0;
+        }
+    }
+
+    /**
      * 共用的課程資料解析方法
      * @param {string} html - 包含課程表格的HTML內容
      * @returns {Object} 解析結果 { success, courses, message }

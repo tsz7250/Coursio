@@ -346,6 +346,7 @@
                                     <col>
                                     <col>
                                     <col>
+                                    <col>
                                 </colgroup>
                                 <thead>
                                     <tr>
@@ -355,6 +356,7 @@
                                         <th>選別</th>
                                         <th>時間,教室</th>
                                         <th>授課教師</th>
+                                        <th>學分數</th>
                                         <th>加入選課名單</th>
                                     </tr>
                                 </thead>
@@ -369,6 +371,11 @@
                                         <td class="time-room-cell">{{course.time_room || ''}}</td>
                                         <td class="teacher-cell" style="white-space: pre-line;">
                                             {{ course.teacher_name || course.teacher || '' }}
+                                        </td>
+                                        <td class="credit-cell">
+                                            <span v-if="course.credit_loading" class="credit-loading">載入中...</span>
+                                            <span v-else-if="course.credit" class="credit-value">{{ course.credit }}</span>
+                                            <span v-else class="credit-unknown">-</span>
                                         </td>
                                         <td>
                                             <span v-if="isLoggedIn" @click.capture.self="addToSchedule($event, course)"

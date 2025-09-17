@@ -92,16 +92,6 @@ app.on('activate', () => {
     }
 })
 
-
-
-
-
-
-
-
-
-
-
 // IPC - Python Bot 輸出
 ipcMain.on("pythonBotOutput", (event, data)=>{
     // 轉發 Python 機器人輸出到主視窗
@@ -113,10 +103,31 @@ ipcMain.on("pythonBotStatus", (event, data)=>{
     // 轉發 Python 機器人狀態到主視窗
     MainWindow.webContents.send("pythonBotStatus", data);
 })
-// IPC 開啟外部課程詳細頁面
+// IPC 開啟課程詳細頁面（在 Electron 新視窗中）
 ipcMain.on("openCourseDetail", (event, data)=>{
     const { year, smtr, cos_id, cos_class } = data;
     const url = `https://portalfun.yzu.edu.tw/cosSelect/Cos_Plan.aspx?y=${year}&s=${smtr}&id=${cos_id}&c=${cos_class}`;
-    console.log("Opening course detail URL:", url);
-    shell.openExternal(url);
+    console.log("Opening course detail URL in new window:", url);
+    
+    // 建立新的 BrowserWindow 來顯示課程詳細頁面
+    let courseDetailWindow = new BrowserWindow({
+        width: 1000,
+        height: 800,
+        parent: MainWindow, // 設定父視窗
+        modal: false, // 非模態視窗
+        autoHideMenuBar: true, // 自動隱藏選單列
+        webPreferences: {
+            nodeIntegration: false,
+            contextIsolation: true,
+            webSecurity: true
+        }
+    });
+    
+    // 載入課程詳細頁面
+    courseDetailWindow.loadURL(url);
+    
+    // 當視窗關閉時清理資源
+    courseDetailWindow.on('closed', () => {
+        courseDetailWindow = null;
+    });
 })

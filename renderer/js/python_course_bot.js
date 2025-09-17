@@ -222,37 +222,18 @@ Password=${password}`;
                         return;
                     }
                     
-                    // 轉換為 Python bot 格式：extractDeptId,courseIdclassId
+                    // 轉換為 Python bot 格式：extractDeptId,courseIdclassId（簡化版）
                     const courses = rows.map(row => {
-                        // 嘗試從 dept_name 或其他地方提取系所代碼
-                        let deptId = '';
-                        
-                        // 方法1: 從 dept_name 提取數字 (例如: "304 資訊工程學系" -> "304")
-                        const deptMatch = row.dept_name?.match(/^(\d+)/);
-                        if (deptMatch) {
-                            deptId = deptMatch[1];
-                        } else {
-                            // 方法2: 使用系所對照表從 cos_id 推斷
-                            const cosIdPrefix = row.cos_id?.substring(0, 3);
-                            const deptMapping = {
-                                'CS': '304', 'IM': '305', 'GI': '306', 'IE': '211', 'ME': '212',
-                                'CH': '213', 'FL': '401', 'EEA': '311', 'EEB': '312', 'EEC': '313',
-                                'MT': '901', 'PL': '902'
-                            };
-                            deptId = deptMapping[cosIdPrefix] || '000';
-                        }
-                        
                         return {
                             id: row.id,
-                            deptId: deptId,
+                            deptId: row.dept_id, // 直接使用 dept_id 欄位
                             courseId: row.cos_id,
                             classId: row.cos_class,
                             name: row.name,
                             teacher_name: row.teacher_name,
                             credit: row.credit,
                             status: row.status,
-                            dept_name: row.dept_name,
-                            formatted: `${deptId},${row.cos_id}${row.cos_class}`
+                            formatted: `${row.dept_id},${row.cos_id}${row.cos_class}`
                         };
                     });
                     

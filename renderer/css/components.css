@@ -73,7 +73,8 @@
 #courses-list-data-table colgroup col:nth-child(4) { width: 80px; }   /* 選別 */
 #courses-list-data-table colgroup col:nth-child(5) { width: 200px; }  /* 時間,教室 */
 #courses-list-data-table colgroup col:nth-child(6) { width: 90px; }   /* 授課教師 */
-#courses-list-data-table colgroup col:nth-child(7) { width: 140px; }  /* 加入選課名單 */
+#courses-list-data-table colgroup col:nth-child(7) { width: 80px; }   /* 學分數 */
+#courses-list-data-table colgroup col:nth-child(8) { width: 140px; }  /* 加入選課名單 */
 
 /* 教師欄：若含括號允許在括號前換行，並縮小欄寬 */
 #courses-list-data-table td.teacher-cell {
@@ -99,6 +100,12 @@
 
 #courses-list-data-table td.time-room-cell .time { white-space: pre-line; }
 #courses-list-data-table td.time-room-cell .room { white-space: pre-line; color: #555; }
+
+/* 學分數欄位樣式 */
+#courses-list-data-table td.credit-cell {
+    text-align: center;
+    white-space: nowrap;
+}
 
 /* 查詢區塊樣式強化 */
 .query-actions { text-align: right; }

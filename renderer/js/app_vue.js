@@ -57,31 +57,125 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 var sqlite3 = require('sqlite3').verbose();
-const database = new sqlite3.Database('db.sqlite');
 
-// 初始化資料庫表格
-database.serialize(() => {
-    database.run(`CREATE TABLE IF NOT EXISTS tasks (
-        "id" INTEGER PRIMARY KEY AUTOINCREMENT, 
-        "year" TEXT,
-        "smtr" TEXT,
-        "stage" TEXT,
-        "cos_id" TEXT,
-        "cos_class" TEXT,
-        "cos_type_name" TEXT,
-        "credit" INTEGER,
-        "room" TEXT,
-        "name" TEXT,
-        "teacher_name" TEXT,
-        "dept_name" TEXT,
-        "status" INTEGER
-    )`, (err) => {
-        if (err) {
-            console.error('建立 tasks 表格失敗:', err.message);
-        } else {
-            console.log('✅ Tasks 資料庫表格已準備就緒');
+// 資料庫連線管理類別
+class DatabaseManager {
+    constructor() {
+        this.database = null;
+        this.isInitialized = false;
+    }
+
+    // 取得資料庫連線
+    getConnection() {
+        if (!this.database) {
+            this.database = new sqlite3.Database('db.sqlite', (err) => {
+                if (err) {
+                    console.error('❌ 資料庫連線失敗:', err.message);
+                    throw err;
+                }
+                console.log('✅ 資料庫連線已建立');
+            });
         }
-    });
+        return this.database;
+    }
+
+    // 初始化資料庫表格
+    async initialize() {
+        if (this.isInitialized) return Promise.resolve();
+        
+        return new Promise((resolve, reject) => {
+            const db = this.getConnection();
+            db.serialize(() => {
+                // 建立選課任務資料表（簡化版）
+                // 欄位說明：
+                // - id: 主鍵，自動遞增
+                // - cos_id: 課程代碼 (如: "CS354") - 前端顯示用
+                // - cos_class: 課程班別 (如: "A", "B") - 自動選課用
+                // - name: 課程名稱 (如: "電腦與網路安全概論") - 前端顯示用
+                // - teacher_name: 授課教師 (如: "王小明") - 前端顯示用
+                // - credit: 學分數 (如: 3) - 前端顯示用
+                // - dept_id: 系所代號 (如: "304") - 自動選課用
+                // - status: 狀態 (0=尚未選到, 1=已選到, 2=選課失敗)
+                db.run(`CREATE TABLE IF NOT EXISTS tasks (
+                    "id" INTEGER PRIMARY KEY AUTOINCREMENT, 
+                    "cos_id" TEXT,
+                    "cos_class" TEXT,
+                    "name" TEXT,
+                    "teacher_name" TEXT,
+                    "credit" INTEGER,
+                    "dept_id" TEXT,
+                    "status" INTEGER
+                )`, (err) => {
+                    if (err) {
+                        console.error('❌ 建立 tasks 表格失敗:', err.message);
+                        reject(err);
+                    } else {
+                        console.log('✅ Tasks 資料庫表格已準備就緒');
+                        this.isInitialized = true;
+                        resolve();
+                    }
+                });
+            });
+        });
+    }
+
+    // 安全地執行資料庫操作
+    async executeQuery(query, params = []) {
+        return new Promise((resolve, reject) => {
+            const db = this.getConnection();
+            db.run(query, params, function(err) {
+                if (err) {
+                    console.error('❌ 資料庫操作失敗:', err.message);
+                    console.error('查詢:', query);
+                    console.error('參數:', params);
+                    reject(err);
+                } else {
+                    console.log('✅ 資料庫操作成功');
+                    resolve({ id: this.lastID, changes: this.changes });
+                }
+            });
+        });
+    }
+
+    // 安全地查詢資料
+    async getQuery(query, params = []) {
+        return new Promise((resolve, reject) => {
+            const db = this.getConnection();
+            db.get(query, params, (err, row) => {
+                if (err) {
+                    console.error('❌ 資料庫查詢失敗:', err.message);
+                    console.error('查詢:', query);
+                    console.error('參數:', params);
+                    reject(err);
+                } else {
+                    resolve(row);
+                }
+            });
+        });
+    }
+
+    // 關閉資料庫連線
+    close() {
+        if (this.database) {
+            this.database.close((err) => {
+                if (err) {
+                    console.error('❌ 關閉資料庫連線失敗:', err.message);
+                } else {
+                    console.log('✅ 資料庫連線已關閉');
+                }
+            });
+            this.database = null;
+            this.isInitialized = false;
+        }
+    }
+}
+
+// 建立全域資料庫管理器實例
+const dbManager = new DatabaseManager();
+
+// 初始化資料庫
+dbManager.initialize().catch(err => {
+    console.error('❌ 資料庫初始化失敗:', err);
 });
 
 
@@ -591,9 +685,14 @@ const app = Vue.createApp({
 						dept_grade: course.dept_level || course.dept_grade || course.dept_name || querySelectQueryDept.value?.trim(),
 						dept_name: course.dept_level || course.dept_name || querySelectQueryDept.value?.trim(),
 						credits: course.credits,
+						credit: 0, // 初始值，稍後載入
+						credit_loading: true, // 標記為載入中
 						year: querySelectSemester.value.split(',')[0].trim(),
 						smtr: querySelectSemester.value.split(',')[1].trim()
 					}));
+					
+					// 異步載入學分數
+					loadCourseCredits(queryResultForList.value);
 					
 				} else {
 					queryResultForList.value = [];
@@ -634,9 +733,14 @@ const app = Vue.createApp({
 						dept_grade: course.dept_level || course.dept_grade || course.dept_name || '',
 						dept_name: course.dept_level || course.dept_name || '',
 						credits: course.credits,
+						credit: 0, // 初始值，稍後載入
+						credit_loading: true, // 標記為載入中
 						year: ddlYM.split(',')[0].trim(),
 						smtr: ddlYM.split(',')[1].trim()
 					}));
+					
+					// 異步載入學分數
+					loadCourseCredits(queryResultForList.value);
 				} else {
 					queryResultForList.value = [];
 				}
@@ -680,9 +784,14 @@ const app = Vue.createApp({
 						dept_grade: course.dept_level || course.dept_grade || course.dept_name || '',
 						dept_name: course.dept_level || course.dept_name || '',
 						credits: course.credits,
+						credit: 0, // 初始值，稍後載入
+						credit_loading: true, // 標記為載入中
 						year: querySelectSemesterForTeacher.value.split(',')[0].trim(),
 						smtr: querySelectSemesterForTeacher.value.split(',')[1].trim()
 					}));
+					
+					// 異步載入學分數
+					loadCourseCredits(queryResultForList.value);
 					
 				} else {
 					queryResultForList.value = [];
@@ -725,9 +834,14 @@ const app = Vue.createApp({
 						dept_grade: course.dept_level || course.dept_grade || course.dept_name || '',
 						dept_name: course.dept_level || course.dept_name || '',
 						credits: course.credits,
+						credit: 0, // 初始值，稍後載入
+						credit_loading: true, // 標記為載入中
 						year: querySelectSemesterForTime.value.split(',')[0].trim(),
 						smtr: querySelectSemesterForTime.value.split(',')[1].trim()
 					}));
+					
+					// 異步載入學分數
+					loadCourseCredits(queryResultForList.value);
 				} else {
 					queryResultForList.value = [];
 				}
@@ -737,6 +851,37 @@ const app = Vue.createApp({
 			} finally {
 				isCourseDataLoading.value = false;
 			}
+		}
+
+		// 異步載入課程學分數
+		async function loadCourseCredits(courses) {
+			if (!courses || courses.length === 0) return;
+			
+			// 使用 Promise.allSettled 並行載入所有課程的學分數，避免阻塞
+			const creditPromises = courses.map(async (course, index) => {
+				try {
+					// 添加小延遲避免過於頻繁的請求
+					await new Promise(resolve => setTimeout(resolve, index * 100));
+					
+					const credit = await apibackend.getCourseCredit(
+						course.year,
+						course.smtr,
+						course.cos_id,
+						course.cos_class
+					);
+					
+					// 更新課程的學分數
+					course.credit = credit;
+					course.credit_loading = false;					
+				} catch (error) {
+					console.error(`載入課程 ${course.cos_id} 學分數失敗:`, error);
+					course.credit = 0;
+					course.credit_loading = false;
+				}
+			});
+			
+			// 等待所有學分數載入完成
+			await Promise.allSettled(creditPromises);
 		}
 
 		// 停用自動監聽查詢，改為按鈕觸發
@@ -785,60 +930,105 @@ const app = Vue.createApp({
 			saveSettingFile()
 		})
 
-		function addToSchedule(event, course) {
+		// 資料驗證函數（簡化版）
+		function validateCourseData(courseData) {
+			const errors = [];
+			
+			// 必要欄位檢查
+			if (!courseData.cos_id || courseData.cos_id.trim() === '') {
+				errors.push('課程代碼不能為空');
+			}
+			if (!courseData.name || courseData.name.trim() === '') {
+				errors.push('課程名稱不能為空');
+			}
+			if (!courseData.dept_id || courseData.dept_id.trim() === '') {
+				errors.push('系所代號不能為空');
+			}
+			
+			// 資料格式檢查
+			if (courseData.credit && (isNaN(courseData.credit) || courseData.credit < 0)) {
+				errors.push('學分數必須為非負整數');
+			}
+			
+			return {
+				isValid: errors.length === 0,
+				errors: errors
+			};
+		}
+
+		async function addToSchedule(event, course) {
 			event.preventDefault()
 			event.stopPropagation()
 			
-			// 直接添加課程到選課任務列表資料庫
-			const courseData = {
-				year: querySelectQueryYear.value,
-				smtr: querySelectQuerySmt.value,
-				stage: "1",
-				cos_id: course.cos_id || '',
-				cos_class: course.cos_class || 'A',
-				cos_type_name: course.cos_type_name || '',
-				credit: course.credit || 0,
-				room: course.room || '',
-				name: course.name || '',
-				teacher_name: course.teacher_name || '',
-				dept_name: course.dept_name || '',
-				status: 0 // 0 = 尚未選到
-			};
-			
-			// 檢查是否已存在相同課程
-			database.get(
-				`SELECT * FROM tasks WHERE cos_id = ? AND cos_class = ? AND year = ? AND smtr = ?`, 
-				[courseData.cos_id, courseData.cos_class, courseData.year, courseData.smtr],
-				(err, row) => {
-					if (err) {
-						console.error('檢查課程失敗:', err.message);
-						alert('❌ 加入選課清單失敗: ' + err.message);
-						return;
-					}
-					
-					if (row) {
-						alert(`⚠️ 課程 ${courseData.cos_id}${courseData.cos_class} 已存在於選課清單中`);
-						return;
-					}
-					
-					// 插入新的選課任務
-					database.run(
-						`INSERT INTO tasks(year, smtr, stage, cos_id, cos_class, cos_type_name, credit, room, name, teacher_name, dept_name, status)
-						 VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-						[courseData.year, courseData.smtr, courseData.stage, courseData.cos_id, courseData.cos_class, 
-						 courseData.cos_type_name, courseData.credit, courseData.room, courseData.name, 
-						 courseData.teacher_name, courseData.dept_name, courseData.status],
-						function (err) {
-							if (err) {
-								console.error('新增課程失敗:', err.message);
-								alert('❌ 加入選課清單失敗: ' + err.message);
-							} else {
-								alert(`✅ 課程 ${courseData.cos_id}${courseData.cos_class} - ${courseData.name} 已加入選課清單！\n\n請前往「選課任務列表」查看，或使用「自動選課」功能。`);
-							}
-						}
-					);
+			try {
+				// 確保資料庫已初始化
+				await dbManager.initialize();
+				
+				// 準備課程資料（簡化版）
+				const courseData = {
+					cos_id: course.cos_id || '',
+					cos_class: course.cos_class || 'A',
+					name: course.name || course.cos_name || '',
+					teacher_name: course.teacher_name || course.teacher || '',
+					credit: course.credit || course.credits || 0,
+					dept_id: '', // 從查詢頁面的系所選擇器取得
+					status: 0 // 0 = 尚未選到
+				};
+				
+				// 從查詢頁面的系所選擇器取得系所代號
+				const deptSelectElement = document.querySelector("#querySelectQueryDept");
+				if (deptSelectElement && deptSelectElement.value) {
+					courseData.dept_id = deptSelectElement.value;
 				}
-			);
+				
+				console.log('📝 準備新增課程資料:', courseData);
+				
+				// 資料驗證
+				const validation = validateCourseData(courseData);
+				if (!validation.isValid) {
+					console.error('❌ 資料驗證失敗:', validation.errors);
+					alert('❌ 資料驗證失敗:\n' + validation.errors.join('\n'));
+					return;
+				}
+				
+				// 檢查是否已存在相同課程
+				const existingCourse = await dbManager.getQuery(
+					`SELECT * FROM tasks WHERE cos_id = ? AND cos_class = ?`, 
+					[courseData.cos_id, courseData.cos_class]
+				);
+				
+				if (existingCourse) {
+					console.log('⚠️ 課程已存在:', existingCourse);
+					alert(`⚠️ 課程 ${courseData.cos_id}${courseData.cos_class} 已存在於選課清單中`);
+					return;
+				}
+				
+				// 插入新的選課任務
+				const result = await dbManager.executeQuery(
+					`INSERT INTO tasks(cos_id, cos_class, name, teacher_name, credit, dept_id, status)
+					 VALUES(?, ?, ?, ?, ?, ?, ?)`,
+					[courseData.cos_id, courseData.cos_class, courseData.name, 
+					 courseData.teacher_name, courseData.credit, courseData.dept_id, courseData.status]
+				);
+				
+				// 寫入確認：查詢剛插入的資料
+				const insertedCourse = await dbManager.getQuery(
+					`SELECT * FROM tasks WHERE id = ?`,
+					[result.id]
+				);
+				
+				if (insertedCourse) {
+					console.log('✅ 課程成功寫入資料庫:', insertedCourse);
+					alert(`✅ 課程 ${courseData.cos_id}${courseData.cos_class} - ${courseData.name} 已加入選課清單！\n\n請前往「選課任務列表」查看，或使用「自動選課」功能。`);
+				} else {
+					console.error('❌ 寫入確認失敗：無法查詢到剛插入的資料');
+					alert('❌ 課程已加入但無法確認，請檢查選課任務列表');
+				}
+				
+			} catch (error) {
+				console.error('❌ 加入選課清單失敗:', error);
+				alert('❌ 加入選課清單失敗: ' + error.message);
+			}
 		}
 
 		function normalizeText(str) {
@@ -897,33 +1087,34 @@ const app = Vue.createApp({
 		}
 
 		// 刪除任務並立即刷新
-		function deleteTask(id) {
+		async function deleteTask(id) {
 			if (!id && id !== 0) return;
 			const confirmed = confirm('確定要刪除此課程嗎？');
 			if (!confirmed) return;
 
-			database.run('DELETE FROM tasks WHERE id = ?', [id], (err) => {
-				if (err) {
-					console.error('刪除任務失敗:', err);
-					if (typeof M !== 'undefined' && M && M.toast) {
-						M.toast({ html: `刪除失敗：${err.message}`, displayLength: 3000, classes: 'red' });
-					} else {
-						alert(`刪除失敗：${err.message}`);
-					}
-					return;
-				}
+			try {
+				// 確保資料庫已初始化
+				await dbManager.initialize();
+				
+				// 刪除任務
+				await dbManager.executeQuery('DELETE FROM tasks WHERE id = ?', [id]);
+				console.log('✅ 任務刪除成功:', id);
 
 				// 立即刷新列表（不等輪詢）
-				database.all('SELECT * FROM tasks', [], (qerr, rows) => {
-					if (!qerr) {
-						tasks.value = rows;
-					}
-				});
+				const allTasks = await dbManager.getQuery('SELECT * FROM tasks');
+				tasks.value = allTasks || [];
 
 				if (typeof M !== 'undefined' && M && M.toast) {
 					M.toast({ html: `🗑️ 已刪除任務 #${id}`, displayLength: 2000 });
 				}
-			});
+			} catch (error) {
+				console.error('❌ 刪除任務失敗:', error);
+				if (typeof M !== 'undefined' && M && M.toast) {
+					M.toast({ html: `刪除失敗：${error.message}`, displayLength: 3000, classes: 'red' });
+				} else {
+					alert(`刪除失敗：${error.message}`);
+				}
+			}
 		}
 
 		// 顯示關於模態框
@@ -966,13 +1157,14 @@ const app = Vue.createApp({
 				} catch (e) { console.warn('處理登入失敗事件時發生錯誤', e); }
 			});
 
-			setInterval(() => {
-				database.all(`SELECT * FROM tasks`, [], (err, rows) => {
-					if (err) {
-						throw err;
-					}
-					tasks.value = rows
-				});
+			setInterval(async () => {
+				try {
+					await dbManager.initialize();
+					const allTasks = await dbManager.getQuery('SELECT * FROM tasks');
+					tasks.value = allTasks || [];
+				} catch (error) {
+					console.error('❌ 輪詢任務列表失敗:', error);
+				}
 			}, 5000)
 
 			document.addEventListener('DOMContentLoaded', function () {
@@ -1078,7 +1270,7 @@ const app = Vue.createApp({
 			// Settings
 			StealCourseInterval, StealCourseStage,
 			// Course loading functions
-			isPersonalScheduleData, getCourseListForQuery, loadInitialCourseOptions,
+			isPersonalScheduleData, getCourseListForQuery, loadInitialCourseOptions, loadCourseCredits,
 			// Modal functions
 			showAboutModal, closeAboutModal,
 		}
