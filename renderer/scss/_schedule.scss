@@ -57,6 +57,31 @@
   position: relative;
 }
 
+// 課表時間欄樣式
+.schedule-time-cell {
+  background-color: #f8f9fa;
+  font-weight: bold;
+  white-space: pre-line;
+  text-align: center;
+}
+
+// 課表課程格子樣式
+.schedule-course-cell {
+  padding: 6px;
+
+  &.has-course {
+    white-space: pre-line;
+    font-size: 16px;
+    line-height: 1.2;
+  }
+}
+
+.schedule-course-slot {
+  padding: 8px;
+  text-align: center;
+  color: #999;
+}
+
 .course-item {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;

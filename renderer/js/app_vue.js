@@ -53,23 +53,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     } catch (_) {}
 
-    // 注入 toast 樣式，避免白底白字
-    try {
-        if (!document.getElementById('login-error-toast-style')) {
-            const style = document.createElement('style');
-            style.id = 'login-error-toast-style';
-            style.textContent = `
-                .login-error-toast {
-                    background-color: #c62828 !important; /* red darken-3 */
-                    color: #fff !important;
-                    border-radius: 8px !important;
-                    box-shadow: 0 6px 20px rgba(0,0,0,0.25) !important;
-                }
-                .login-error-toast i, .login-error-toast strong, .login-error-toast span { color: #fff !important; }
-            `;
-            document.head.appendChild(style);
-        }
-    } catch (_) {}
+    // Toast 樣式已移至 CSS 檔案中
 });
 
 var sqlite3 = require('sqlite3').verbose();
@@ -267,10 +251,10 @@ const app = Vue.createApp({
 		}
 
 		function showToastError(message, title = '登入失敗') {
-			const html = `<span style="display:flex;align-items:center;gap:8px">
-				<i class="fas fa-exclamation-circle" style="color:#fff;font-size:18px"></i>
-				<strong style="color:#fff">${escapeHtml(title)}</strong>
-				<span style="color:#ffe;opacity:0.95">${escapeHtml(message)}</span>
+			const html = `<span class="toast-error-content">
+				<i class="fas fa-exclamation-circle toast-error-icon"></i>
+				<strong class="toast-error-title">${escapeHtml(title)}</strong>
+				<span class="toast-error-message">${escapeHtml(message)}</span>
 			</span>`;
 			if (typeof M !== 'undefined' && M && M.toast) {
 				M.toast({ html, displayLength: 4000, classes: 'red darken-2 rounded login-error-toast' });
@@ -1315,41 +1299,32 @@ window.generateScheduleTable = function() {
 	timeSlots.forEach((time, timeIndex) => {
 		const row = document.createElement('tr');
 		
-		// 時間欄
-		const timeCell = document.createElement('td');
-		timeCell.style.backgroundColor = '#f8f9fa';
-		timeCell.style.fontWeight = 'bold';
-		timeCell.style.whiteSpace = 'pre-line';
-		timeCell.style.textAlign = 'center';
-		timeCell.textContent = `第${timeIndex + 1}節\n${time}`;
+			// 時間欄
+			const timeCell = document.createElement('td');
+			timeCell.className = 'schedule-time-cell';
+			timeCell.textContent = `第${timeIndex + 1}節\n${time}`;
 		row.appendChild(timeCell);
 		
 		// 週一到週日
 		for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
 			const courseData = scheduleGrid[timeIndex][dayIndex];
-			const cell = document.createElement('td');
-			cell.className = 'schedule-cell';
-			cell.style.padding = '6px';
-			
-			if (courseData) {
-				// 直接把三行文字放進 td
-				cell.style.whiteSpace = 'pre-line';
-				cell.style.fontSize = '16px';
-				cell.style.lineHeight = '1.2';
-				const fullName = `${courseData.name || ''}`;
-				const codeText = courseData.code || '';
-				const roomText = courseData.room || '';
-				cell.textContent = `${fullName}\n${codeText}\n${roomText}`;
-			} else {
-				// 沒課程
-				const emptyDiv = document.createElement('div');
-				emptyDiv.className = 'course-slot';
-				emptyDiv.style.padding = '8px';
-				emptyDiv.style.textAlign = 'center';
-				emptyDiv.style.color = '#999';
-				emptyDiv.textContent = '-';
-				cell.appendChild(emptyDiv);
-			}
+				const cell = document.createElement('td');
+				cell.className = 'schedule-cell schedule-course-cell';
+				
+				if (courseData) {
+					// 直接把三行文字放進 td
+					cell.classList.add('has-course');
+					const fullName = `${courseData.name || ''}`;
+					const codeText = courseData.code || '';
+					const roomText = courseData.room || '';
+					cell.textContent = `${fullName}\n${codeText}\n${roomText}`;
+				} else {
+					// 沒課程
+					const emptyDiv = document.createElement('div');
+					emptyDiv.className = 'schedule-course-slot';
+					emptyDiv.textContent = '-';
+					cell.appendChild(emptyDiv);
+				}
 			
 			row.appendChild(cell);
 		}
