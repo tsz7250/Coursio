@@ -17,6 +17,7 @@ class PythonCourseBot {
         this.isInitialized = false;
         this.pythonChecked = false;
         
+        
         // 獲取正確的 Python 檔案路徑
         // Python 檔案位於 renderer/py 目錄中
         let pythonDir;
@@ -48,7 +49,7 @@ class PythonCourseBot {
     }
 
     /**
-     * 初始化 Python 環境
+     * 初始化 Python 環境 (優化版本 - 並行檢查)
      */
     async initialize() {
         // 防止重複初始化
@@ -56,15 +57,26 @@ class PythonCourseBot {
             return { success: true, message: "Python 環境已初始化" };
         }
         
+        
         try {
-            // 1. 檢查 Python 可用性
+            // 1. 先檢查 Python 安裝 (必須先完成)
             await this.checkPythonInstallation();
             
-            // 2. 檢查必要檔案
-            await this.checkRequiredFiles();
+            // 2. 並行檢查檔案和套件 (Python 路徑已確定)
+            const [filesResult, packagesResult] = await Promise.allSettled([
+                this.checkRequiredFiles(),
+                this.checkPythonPackages()
+            ]);
             
-            // 3. 檢查 Python 套件
-            await this.checkPythonPackages();
+            // 檢查檔案結果
+            if (filesResult.status === 'rejected') {
+                throw filesResult.reason;
+            }
+            
+            // 檢查套件結果
+            if (packagesResult.status === 'rejected') {
+                throw packagesResult.reason;
+            }
             
             this.isInitialized = true;
             return { success: true, message: "Python 環境就緒" };
@@ -76,7 +88,7 @@ class PythonCourseBot {
     }
 
     /**
-     * 檢查 Python 安裝狀況
+     * 檢查 Python 安裝狀況 (優化版本)
      */
     async checkPythonInstallation() {
         // 防止重複檢查
@@ -84,75 +96,99 @@ class PythonCourseBot {
             return;
         }
         
-        const pythonCommands = ['python', 'python3', 'py'];
-        
-        for (const cmd of pythonCommands) {
-            try {
-                const version = await this.runCommand(cmd, ['--version']);
-                if (version.includes('Python 3.')) {
-                    this.pythonPath = cmd;
-                    this.pythonChecked = true;
-                    console.log(`✅ 找到 Python: ${cmd} (${version.trim()})`);
-                    return;
-                }
-            } catch (error) {
-                console.log(`⚠️ ${cmd} 不可用: ${error.message}`);
+        // Windows 系統直接檢查 python 命令
+        try {
+            const version = await this.runCommand('python', ['--version'], { timeout: 5000 });
+            if (version.includes('Python 3.')) {
+                this.pythonPath = 'python';
+                this.pythonChecked = true;
+                console.log(`✅ 找到 Python: python (${version.trim()})`);
+                return;
             }
+        } catch (error) {
+            console.log(`⚠️ python 不可用: ${error.message}`);
         }
         
         throw new Error("找不到 Python 3.x 安裝。請安裝 Python 3.12+ 並確保加入 PATH");
     }
 
     /**
-     * 檢查必要檔案
+     * 檢查必要檔案 (優化版本)
      */
     async checkRequiredFiles() {
+        
         const requiredFiles = [
             { path: this.botScriptPath, name: 'yzuCourseBot.py' },
             { path: this.modelPath, name: '驗證碼識別模型 model.h5' },
             { path: this.requirementsPath, name: 'requirements.txt' }
         ];
         
-        for (const file of requiredFiles) {
-            if (!fs.existsSync(file.path)) {
-                throw new Error(`缺少必要檔案: ${file.name} (${file.path})`);
-            }
-        }
+        // 並行檢查所有檔案
+        const fileChecks = requiredFiles.map(file => {
+            return new Promise((resolve, reject) => {
+                fs.access(file.path, fs.constants.F_OK, (err) => {
+                    if (err) {
+                        reject(new Error(`缺少必要檔案: ${file.name} (${file.path})`));
+                    } else {
+                        resolve(file);
+                    }
+                });
+            });
+        });
         
-        console.log("✅ 所有必要檔案檢查完成");
+        try {
+            await Promise.all(fileChecks);
+            console.log("✅ 所有必要檔案檢查完成");
+        } catch (error) {
+            throw error;
+        }
     }
 
     /**
-     * 檢查並安裝 Python 套件
+     * 檢查並安裝 Python 套件 (優化版本)
      */
     async checkPythonPackages() {
+        // 確保 Python 路徑已設定
+        if (!this.pythonPath) {
+            throw new Error("Python 路徑未設定，無法檢查套件");
+        }
         
         try {
-            // 嘗試 import 主要套件
+            // 優化的套件檢查腳本 - 只檢查關鍵套件
             const testScript = `
 import sys
-try:
-    import tensorflow as tf
-    import cv2
-    import numpy as np
-    import requests
-    import bs4
-    import configparser
-    print("SUCCESS: All packages available")
-except ImportError as e:
-    print(f"MISSING: {e}")
+import importlib
+required_packages = ['tensorflow', 'cv2', 'numpy', 'requests', 'bs4', 'configparser']
+missing_packages = []
+
+for package in required_packages:
+    try:
+        if package == 'cv2':
+            importlib.import_module('cv2')
+        elif package == 'bs4':
+            importlib.import_module('bs4')
+        else:
+            importlib.import_module(package)
+    except ImportError:
+        missing_packages.append(package)
+
+if missing_packages:
+    print(f"MISSING: {', '.join(missing_packages)}")
     sys.exit(1)
+else:
+    print("SUCCESS: All packages available")
 `;
             
-            const result = await this.runCommand(this.pythonPath, ['-c', testScript]);
+            const result = await this.runCommand(this.pythonPath, ['-c', testScript], { timeout: 10000 });
             
             if (result.includes('SUCCESS')) {
-                // Python 套件檢查完成
+                console.log("✅ Python 套件檢查完成");
             } else {
                 await this.installPythonPackages();
             }
             
         } catch (error) {
+            console.log("⚠️ 套件檢查失敗，嘗試安裝套件...");
             await this.installPythonPackages();
         }
     }
@@ -161,6 +197,10 @@ except ImportError as e:
      * 安裝 Python 套件
      */
     async installPythonPackages() {
+        // 確保 Python 路徑已設定
+        if (!this.pythonPath) {
+            throw new Error("Python 路徑未設定，無法安裝套件");
+        }
         
         try {
             const installResult = await this.runCommand(this.pythonPath, [
@@ -491,6 +531,16 @@ Password=${password}`;
             hasModel: fs.existsSync(this.modelPath),
             hasAccounts: fs.existsSync(this.accountsPath)
         };
+    }
+
+    /**
+     * 重置初始化狀態 (用於強制重新檢查)
+     */
+    resetInitialization() {
+        this.isInitialized = false;
+        this.pythonChecked = false;
+        this.pythonPath = null;
+        console.log("🔄 環境檢查狀態已重置");
     }
 
     /**

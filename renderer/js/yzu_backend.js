@@ -466,6 +466,12 @@ class BackendService {
                 }
             })
             .catch((error) => {
+                // 檢查是否是因為清理過程導致的錯誤，但實際課表獲取成功
+                if (error.message && error.message.includes('Target closed') && this.course_schedule_data) {
+                    console.warn("⚠️ 檢測到清理過程錯誤，但課表數據已成功獲取，忽略此錯誤");
+                    return Promise.resolve(this);
+                }
+                
                 console.error("❌ 改進版 Puppeteer 課表獲取異常:", error.message);
                 this.setEmptyPersonalSchedule(`系統錯誤: ${error.message}`);
                 return Promise.resolve(this);
@@ -526,12 +532,15 @@ class BackendService {
             console.log(`📝 Label1: ${parseResult.data.label1 ? '✅' : '❌'}`);
             console.log(`📋 Table1: ${parseResult.data.table1 ? '✅' : '❌'}`);
             
-            return {
+            // 在清理瀏覽器之前先保存結果
+            const result = {
                 success: true,
                 data: parseResult.data,
-                cookies: await page.cookies(),
+                cookies: await page.cookies().catch(() => []), // 安全地獲取 cookies
                 message: "課表獲取成功"
             };
+            
+            return result;
 
         } catch (error) {
             console.error("❌ 課表獲取流程失敗:", error.message);
@@ -541,9 +550,13 @@ class BackendService {
                 error: error
             };
         } finally {
-            // 清理資源
+            // 清理資源 - 使用 try-catch 避免清理錯誤影響主要結果
             if (browser) {
-                await this.cleanupPuppeteerBrowser(browser);
+                try {
+                    await this.cleanupPuppeteerBrowser(browser);
+                } catch (cleanupError) {
+                    console.warn("⚠️ 瀏覽器清理過程中出現錯誤，但不影響主要結果:", cleanupError.message);
+                }
             }
         }
     }
@@ -999,16 +1012,7 @@ class BackendService {
 
             if (outcome === 'SUCCESS' || currentUrl.includes('DefaultPage.aspx') || pageContent.includes('個人portal')) {
                 console.log("✅ 登入成功！");
-                console.log("⏱️ 等待頁面完全載入...");
-                // 以條件式等待主介面可互動
-                await this.waitForNetworkIdle(page, 600, 8000).catch(() => {});
-                await page.waitForFunction(() => {
-                    return document.getElementById('tdS14') || Array.from(document.querySelectorAll('*[onclick]')).some(el => {
-                        const text = (el.textContent || el.innerText || '').trim();
-                        const onclick = el.getAttribute('onclick') || '';
-                        return text.includes('課表') && onclick.includes('S5');
-                    });
-                }, { timeout: 8000 }).catch(() => {});
+                // 登入成功後立即返回，頁面載入在背景進行
                 cleanup();
                 return { success: true };
             } else {
@@ -1181,19 +1185,31 @@ class BackendService {
             console.log("📍 當前頁面URL:", currentUrl);
             console.log("🔍 尋找課表菜單項...");
 
+            // 等待頁面完全載入，確保菜單元素出現
+            await page.waitForFunction(() => {
+                return document.getElementById('tdS14') || 
+                       document.querySelector('*[onclick*="S5"]') ||
+                       document.querySelector('*[onclick*="GoToURL"]');
+            }, { timeout: 10000 }).catch(() => {
+                console.warn("⚠️ 等待菜單元素超時，繼續嘗試...");
+            });
+
             // 多種方式尋找課表菜單
             const scheduleMenuFound = await page.evaluate(() => {
                 // 開始尋找課表菜單
                 let scheduleElement = document.getElementById('tdS14');
+                console.log("🔍 檢查 tdS14 元素:", !!scheduleElement);
                 
                 // 方法2: 尋找包含"課表"文字且onclick包含S5的元素
                 if (!scheduleElement) {
                     const elements = document.querySelectorAll('*[onclick*="S5"]');
+                    console.log("🔍 找到", elements.length, "個包含S5的元素");
                     for (const el of elements) {
                         const text = el.textContent || el.innerText || '';
                         const onclick = el.getAttribute('onclick') || '';
                         if (text.includes('課表') && onclick.includes('S5')) {
                             scheduleElement = el;
+                            console.log("✅ 找到課表菜單元素:", text.trim());
                             break;
                         }
                     }
@@ -1350,7 +1366,9 @@ class BackendService {
             }
 
             // 等待可能的頁面載入（Label1 或 Table1 出現）
-            await page.waitForFunction(() => !!document.getElementById('Label1') || !!document.getElementById('Table1'), { timeout: 8000 }).catch(() => {});
+            await page.waitForFunction(() => !!document.getElementById('Label1') || !!document.getElementById('Table1'), { timeout: 10000 }).catch(() => {
+                console.warn("⚠️ 等待課表元素超時，嘗試繼續解析...");
+            });
 
             // 只抓取 Label1 與 Table1
             const scheduleData = await page.evaluate(() => {
@@ -1381,9 +1399,19 @@ class BackendService {
                         data: processedData
                     };
             } else {
+                // 嘗試檢查頁面是否有其他課表相關元素
+                const pageContent = await page.evaluate(() => {
+                    const bodyText = document.body.innerText || '';
+                    const hasScheduleKeywords = /課表|課程|時間表|schedule/i.test(bodyText);
+                    const hasTableElements = document.querySelectorAll('table').length > 0;
+                    return { hasScheduleKeywords, hasTableElements, bodyText: bodyText.substring(0, 200) };
+                });
+                
+                console.warn("⚠️ 課表解析失敗，頁面內容分析:", pageContent);
+                
                 return {
                     success: false,
-                    message: "頁面中未找到Label1或Table1數據"
+                    message: `頁面中未找到Label1或Table1數據。頁面分析：${pageContent.hasScheduleKeywords ? '包含課表關鍵字' : '無課表關鍵字'}，${pageContent.hasTableElements ? '包含表格元素' : '無表格元素'}`
                 };
             }
 
@@ -1958,18 +1986,29 @@ class BackendService {
             
             // Browserless 轉接器
             if (browser && browser._browserless) {
-                await browser.close();
+                // 檢查連接是否仍然有效
+                if (browser.isConnected && browser.isConnected()) {
+                    await browser.close();
+                }
                 console.log("✅ Browserless 上下文已銷毀");
                 return;
             }
 
             // Puppeteer：關閉所有頁面與瀏覽器
             if (browser && typeof browser.pages === 'function') {
-                const pages = await browser.pages();
-                await Promise.all(pages.map(page => page.close().catch(() => {})));
+                try {
+                    const pages = await browser.pages();
+                    await Promise.all(pages.map(page => page.close().catch(() => {})));
+                } catch (error) {
+                    console.warn("⚠️ 關閉頁面時出現錯誤:", error.message);
+                }
             }
             if (browser && typeof browser.close === 'function') {
-                await browser.close();
+                try {
+                    await browser.close();
+                } catch (error) {
+                    console.warn("⚠️ 關閉瀏覽器時出現錯誤:", error.message);
+                }
             }
             
             console.log("✅ 瀏覽器資源清理完成");

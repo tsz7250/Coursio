@@ -1,6 +1,6 @@
 const { ipcRenderer } = require("electron");
 // BackendService 已在 HTML 中載入
-const { ref, onMounted, onUpdated, computed, watch } = Vue;
+const { ref, onMounted, onUpdated, computed, watch, shallowRef, nextTick } = Vue;
 
 // 避免重複宣告 fs，直接使用 Node.js 的 require
 const electron_fs = require('fs');
@@ -20,13 +20,29 @@ var apibackend = new BackendService()
 // 讓 apibackend 全域可用
 window.apibackend = apibackend;
 
-// 等登入畫面顯示後再預熱（避免初始畫面空白）
+// 事件驅動的預熱優先級控制
 document.addEventListener('DOMContentLoaded', () => {
-    setTimeout(() => {
-        try {
-            apibackend.prewarmBrowser().catch(() => {});
-        } catch (_) {}
-    }, 600); // 稍微延後，讓登入UI先渲染
+    // 立即開始預熱，並使用 Promise 控制後續任務
+    try {
+        console.log("🚀 開始優先預熱 Browserless...");
+        
+        // 創建預熱 Promise，供其他任務等待
+        window.prewarmPromise = apibackend.prewarmBrowser().then(() => {
+            console.log("✅ 預熱完成，觸發後續任務");
+            // 觸發自定義事件，通知其他任務可以開始
+            window.dispatchEvent(new CustomEvent('prewarm-completed'));
+            return true;
+        }).catch((error) => {
+            console.warn("預熱失敗，但不影響應用運行:", error);
+            // 即使預熱失敗，也觸發事件讓其他任務繼續
+            window.dispatchEvent(new CustomEvent('prewarm-completed'));
+            return false;
+        });
+    } catch (error) {
+        console.warn("預熱初始化失敗:", error);
+        // 立即觸發事件
+        window.dispatchEvent(new CustomEvent('prewarm-completed'));
+    }
     
     // 覆寫全域對話框：攔截登入失敗提示，派發事件給 Vue 以避免流程卡住
     try {
@@ -196,15 +212,95 @@ const app = Vue.createApp({
 		 */
 		const sid = ref("");
 		const spwd = ref("");
+		
+		// 防抖動機制 - 改善輸入響應性
+		let sidDebounceTimer = null;
+		let spwdDebounceTimer = null;
+		const debounceDelay = 50; // 50ms 防抖動延遲
 
 		const greetings = ref("")
 		const isLoggedIn = ref(false);  // 追蹤登入狀態
 
 		const isLoading = ref(false);  // 是否
 		const loading_text = ref("");
+		
+		// 優化響應式更新 - 使用 shallowRef 減少深度監聽開銷
+		const inputStates = shallowRef({
+			sid: "",
+			spwd: "",
+			sidValid: false,
+			spwdValid: false
+		});
 
 		const semester_list_for_time = ref([]); // 時間查詢用的學期清單，從 API 動態載入
 		const dept_list = ref([]); // 系所清單，從 API 動態載入
+
+		// 防抖動處理函數 - 改善輸入響應性
+		function debounceInput(field, value, timerRef) {
+			// 清除之前的計時器
+			if (timerRef.value) {
+				clearTimeout(timerRef.value);
+			}
+			
+			// 立即更新顯示值（不等待防抖動）
+			if (field === 'sid') {
+				sid.value = value;
+			} else if (field === 'spwd') {
+				spwd.value = value;
+			}
+			
+			// 添加視覺回饋 - 輸入中狀態
+			const inputElement = document.getElementById(field === 'sid' ? 'student_id' : 'student_pwd');
+			if (inputElement) {
+				inputElement.classList.add('input-typing');
+			}
+			
+			// 設置防抖動計時器，延遲更新內部狀態
+			timerRef.value = setTimeout(() => {
+				// 使用 nextTick 確保在 DOM 更新後執行
+				nextTick(() => {
+					const isValid = validateField(field, value);
+					
+					// 更新內部狀態
+					inputStates.value = {
+						...inputStates.value,
+						[field]: value,
+						[field + 'Valid']: isValid
+					};
+					
+					// 更新視覺回饋
+					if (inputElement) {
+						inputElement.classList.remove('input-typing');
+						if (value.length > 0) {
+							inputElement.classList.add(isValid ? 'input-valid' : 'input-invalid');
+						} else {
+							inputElement.classList.remove('input-valid', 'input-invalid');
+						}
+					}
+				});
+			}, debounceDelay);
+		}
+		
+		// 欄位驗證函數
+		function validateField(field, value) {
+			if (field === 'sid') {
+				return /^s[0-9]{7}$/.test(value);
+			} else if (field === 'spwd') {
+				return value && value.length > 0;
+			}
+			return false;
+		}
+		
+		// 優化的輸入處理函數
+		function handleSidInput(event) {
+			const value = event.target.value;
+			debounceInput('sid', value, { value: sidDebounceTimer });
+		}
+		
+		function handleSpwdInput(event) {
+			const value = event.target.value;
+			debounceInput('spwd', value, { value: spwdDebounceTimer });
+		}
 
 		// 表單驗證函數
 		function validateFormFields(fields) {
@@ -358,55 +454,210 @@ const app = Vue.createApp({
 		}
 		// 登入並取得學生名字（先驗證後切頁）
 		async function login() {
+			// 防止重複點擊
+			if (isLoading.value) {
+				return;
+			}
+			
 			if (sid.value !== "" && spwd.value !== "") {
-				loading_text.value = "登入中";
+				loading_text.value = "正在驗證帳號密碼...";
 				isLoading.value = true;
+				
+				// 確保載入面板完全覆蓋整個螢幕，避免閃爍
+				const loadingPanel = document.getElementById('loading-panel');
+				if (loadingPanel) {
+					// 強制設定樣式，確保載入面板在最上層
+					loadingPanel.style.cssText = `
+						position: fixed !important;
+						top: 0 !important;
+						left: 0 !important;
+						width: 100% !important;
+						height: 100% !important;
+						z-index: 2000 !important;
+						background: #ffffff !important;
+						display: flex !important;
+						flex-direction: column !important;
+						align-items: center !important;
+						justify-content: center !important;
+						transition: opacity 0.3s ease-in-out !important;
+					`;
+				}
 
 				try {
 					// 1) 準備加密參數
 					const service1 = await apibackend._getRSAKey();
 					await service1._encryptData(sid.value, spwd.value);
 
-					// 2) 後端以 Puppeteer 驗證帳密
+					// 2) 快速登入驗證，然後在背景完成課表載入
 					loading_text.value = "驗證帳密中...";
-					const verify = await apibackend.getCompleteScheduleData(`${year_now}`, `${smtr_now}`);
-					if (!verify || !verify.success) {
-						throw new Error(verify && verify.message ? verify.message : '登入失敗');
+					
+					// 創建一個臨時的 Puppeteer 頁面進行快速登入驗證
+					const browser = await apibackend.launchPuppeteerBrowser();
+					const page = await browser.newPage();
+					await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
+					
+					// 只執行登入驗證
+					const loginResult = await apibackend.puppeteerLogin(page);
+					
+					if (!loginResult || !loginResult.success) {
+						await browser.close();
+						throw new Error(loginResult && loginResult.message ? loginResult.message : '登入失敗');
 					}
 
-					// 登入成功後，回填個人課表資料以供「我的課表」直接使用
-					try {
-						if (window.apibackend && verify.data) {
-							window.apibackend.course_schedule_data = Object.assign({}, verify.data, {
-								is_personal: true,
-								year: String(year_now),
-								smtr: String(smtr_now)
-							});
-						}
-					} catch (_) {}
-
-					// 3) 驗證通過才切頁並載入資料
+					// 3) 登入驗證成功後立即切換到首頁，提升用戶體驗
+					loading_text.value = "登入成功，正在載入資料...";
 					isLoggedIn.value = true;
-					loading_text.value = "載入課程資料中...";
-					await Promise.allSettled([
-						getCourseListForQuery({ showLoading: false, returnPromise: true, storeInWindow: true }),
-					]);
-
-					isLoading.value = false;
-					loading_text.value = "";
-					document.querySelector(".login-panel").classList.add("slide-up")
+					
+					// 先準備內容面板，避免閃爍
+					const loginPanel = document.querySelector(".login-panel");
+					const contentPanel = document.querySelector(".content-panel");
+					
+					// 立即顯示內容面板（但設為透明）
+					contentPanel.style.display = "flex";
+					contentPanel.style.opacity = "0";
+					contentPanel.style.transition = "opacity 0.3s ease-in-out";
+					
+					// 開始登入面板滑動動畫
+					loginPanel.classList.add("slide-up");
+					
+					// 在動畫進行到一半時開始淡入內容面板
 					setTimeout(() => {
-						document.querySelector(".login-panel").style.display = "none";
-						document.querySelector(".login-panel").classList.remove("slide-up")
-						document.querySelector(".content-panel").style.display = "flex";
-						showSectionById("Main")
+						contentPanel.style.opacity = "1";
+						showSectionById("Main");
 						setTimeout(() => updateMainHeader(), 50);
+					}, 400); // 動畫進行到一半時
+					
+					// 動畫完成後清理
+					setTimeout(() => {
+						loginPanel.style.display = "none";
+						loginPanel.classList.remove("slide-up");
+						contentPanel.style.transition = ""; // 清除過渡效果
 					}, 800);
+					
+					// 立即隱藏載入面板，讓滑動動畫正常進行
+					const loadingPanel = document.getElementById('loading-panel');
+					if (loadingPanel) {
+						isLoading.value = false;
+						loading_text.value = "";
+						// 重置載入面板樣式
+						loadingPanel.style.cssText = '';
+					}
+
+					// 在背景完成課表載入和課程查詢資料載入
+					console.log("🔄 背景載入完整資料中...");
+					window.isBackgroundLoadingSchedule = true; // 設定背景載入標記
+					
+					Promise.allSettled([
+						// 完成課表載入（重用已登入的頁面）
+						(async () => {
+							try {
+								console.log("🔄 開始背景課表載入流程...");
+								
+								// 等待頁面元素載入完成（從 puppeteerLogin 移過來的邏輯）
+								console.log("⏱️ 等待頁面完全載入...");
+								// 減少等待時間，避免 UI 卡住
+								await apibackend.waitForNetworkIdle(page, 300, 4000).catch(() => {});
+								await page.waitForFunction(() => {
+									return document.getElementById('tdS14') || Array.from(document.querySelectorAll('*[onclick]')).some(el => {
+										const text = (el.textContent || el.innerText || '').trim();
+										const onclick = el.getAttribute('onclick') || '';
+										return text.includes('課表') && onclick.includes('S5');
+									});
+								}, { timeout: 8000 }).catch(() => {});
+								
+								// 載入課表數據
+								const scheduleResult = await apibackend.puppeteerLoadSchedule(page);
+								if (!scheduleResult.success) {
+									throw new Error(`課表載入失敗: ${scheduleResult.message}`);
+								}
+
+								// 解析課表數據
+								const parseResult = await apibackend.puppeteerParseSchedule(page);
+								if (!parseResult.success) {
+									throw new Error(`課表解析失敗: ${parseResult.message}`);
+								}
+
+								// 設置課表資料
+								if (window.apibackend && parseResult.data) {
+									window.apibackend.course_schedule_data = Object.assign({}, parseResult.data, {
+										is_personal: true,
+										year: String(year_now),
+										smtr: String(smtr_now)
+									});								
+								} else {
+									console.error("❌ 課表資料設置失敗:", { apibackend: !!window.apibackend, data: !!parseResult.data });
+								}
+								
+								console.log("✅ 個人課表資料載入完成");
+							} catch (error) {
+								console.error("❌ 背景課表載入失敗:", error.message);
+								// 清除背景載入標記，避免前端卡在載入狀態
+								window.isBackgroundLoadingSchedule = false;
+								throw error;
+							} finally {
+								await browser.close();
+							}
+						})(),
+						// 載入課程查詢資料
+						getCourseListForQuery({ showLoading: false, returnPromise: true, storeInWindow: true })
+					]).then(() => {
+						console.log("✅ 所有背景資料載入完成");
+						window.isBackgroundLoadingSchedule = false; // 清除背景載入標記
+						
+						// 檢查當前是否在課表頁面，並自動生成課表
+						const scheduleSection = document.getElementById('section-Schedule');
+						const isScheduleVisible = scheduleSection && scheduleSection.classList.contains('is-shown');
+						
+						if (isScheduleVisible) {
+							console.log("🔄 當前在課表頁面，自動生成課表...");
+							setTimeout(() => {					
+								if (window.apibackend && window.apibackend.course_schedule_data && 
+									window.apibackend.course_schedule_data.course_list && 
+									window.apibackend.course_schedule_data.course_list.length > 0) {
+									console.log("📊 開始生成課表...");
+									window.generateScheduleTable();
+								} else {
+									console.warn("⚠️ 課表資料不完整，無法生成課表");
+									console.log("📋 完整課表資料:", window.apibackend?.course_schedule_data);
+								}
+							}, 100);
+						} else {
+							console.log("ℹ️ 當前不在課表頁面，課表資料已準備就緒");
+						}
+					}).catch((error) => {
+						console.warn("⚠️ 背景資料載入失敗:", error);
+						window.isBackgroundLoadingSchedule = false; // 清除背景載入標記
+						
+						// 如果當前在課表頁面，顯示錯誤狀態
+						const scheduleSection = document.getElementById('section-Schedule');
+						const isScheduleVisible = scheduleSection && scheduleSection.classList.contains('is-shown');
+						
+						if (isScheduleVisible) {
+							console.log("🔄 課表載入失敗，顯示錯誤狀態...");
+							setTimeout(() => {
+								const scheduleLoading = document.getElementById('schedule-loading');
+								const scheduleContent = document.getElementById('schedule-content');
+								const scheduleError = document.getElementById('schedule-error');
+								
+								if (scheduleLoading) scheduleLoading.style.display = 'none';
+								if (scheduleContent) scheduleContent.style.display = 'none';
+								if (scheduleError) scheduleError.style.display = 'block';
+							}, 100);
+						}
+					});
 
 				} catch (error) {
 					console.error("登入失敗:", error);
-					isLoading.value = false;
-					loading_text.value = "";
+					
+					// 立即隱藏載入面板
+					const loadingPanel = document.getElementById('loading-panel');
+					if (loadingPanel) {
+						isLoading.value = false;
+						loading_text.value = "";
+						// 重置載入面板樣式
+						loadingPanel.style.cssText = '';
+					}
+					
 					showToastError(error.message || String(error));
 					// 保持在登入頁，不切換
 				}
@@ -419,18 +670,30 @@ const app = Vue.createApp({
 		function browseAsGuest() {
 			isLoggedIn.value = false;  // 確保訪客狀態
 			
+			// 先準備內容面板，避免閃爍
+			const loginPanel = document.querySelector(".login-panel");
+			const contentPanel = document.querySelector(".content-panel");
 			
-			// 立即開始滑動動畫，不顯示載入狀態
-			document.querySelector(".login-panel").classList.add("slide-up")
-
-			// 根據動畫時間調整延遲（slide-up 動畫是 0.8s）
+			// 立即顯示內容面板（但設為透明）
+			contentPanel.style.display = "flex";
+			contentPanel.style.opacity = "0";
+			contentPanel.style.transition = "opacity 0.3s ease-in-out";
+			
+			// 開始登入面板滑動動畫
+			loginPanel.classList.add("slide-up");
+			
+			// 在動畫進行到一半時開始淡入內容面板
 			setTimeout(() => {
-				document.querySelector(".login-panel").style.display = "none";
-				document.querySelector(".login-panel").classList.remove("slide-up")
-				document.querySelector(".content-panel").style.display = "flex";
-				
+				contentPanel.style.opacity = "1";
 				// 直接顯示課程查詢頁面
-				showSectionById("School-timetable-Query")
+				showSectionById("School-timetable-Query");
+			}, 400); // 動畫進行到一半時
+			
+			// 動畫完成後清理
+			setTimeout(() => {
+				loginPanel.style.display = "none";
+				loginPanel.classList.remove("slide-up");
+				contentPanel.style.transition = ""; // 清除過渡效果
 			}, 800); // 0.8 秒，配合動畫時間
 
 			// 檢查課程資料是否已載入，如果沒有才重新載入
@@ -579,9 +842,21 @@ const app = Vue.createApp({
 			isLoggedIn.value = false;
 			// 不清空 sid.value 和 spwd.value，讓 Autofill 可以保存
 			
-			// 顯示登入面板
-			document.querySelector(".login-panel").style.display = "flex";
-			document.querySelector(".content-panel").style.display = "none";
+			// 平滑切換回登入面板
+			const loginPanel = document.querySelector(".login-panel");
+			const contentPanel = document.querySelector(".content-panel");
+			
+			// 先淡出內容面板
+			contentPanel.style.transition = "opacity 0.3s ease-in-out";
+			contentPanel.style.opacity = "0";
+			
+			setTimeout(() => {
+				// 隱藏內容面板，顯示登入面板
+				contentPanel.style.display = "none";
+				contentPanel.style.transition = ""; // 清除過渡效果
+				loginPanel.style.display = "flex";
+				loginPanel.classList.remove("slide-up"); // 確保重置動畫狀態
+			}, 300);
 		}
 
 		function showSection(id) {
@@ -597,13 +872,48 @@ const app = Vue.createApp({
 			if (id === 'Schedule') {
 				// 使用 setTimeout 確保頁面完全顯示後再載入課表
 				setTimeout(() => {
-					// 如果已經有課表資料，直接生成課表；否則重新載入
+					// 如果已經有課表資料，直接生成課表
 					if (window.apibackend && window.apibackend.course_schedule_data && 
 						window.apibackend.course_schedule_data.course_list && 
 						window.apibackend.course_schedule_data.course_list.length > 0) {
+						console.log("📊 課表資料已就緒，直接生成課表");
 						window.generateScheduleTable();
 					} else {
-						window.refreshSchedule();
+						// 檢查是否正在背景載入課表資料
+						if (window.isBackgroundLoadingSchedule) {
+							console.log("⏳ 課表資料正在背景載入中，等待完成...");
+							// 顯示載入狀態
+							const scheduleLoading = document.getElementById('schedule-loading');
+							const scheduleContent = document.getElementById('schedule-content');
+							const scheduleError = document.getElementById('schedule-error');
+							if (scheduleLoading) scheduleLoading.style.display = 'block';
+							if (scheduleContent) scheduleContent.style.display = 'none';
+							if (scheduleError) scheduleError.style.display = 'none';
+						} else {
+							// 檢查是否有課表載入錯誤
+							const hasScheduleError = window.apibackend && 
+								window.apibackend.course_schedule_data === null && 
+								!window.isBackgroundLoadingSchedule;
+							
+							if (hasScheduleError) {
+								console.log("❌ 課表載入失敗，顯示錯誤狀態");
+								const scheduleLoading = document.getElementById('schedule-loading');
+								const scheduleContent = document.getElementById('schedule-content');
+								const scheduleError = document.getElementById('schedule-error');
+								if (scheduleLoading) scheduleLoading.style.display = 'none';
+								if (scheduleContent) scheduleContent.style.display = 'none';
+								if (scheduleError) scheduleError.style.display = 'block';
+							} else {
+								// 只有在非登入流程中才重新載入課表
+								console.log("🔄 沒有課表資料，重新載入課表");
+								// 檢查是否已經在執行中，避免重複調用
+								if (!window.isRefreshingSchedule) {
+									window.refreshSchedule();
+								} else {
+									console.log("⚠️ 課表正在載入中，跳過自動重新載入");
+								}
+							}
+						}
 					}
 				}, 100);
 			}
@@ -1150,22 +1460,42 @@ const app = Vue.createApp({
 			// 監聽全域登入失敗事件（由覆寫的 alert/confirm 觸發）
 			window.addEventListener('yzu:login-failed', (ev) => {
 				try {
-					isLoading.value = false;
-					loading_text.value = '';
+					// 立即隱藏載入面板
+					const loadingPanel = document.getElementById('loading-panel');
+					if (loadingPanel) {
+						isLoading.value = false;
+						loading_text.value = '';
+						// 重置載入面板樣式
+						loadingPanel.style.cssText = '';
+					}
+					
 					const msg = (ev && ev.detail && ev.detail.message) ? ev.detail.message : '登入失敗';
 					showToastError(msg);
 				} catch (e) { console.warn('處理登入失敗事件時發生錯誤', e); }
 			});
 
-			setInterval(async () => {
-				try {
-					await dbManager.initialize();
-					const allTasks = await dbManager.getQuery('SELECT * FROM tasks');
-					tasks.value = allTasks || [];
-				} catch (error) {
-					console.error('❌ 輪詢任務列表失敗:', error);
-				}
-			}, 5000)
+			// 等待預熱完成後開始資料庫輪詢
+			function startDatabasePolling() {
+				setInterval(async () => {
+					try {
+						await dbManager.initialize();
+						const allTasks = await dbManager.getQuery('SELECT * FROM tasks');
+						tasks.value = allTasks || [];
+					} catch (error) {
+						console.error('❌ 輪詢任務列表失敗:', error);
+					}
+				}, 5000);
+			}
+			
+			// 監聽預熱完成事件
+			window.addEventListener('prewarm-completed', startDatabasePolling);
+			
+			// 如果預熱已經完成，立即開始輪詢
+			if (window.prewarmPromise) {
+				window.prewarmPromise.then(startDatabasePolling);
+			} else {
+				startDatabasePolling();
+			}
 
 			document.addEventListener('DOMContentLoaded', function () {
 				var options = {};
@@ -1189,12 +1519,21 @@ const app = Vue.createApp({
 				}
 			}, true)
 
-			// 先顯示登入畫面，然後在背景載入系所和學期選項
-			// 延遲載入，讓登入畫面先顯示
-			setTimeout(() => {
+			// 等待預熱完成後載入系所和學期選項
+			function loadCourseOptions() {
 				loadInitialCourseOptions();
 				setTimeout(() => updateMainHeader(), 50);
-			}, 500); // 延遲500ms，讓登入畫面先顯示
+			}
+			
+			// 監聽預熱完成事件
+			window.addEventListener('prewarm-completed', loadCourseOptions);
+			
+			// 如果預熱已經完成，立即載入選項
+			if (window.prewarmPromise) {
+				window.prewarmPromise.then(loadCourseOptions);
+			} else {
+				loadCourseOptions();
+			}
 		})
 
 		// 新增：載入初始課程選項的函數（背景載入，不阻塞UI）
@@ -1244,6 +1583,8 @@ const app = Vue.createApp({
 			greetings,
 			// student login infomation
 			sid, spwd, login, browseAsGuest, returnToLogin, isLoggedIn,
+			// 優化的輸入處理函數
+			handleSidInput, handleSpwdInput, inputStates,
 			// student infomation
 			// UI controlling
 			isLoading, loading_text, isCourseDataLoading,
@@ -1279,6 +1620,15 @@ const app = Vue.createApp({
 
 // 課表相關功能
 window.refreshSchedule = async function() {
+	// 防止重複執行
+	if (window.isRefreshingSchedule) {
+		console.warn('⚠️ 課表正在重新載入中，請勿重複點擊');
+		return;
+	}
+	
+	console.log('🔄 refreshSchedule 開始執行，設置執行標記');
+	window.isRefreshingSchedule = true;
+	
 	const scheduleLoading = document.getElementById('schedule-loading');
 	const scheduleContent = document.getElementById('schedule-content');
 	const scheduleError = document.getElementById('schedule-error');
@@ -1288,6 +1638,7 @@ window.refreshSchedule = async function() {
 	// DOM 保護
 	if (!scheduleLoading || !scheduleContent || !scheduleError) {
 		console.warn('課表 DOM 尚未載入完成');
+		window.isRefreshingSchedule = false;
 		return;
 	}
 
@@ -1332,7 +1683,10 @@ window.refreshSchedule = async function() {
 		scheduleLoading.style.display = 'none';
 		scheduleError.style.display = 'block';
 	} finally {
+		// 重新啟用按鈕並清除執行標記
+		console.log('🔄 refreshSchedule 執行完成，清除執行標記');
 		if (refreshBtn) refreshBtn.disabled = false;
+		window.isRefreshingSchedule = false;
 	}
 }
 
@@ -1523,6 +1877,15 @@ window.generateScheduleTable = function() {
 		
 		existingTbody.appendChild(row);
 	});
+	
+	// 顯示課表內容
+	const scheduleLoading = document.getElementById('schedule-loading');
+	const scheduleContentElement = document.getElementById('schedule-content');
+	
+	if (scheduleLoading) scheduleLoading.style.display = 'none';
+	if (scheduleContentElement) scheduleContentElement.style.display = 'block';
+	
+	console.log("✅ 課表已生成並顯示");
 }
 
 // 建立課表資訊顯示元素的輔助函數

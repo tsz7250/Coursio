@@ -51,7 +51,7 @@
     <div id="app" class="section">
 
         <!-- Loading Panel -->
-        <div v-show="isLoading" id="loading-panel" class="section loading-panel-hidden">
+        <div v-show="isLoading" id="loading-panel" class="section">
             <img src="../assets/Blue Cat-1s-200px.svg" alt="">
             <h3>{{ loading_text }}</h3>
         </div>
@@ -76,9 +76,9 @@
                         <h2>登入</h2>
                         <div class="login-block-inner-input-group">
                             <input v-model="sid" class="login-block-input-element" placeholder="學號" type="text"
-                                id="student_id" pattern="s[0-9]{7}" required @keydown.enter="login">
+                                id="student_id" pattern="s[0-9]{7}" required @keydown.enter="login" @input="handleSidInput">
                             <input v-model="spwd" class="login-block-input-element" placeholder="密碼" type="password"
-                                id="student_pwd" required @keydown.enter="login">
+                                id="student_pwd" required @keydown.enter="login" @input="handleSpwdInput">
                             <button @click="login" class="login-block-input-element" id="login-btn">開始搶課！</button>
                             <button @click="browseAsGuest" class="login-block-input-element guest-btn" id="guest-btn">訪客瀏覽課程</button>
                         </div>
@@ -422,57 +422,74 @@
     <script src="./js/course_selection_controller.js"></script>
     
     <script>
-        // 載入組件
+        // 載入組件 - 等待預熱完成事件
         document.addEventListener('DOMContentLoaded', function() {
-            // 首先隱藏所有區段
-            hideAllSection();
+            // 等待預熱完成事件，而不是使用固定延遲
+            function loadComponents() {
+                // 首先隱藏所有區段
+                hideAllSection();
+                
+                // 載入首頁
+                loadComponent('main-dashboard-container', './components/main-dashboard.html');
+                
+                // 載入課表
+                loadComponent('schedule-container', './components/schedule.html');
+                
+                // 載入設定
+                loadComponent('settings-container', './components/settings.html');
+                
+                // 載入關於模態框
+                loadComponent('about-modal-container', './components/about-modal.html');
+                
+                // 載入自動選課介面（最後載入，因為它需要特殊處理）
+                const autoSelectionInnerContainer = document.getElementById('auto-selection-inner-container');
+                console.log('自動選課容器:', autoSelectionInnerContainer);
+                if (autoSelectionInnerContainer) {
+                    console.log('開始載入自動選課介面...');
+                    // 載入 HTML 內容
+                    fetch('./sections/course_selection.html')
+                        .then(response => {
+                            console.log('自動選課 HTML 載入響應:', response.status);
+                            return response.text();
+                        })
+                        .then(html => {
+                            console.log('自動選課 HTML 載入成功，長度:', html.length);
+                            autoSelectionInnerContainer.innerHTML = html;
+                            // HTML 載入後初始化控制器
+                            if (typeof CourseSelectionController !== 'undefined') {
+                                console.log('初始化 CourseSelectionController...');
+                                // 建立並掛到全域，供切頁時呼叫檢查
+                                window.courseSelectionController = new CourseSelectionController();
+                            } else {
+                                console.warn('CourseSelectionController 未定義');
+                            }
+                        })
+                        .catch(error => {
+                            console.error('載入自動選課介面失敗:', error);
+                            autoSelectionInnerContainer.innerHTML = `
+                                <div class="alert alert-danger">
+                                    <h4>❌ 載入失敗</h4>
+                                    <p>無法載入自動選課介面。錯誤: ${error.message}</p>
+                                </div>
+                            `;
+                        });
+                } else {
+                    console.error('找不到 auto-selection-inner-container 元素');
+                }
+            }
             
-            // 載入首頁
-            loadComponent('main-dashboard-container', './components/main-dashboard.html');
+            // 監聽預熱完成事件
+            window.addEventListener('prewarm-completed', loadComponents);
             
-            // 載入課表
-            loadComponent('schedule-container', './components/schedule.html');
-            
-            // 載入設定
-            loadComponent('settings-container', './components/settings.html');
-            
-            // 載入關於模態框
-            loadComponent('about-modal-container', './components/about-modal.html');
-            
-            // 載入自動選課介面（最後載入，因為它需要特殊處理）
-            const autoSelectionInnerContainer = document.getElementById('auto-selection-inner-container');
-            console.log('自動選課容器:', autoSelectionInnerContainer);
-            if (autoSelectionInnerContainer) {
-                console.log('開始載入自動選課介面...');
-                // 載入 HTML 內容
-                fetch('./sections/course_selection.html')
-                    .then(response => {
-                        console.log('自動選課 HTML 載入響應:', response.status);
-                        return response.text();
-                    })
-                    .then(html => {
-                        console.log('自動選課 HTML 載入成功，長度:', html.length);
-                        autoSelectionInnerContainer.innerHTML = html;
-                        // HTML 載入後初始化控制器
-                        if (typeof CourseSelectionController !== 'undefined') {
-                            console.log('初始化 CourseSelectionController...');
-                            // 建立並掛到全域，供切頁時呼叫檢查
-                            window.courseSelectionController = new CourseSelectionController();
-                        } else {
-                            console.warn('CourseSelectionController 未定義');
-                        }
-                    })
-                    .catch(error => {
-                        console.error('載入自動選課介面失敗:', error);
-                        autoSelectionInnerContainer.innerHTML = `
-                            <div class="alert alert-danger">
-                                <h4>❌ 載入失敗</h4>
-                                <p>無法載入自動選課介面。錯誤: ${error.message}</p>
-                            </div>
-                        `;
-                    });
+            // 如果預熱已經完成（快速設備），立即載入組件
+            if (window.prewarmPromise) {
+                window.prewarmPromise.then(() => {
+                    // 預熱完成後載入組件
+                    loadComponents();
+                });
             } else {
-                console.error('找不到 auto-selection-inner-container 元素');
+                // 如果沒有預熱 Promise，立即載入組件
+                loadComponents();
             }
         });
 
@@ -487,15 +504,26 @@
 
                         // schedule 載入後綁定 refresh-schedule 事件
                         if (componentPath.includes('schedule.html')) {
-                            const btn = document.getElementById('refresh-schedule');
-                            if (btn) {
-                                btn.addEventListener('click', () => {
-                                    if (typeof window.refreshSchedule === 'function') {
-                                        window.refreshSchedule();
-                                    } else {
-                                        console.warn('refreshSchedule 尚未定義');
-                                    }
-                                });
+                            // 綁定重新載入課表按鈕事件
+                            const refreshBtn = document.getElementById('refresh-schedule');
+                            
+                            const handleRefreshSchedule = () => {
+                                if (typeof window.refreshSchedule === 'function') {
+                                    window.refreshSchedule();
+                                } else {
+                                    console.warn('refreshSchedule 尚未定義');
+                                }
+                            };
+                            
+                            // 移除舊的事件監聽器（如果存在）
+                            if (refreshBtn && window.scheduleRefreshHandler) {
+                                refreshBtn.removeEventListener('click', window.scheduleRefreshHandler);
+                            }
+                            
+                            // 添加新的事件監聽器並保存引用
+                            if (refreshBtn) {
+                                refreshBtn.addEventListener('click', handleRefreshSchedule);
+                                window.scheduleRefreshHandler = handleRefreshSchedule;
                             }
                         }
                     })

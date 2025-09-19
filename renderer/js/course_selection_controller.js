@@ -36,7 +36,7 @@ class CourseSelectionController {
         // 環境檢查
         const checkEnvBtn = document.getElementById('checkEnvironmentBtn');
         if (checkEnvBtn) {
-            checkEnvBtn.addEventListener('click', () => this.checkEnvironment());
+            checkEnvBtn.addEventListener('click', () => this.checkEnvironment(true)); // 強制重新檢查
         }
 
         // 帳號設定
@@ -84,26 +84,40 @@ class CourseSelectionController {
     }
 
     /**
-     * 檢查 Python 環境
+     * 檢查 Python 環境 (優化版本)
      */
-    async checkEnvironment() {
+    async checkEnvironment(forceRefresh = false) {
         // 防止重複檢查
-        if (this.isInitialized) {
+        if (this.isInitialized && !forceRefresh) {
             return;
         }
 
-        this.updateStatus('pythonStatus', 'loading', '檢查 Python 安裝...');
-        this.updateStatus('packagesStatus', 'loading', '檢查 Python 套件...');
-        this.updateStatus('modelStatus', 'loading', '檢查 AI 模型檔案...');
-        this.updateStatus('accountStatus', 'loading', '檢查帳號設定...');
+        // 如果強制重新檢查，重置初始化狀態
+        if (forceRefresh) {
+            this.pythonBot.resetInitialization();
+            this.isInitialized = false;
+        }
+
+        // 並行更新所有狀態為載入中
+        this.updateAllStatuses('loading', [
+            { id: 'pythonStatus', text: '檢查 Python 安裝...' },
+            { id: 'packagesStatus', text: '檢查 Python 套件...' },
+            { id: 'modelStatus', text: '檢查 AI 模型檔案...' },
+            { id: 'accountStatus', text: '檢查帳號設定...' }
+        ]);
+
+        const startTime = Date.now();
 
         try {
             const result = await this.pythonBot.initialize();
             
             if (result.success) {
-                this.updateStatus('pythonStatus', 'success', `Python 可用: ${this.pythonBot.pythonPath}`);
-                this.updateStatus('packagesStatus', 'success', '所有套件已安裝');
-                this.updateStatus('modelStatus', 'success', 'AI 模型檔案存在');
+                // 並行更新所有成功狀態
+                this.updateAllStatuses('success', [
+                    { id: 'pythonStatus', text: `Python 可用: ${this.pythonBot.pythonPath}` },
+                    { id: 'packagesStatus', text: '所有套件已安裝' },
+                    { id: 'modelStatus', text: 'AI 模型檔案存在' }
+                ]);
                 
                 // 檢查帳號設定
                 const status = this.pythonBot.getStatus();
@@ -114,7 +128,8 @@ class CourseSelectionController {
                 }
 
                 this.isInitialized = true;
-                this.appendOutput('system', '✅ Python yzuCourseBot 環境檢查完成，可以開始使用');
+                const duration = Date.now() - startTime;
+                this.appendOutput('system', `✅ Python yzuCourseBot 環境檢查完成 (${duration}ms)，可以開始使用`);
                 
                 // 自動載入任務列表
                 this.refreshTaskList();
@@ -449,6 +464,16 @@ class CourseSelectionController {
         if (icon) icon.textContent = icons[type] || '⏳';
         if (text) text.textContent = message;
     }
+
+    /**
+     * 批量更新狀態 (優化版本)
+     */
+    updateAllStatuses(status, statusList) {
+        statusList.forEach(({ id, text }) => {
+            this.updateStatus(id, status, text);
+        });
+    }
+
 
     /**
      * 添加輸出訊息

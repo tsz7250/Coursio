@@ -6,7 +6,7 @@
     </div>
     
     <div class="schedule-controls">
-        <button id="refresh-schedule" class="btn btn-primary" onclick="refreshSchedule()">
+        <button id="refresh-schedule" class="btn btn-primary">
             🔄 重新載入課表
         </button>
     </div>
@@ -39,8 +39,10 @@
     </div>
 
     <div id="schedule-error" class="schedule-error">
-        <p class="schedule-error-text">❌ 無法載入課表資料</p>
-        <button onclick="refreshSchedule()" class="btn btn-secondary">重試</button>
+        <div class="error-content">
+            <h4>❌ 無法載入課表資料</h4>
+            <p class="error-message">課表資料載入失敗，請重新載入課表</p>
+        </div>
     </div>
 
     <div class="schedule-info">
