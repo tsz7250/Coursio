@@ -1,0 +1,59 @@
+// Simple Scrollbar Component Styles
+// Converted from simple-scrollbar.css to SCSS
+
+// Variables
+$scrollbar-width: 9px;
+$scrollbar-bg: rgba(0, 0, 0, 0.1);
+$scrollbar-radius: 4px;
+$scroll-transition: opacity 0.25s linear;
+
+.ss-wrapper {
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
+  position: relative;
+  z-index: 1;
+  float: left;
+}
+
+.ss-content {
+  height: 100%;
+  width: calc(100% + 18px);
+  padding: 0;
+  position: relative;
+  overflow-x: auto;
+  overflow-y: scroll;
+  box-sizing: border-box;
+
+  &.rtl {
+    width: calc(100% + 18px);
+    right: auto;
+  }
+}
+
+.ss-scroll {
+  position: relative;
+  background: $scrollbar-bg;
+  width: $scrollbar-width;
+  border-radius: $scrollbar-radius;
+  top: 0;
+  z-index: 2;
+  cursor: pointer;
+  opacity: 0;
+  transition: $scroll-transition;
+}
+
+.ss-hidden {
+  display: none;
+}
+
+.ss-container {
+  &:hover .ss-scroll,
+  &:active .ss-scroll {
+    opacity: 1;
+  }
+}
+
+.ss-grabbed {
+  user-select: none;
+}

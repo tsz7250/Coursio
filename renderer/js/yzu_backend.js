@@ -5,10 +5,15 @@ const NodeRSA = require('node-rsa');
 const moment = require("moment")
 const fs = require("fs")
 const https = require('https');
+const http = require('http');
+const cheerio = require('cheerio');
 
-// Puppeteer for automated browser actions (懶加載)
-let puppeteer = null;
-let puppeteerLoaded = false;
+ 
+
+// Browserless for production-grade browser control (懶加載)
+let createBrowser = null;
+let browserlessRoot = null; // 單例根瀏覽器管理器
+let browserlessLoaded = false;
 
 // 配置 axios 以處理自簽名證書和網路問題
 Axios.defaults.httpsAgent = new https.Agent({
@@ -20,25 +25,30 @@ Axios.defaults.httpsAgent = new https.Agent({
 Axios.defaults.timeout = 30000;
 Axios.defaults.maxRedirects = 5;
 
-// 🎯 懶加載 Puppeteer
-function loadPuppeteer() {
-    if (!puppeteerLoaded) {
+ 
+
+// 🎯 懶加載 Browserless
+function loadBrowserless() {
+    if (!browserlessLoaded) {
         try {
-            puppeteer = require('puppeteer-core');
-            puppeteerLoaded = true;
-            console.log("✅ Puppeteer-core 已載入，支援完全自動化課表獲取");
+            createBrowser = require('browserless');
+            browserlessLoaded = true;
+            if (!browserlessRoot) {
+                browserlessRoot = createBrowser();
+            }
+            console.log("✅ Browserless 已載入");
         } catch (error) {
-            console.warn("⚠️ Puppeteer-core 未安裝，將使用傳統HTTP方法");
-            puppeteer = null;
+            console.warn("⚠️ Browserless 未安裝或載入失敗");
+            createBrowser = null;
+            browserlessRoot = null;
         }
     }
-    return puppeteer;
+    return browserlessRoot;
 }
 
 class BackendService {
     constructor(sid, spwd) {
         this.root_url = "https://portalx.yzu.edu.tw/NewPortal/"
-        this.openDataAPIurl = "https://portalx.yzu.edu.tw/OpenData/"
 
         this.urls = {
             getUserAccessTokenUrl: "api/Auth/UserAccessToken",
@@ -68,160 +78,251 @@ class BackendService {
         // 設置帳號密碼
         this._setSidSpwd(sid, spwd);
 
-        this.openDataAPIurl = "https://portalx.yzu.edu.tw/OpenData/"
-        this.openDataAPI = {
-            "News": "api/Open/YzuNews",
-            "CosList": "api/Open/CosList?year=%s&smtr=%s",
-            "CosListByTeacher": "api/Open/CosListByTeacher?TeacherName=%s",
-            "ActBetweenDate": "api/Open/ActBetweenDate?startDate=%s&endDate=%s",
-            "CalContent": "api/Open/CalContent/%s",
-            "LibKeyword": "api/Open/LibKeyword?Scope=%s&QueryStr=%s",
-            "LibHolding": "api/Open/LibHolding/%s"
-        };
+
+        // 簡易 GET：使用 Node https/http 並支援重導向
+        this._httpGet = function(urlString, headers = {}, redirectCount = 0) {
+            return new Promise((resolve, reject) => {
+                try {
+                    const url = new URL(urlString);
+                    const isHttps = url.protocol === 'https:';
+                    const mod = isHttps ? https : http;
+                    const req = mod.request({
+                        protocol: url.protocol,
+                        hostname: url.hostname,
+                        port: url.port || (isHttps ? 443 : 80),
+                        path: url.pathname + (url.search || ''),
+                        method: 'GET',
+                        headers: headers || {},
+                        rejectUnauthorized: false,
+                    }, (res) => {
+                        const status = res.statusCode || 0;
+                        // 處理 3xx 重導向
+                        if (status >= 300 && status < 400 && res.headers.location) {
+                            if (redirectCount >= 5) return reject(new Error('Too many redirects'));
+                            const next = new URL(res.headers.location, urlString).toString();
+                            res.resume();
+                            return resolve(this._httpGet(next, headers, redirectCount + 1));
+                        }
+
+                        const chunks = [];
+                        res.on('data', (chunk) => chunks.push(Buffer.from(chunk)));
+                        res.on('end', () => {
+                            const body = Buffer.concat(chunks).toString('utf8');
+                            // 更新 Cookie 儲存
+                            if (typeof this._updateCookiesFromResponse === 'function') {
+                                this._updateCookiesFromResponse(res, urlString);
+                            }
+                            resolve({ statusCode: status, headers: res.headers, body });
+                        });
+                    });
+                    req.on('error', reject);
+                    req.end();
+                } catch (e) {
+                    reject(e);
+                }
+            });
+        }
+
+        // 簡單 Cookie 管理
+        this._cookieStore = {};
+        this._updateCookiesFromResponse = function(res, urlString) {
+            const setCookie = res.headers['set-cookie'];
+            if (!setCookie || !Array.isArray(setCookie)) return;
+            setCookie.forEach((cookieStr) => {
+                const pair = String(cookieStr).split(';')[0];
+                const eq = pair.indexOf('=');
+                if (eq > 0) {
+                    const name = pair.substring(0, eq).trim();
+                    const value = pair.substring(eq + 1).trim();
+                    this._cookieStore[name] = value;
+                }
+            });
+        }
+        this._getCookieHeader = function() {
+            const entries = Object.entries(this._cookieStore || {});
+            if (!entries.length) return '';
+            return entries.map(([k, v]) => `${k}=${v}`).join('; ');
+        }
+
+        // 預熱瀏覽器快取
+        this._prewarmed = null; // { browser, page, expiresAt }
+        this._prewarmPromise = null;
+        this._prewarmTtlMs = 2 * 60 * 1000; // 2 分鐘 TTL
+        this._httpPostForm = function(urlString, form, headers = {}, redirectCount = 0) {
+            return new Promise((resolve, reject) => {
+                try {
+                    const url = new URL(urlString);
+                    const isHttps = url.protocol === 'https:';
+                    const mod = isHttps ? https : http;
+                    const body = new URLSearchParams(form || {}).toString();
+
+                    const mergedHeaders = Object.assign({
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'Content-Length': Buffer.byteLength(body),
+                    }, headers || {});
+
+                    const cookieHeader = this._getCookieHeader();
+                    if (cookieHeader) mergedHeaders['Cookie'] = cookieHeader;
+
+                    const req = mod.request({
+                        protocol: url.protocol,
+                        hostname: url.hostname,
+                        port: url.port || (isHttps ? 443 : 80),
+                        path: url.pathname + (url.search || ''),
+                        method: 'POST',
+                        headers: mergedHeaders,
+                        rejectUnauthorized: false,
+                    }, (res) => {
+                        const status = res.statusCode || 0;
+                        // 更新 cookies
+                        this._updateCookiesFromResponse(res, urlString);
+
+                        // 處理 3xx 重導向
+                        if (status >= 300 && status < 400 && res.headers.location) {
+                            if (redirectCount >= 5) return reject(new Error('Too many redirects'));
+                            const next = new URL(res.headers.location, urlString).toString();
+                            res.resume();
+                            // 重導後使用 GET 取得最終頁面
+                            return resolve(this._httpGet(next, headers, redirectCount + 1));
+                        }
+
+                        const chunks = [];
+                        res.on('data', (chunk) => chunks.push(Buffer.from(chunk)));
+                        res.on('end', () => {
+                            const respBody = Buffer.concat(chunks).toString('utf8');
+                            resolve({ statusCode: status, headers: res.headers, body: respBody });
+                        });
+                    });
+                    req.on('error', reject);
+                    req.write(body);
+                    req.end();
+                } catch (e) {
+                    reject(e);
+                }
+            });
+        }
     }
 
-    // 新增：使用 OpenData API 取得課程清單
-    async getCourseListFromOpenDataAPI(year, smtr) {
-        try {
-            const url = `${this.openDataAPIurl}api/Open/CosList?year=${year}&smtr=${smtr}`;
-            console.log("正在呼叫 OpenData API:", url);
+    /**
+     * 處理教師名稱，移除空的括號和重複內容
+     * @param {string} teacherText - 原始教師名稱
+     * @returns {string} - 處理後的教師名稱
+     */
+    processTeacherName(teacherText) {
+        if (!teacherText) return '';
+        
+        
+        // 先清理和標準化輸入
+        let cleanText = teacherText.trim();
+        
+        // 處理缺少開頭括號的情況，例如: "廖建勛Chien-Shiun Liao)" -> "廖建勛(Chien-Shiun Liao)"
+        // 匹配模式: 中文姓名 + 英文姓名 + 結尾括號
+        const missingBracketPattern = /^([\u4e00-\u9fff]+)([A-Za-z\s,]+)\)$/;
+        const missingBracketMatch = cleanText.match(missingBracketPattern);
+        if (missingBracketMatch) {
+            const chineseName = missingBracketMatch[1];
+            const englishName = missingBracketMatch[2].trim();
+            cleanText = `${chineseName}(${englishName})`;
+            return cleanText;
+        }
+        
+        // 處理重複的括號內容，例如: "師德霖Sterling Thomas Swallow)(Sterling Thomas Swallow)" 
+        // 先檢查是否有這種模式: 中文姓名 + 英文姓名 + 結尾括號 + 開頭括號 + 重複英文姓名 + 結尾括號
+        const duplicatePattern = /^([\u4e00-\u9fff]+)([A-Za-z\s,]+)\)\(([A-Za-z\s,]+)\)$/;
+        const duplicateMatch = cleanText.match(duplicatePattern);
+        if (duplicateMatch) {
+            const chineseName = duplicateMatch[1];
+            const englishName = duplicateMatch[2].trim();
+            const duplicateEnglishName = duplicateMatch[3].trim();
             
-            const response = await Axios.get(url, {
-                timeout: 15000
-            });
-
-            if (response.data && Array.isArray(response.data)) {
-                console.log(`OpenData API 成功取得 ${response.data.length} 門課程`);
+            // 如果英文姓名相同，只保留一個
+            if (englishName === duplicateEnglishName) {
+                cleanText = `${chineseName}(${englishName})`;
+            } else {
+                // 如果不同，保留兩個
+                cleanText = `${chineseName}(${englishName})(${duplicateEnglishName})`;
+            }
+            return cleanText;
+        }
+        
+        // 如果包含括號，檢查括號內是否有內容
+        if (cleanText.includes('(')) {
+            const parts = cleanText.split('(');
+            const name = parts[0].trim();
+            const bracketContent = parts.slice(1).join('(').trim();
+            
+            // 如果括號內沒有內容，只返回姓名部分
+            if (!bracketContent || bracketContent === ')') {
+                return name;
+            }
+            
+            // 檢查是否已經是正確格式（只有一個括號且格式正確）
+            const correctFormatPattern = /^[\u4e00-\u9fff]+\([A-Za-z\s,\-]+\)$/;
+            if (correctFormatPattern.test(cleanText)) {
+                // 在括號前添加換行符，讓英文名字換行顯示
+                const result = cleanText.replace('(', '\n(');
+                return result;
+            }
+            
+            // 處理重複的括號內容
+            let cleanBracketContent = bracketContent;
+            
+            // 檢查是否有重複的括號內容
+            // 使用更簡單的方法：檢查是否包含 ")((" 模式
+            if (bracketContent.includes(')(')) {
                 
-                // 轉換為標準格式
-                const courses = response.data.map(course => ({
-                    course_id: course.cos_id || 'N/A',
-                    course_name: course.cos_name || '未知課程',
-                    teacher: course.teacher || '未知教師',
-                    dept_name: course.dept_name || '未知系所',
-                    credits: parseInt(course.cos_credit) || 0,
-                    time_slots: course.WeekandRoom ? course.WeekandRoom.split(',') : [],
-                    is_selected: false, // OpenData 是公開資料，非個人選課
-                    source: "OpenData API",
-                    year: year,
-                    semester: smtr
-                }));
-
-                return {
-                    success: true,
-                    courses: courses,
-                    message: `成功從 OpenData API 取得 ${courses.length} 門課程`
-                };
-            } else {
-                throw new Error("API 回應格式錯誤");
+                // 分割並去重
+                const parts = bracketContent.split(')(');
+                const uniqueParts = new Set();
+                const resultParts = [];
+                
+                for (const part of parts) {
+                    const cleanPart = part.replace(/^\(|\)$/g, '').trim().replace(/\s+/g, ' ');
+                    if (cleanPart && !uniqueParts.has(cleanPart)) {
+                        uniqueParts.add(cleanPart);
+                        resultParts.push(cleanPart);
+                    }
+                }
+                
+                if (resultParts.length > 0) {
+                    const result = name + '\n(' + resultParts.join(')(') + ')';
+                    return result;
+                }
             }
-        } catch (error) {
-            console.error("OpenData API 呼叫失敗:", error.message);
-            return {
-                success: false,
-                courses: [],
-                message: `OpenData API 失敗: ${error.message}`
-            };
-        }
-    }
-
-    // 新增：取得校園新聞
-    async getNewsFromOpenDataAPI() {
-        try {
-            const url = `${this.openDataAPIurl}${this.openDataAPI.News}`;
-            console.log("正在取得校園新聞:", url);
             
-            const response = await Axios.get(url, {
-                timeout: 10000
-            });
-
-            if (response.data) {
-                console.log("校園新聞取得成功");
-                return {
-                    success: true,
-                    news: response.data,
-                    message: "校園新聞取得成功"
-                };
-            } else {
-                throw new Error("新聞資料為空");
+            // 檢查是否有重複的括號內容
+            const bracketPattern = /\(([^)]+)\)/g;
+            const matches = bracketContent.match(bracketPattern);
+            
+            if (matches && matches.length > 1) {
+                // 檢查是否有重複的內容
+                const uniqueContents = new Set();
+                const uniqueMatches = [];
+                
+                for (const match of matches) {
+                    const content = match.slice(1, -1).trim(); // 移除括號並清理空白
+                    if (!uniqueContents.has(content)) {
+                        uniqueContents.add(content);
+                        uniqueMatches.push(match);
+                    }
+                }
+                // 如果找到重複，使用去重後的內容
+                if (uniqueMatches.length < matches.length) {
+                    cleanBracketContent = uniqueMatches.join('');
+                    const result = name + '\n' + cleanBracketContent;
+                    return result;
+                }
             }
-        } catch (error) {
-            console.error("校園新聞取得失敗:", error.message);
-            return {
-                success: false,
-                news: [],
-                message: `校園新聞取得失敗: ${error.message}`
-            };
+            
+            const result = name + '\n' + cleanBracketContent;
+            return result;
         }
+        
+        return cleanText;
     }
 
-    async testOpenDataEndpoints() {
-        console.log("正在測試 OpenData API 端點可用性...");
-        
-        const testResults = {
-            openData: {},
-            availableEndpoints: [],
-            recommendations: []
-        };
 
-        // 測試 OpenData API 端點
-        const openDataUrls = {
-            news: `${this.openDataAPIurl}${this.openDataAPI.News}`,
-            courseList: `${this.openDataAPIurl}api/Open/CosList?year=114&smtr=1`
-        };
-        
-        // 測試新聞端點
-        try {
-            const newsResponse = await Axios.get(openDataUrls.news, {
-                timeout: 10000
-            });
-            testResults.openData.news = {
-                status: newsResponse.status,
-                available: newsResponse.status === 200,
-                note: "校園新聞端點"
-            };
-            testResults.availableEndpoints.push("YzuNews");
-            console.log("✅ OpenData 新聞端點可用");
-        } catch (error) {
-            testResults.openData.news = {
-                status: error.response?.status || "無回應",
-                available: false,
-                error: error.message
-            };
-            console.log("❌ OpenData 新聞端點無法連接:", error.message);
-        }
 
-        // 測試課程清單端點
-        try {
-            const courseResponse = await Axios.get(openDataUrls.courseList, {
-                timeout: 10000
-            });
-            testResults.openData.courseList = {
-                status: courseResponse.status,
-                available: courseResponse.status === 200,
-                note: "課程清單端點"
-            };
-            testResults.availableEndpoints.push("CosList");
-            console.log("✅ OpenData 課程清單端點可用");
-        } catch (error) {
-            testResults.openData.courseList = {
-                status: error.response?.status || "無回應",
-                available: false,
-                error: error.message
-            };
-            console.log("❌ OpenData 課程清單端點無法連接:", error.message);
-        }
-
-        // 生成建議
-        if (testResults.availableEndpoints.length > 0) {
-            testResults.recommendations.push(`可用的 OpenData 端點: ${testResults.availableEndpoints.join(', ')}`);
-        } else {
-            testResults.recommendations.push("所有 OpenData 端點都無法使用");
-        }
-
-        console.log("OpenData 端點測試完成:", testResults);
-        return testResults;
-    }
 
     // 保留基本登入功能 (使用 NewPortal API)
     loginService(sid, spwd) {
@@ -232,10 +333,7 @@ class BackendService {
                 return service._encryptData(sid, spwd)
             })
             .then((service) => {
-                return service._getUserAccessToken()
-            })
-            .then((service) => {
-                console.log("登入成功，但請注意只有 OpenData API 可用");
+                console.log("登入成功");
                 return service;
             })
             .catch((error) => {
@@ -283,7 +381,6 @@ class BackendService {
             }),
             timeout: 30000
         }).then((respones) => {
-            console.log("---------- RSA")
             that.ALLDATA["PublicKeyXml"] = respones.data["RSAkey"]
             that.ALLDATA["Modulus"] = respones.data["Modulus"]
             that.ALLDATA["Exponent"] = respones.data["Exponent"]
@@ -330,93 +427,9 @@ class BackendService {
         })
     }
 
-    _getUserAccessToken() {
-        console.log("---------- getUserAccessToken");
-
-        var url = "https://portalx.yzu.edu.tw/NewPortal/" + "api/Auth/UserAccessToken"
-
-        var payload = new URLSearchParams()
-        payload.append("AppId", this.ALLDATA["AppId"])
-        payload.append("account", this.ALLDATA["account"])
-        payload.append("password", this.ALLDATA["password"])
-        payload.append("BackUID", this.ALLDATA["BackUID"])
-        payload.append("DeviceSerial", this.ALLDATA["DeviceSerial"])
-
-        var headers = {
-            "Accept": this.ALLDATA["Accept"],
-            "Authorization": this.ALLDATA["Authorization"],
-            "Content-Type": "application/x-www-form-urlencoded"
-        }
-
-        var that = this
-
-        return Axios.post(url, payload, {
-            headers: headers,
-            httpsAgent: new https.Agent({
-                rejectUnauthorized: false
-            }),
-            timeout: 30000
-        }).then((response) => {
-
-            console.log("完整登入回應:", response.data);
-
-            if (response.data.Result && response.data.Result.includes("失敗")) {
-                return Promise.reject(new Error("登入失敗: " + response.data.Result))
-            }
-
-            this.login_infomation = response.data;
-            
-            // 檢查回應中的 Token 欄位
-            if (response.data["Token"]) {
-                this.ALLDATA["Token"] = response.data["Token"];
-                console.log("成功取得 Token:", this.ALLDATA["Token"]);
-            } else if (response.data["token"]) {
-                this.ALLDATA["Token"] = response.data["token"];
-                console.log("成功取得 Token (小寫):", this.ALLDATA["Token"]);
-            } else {
-                console.warn("回應中找不到 Token，回應內容:", Object.keys(response.data));
-                // 嘗試從其他可能的欄位取得 Token
-                const possibleTokenFields = ['AccessToken', 'access_token', 'UserToken', 'authToken'];
-                for (const field of possibleTokenFields) {
-                    if (response.data[field]) {
-                        this.ALLDATA["Token"] = response.data[field];
-                        console.log(`從 ${field} 欄位取得 Token:`, this.ALLDATA["Token"]);
-                        break;
-                    }
-                }
-            }
-            
-            // 處理用戶狀態
-            if (response.data["UserStatus"]) {
-                this.ALLDATA["UserStatus"] = response.data["UserStatus"];
-                this.login_infomation["dept"] = response.data["UserStatus"].split('_')[2] || "未知系所";
-                console.log("用戶狀態:", this.ALLDATA["UserStatus"]);
-            } else {
-                console.warn("回應中找不到 UserStatus");
-            }
-
-            var that = this;
-            // 繼續 promise 的 chain
-            return new Promise(function (resolve, reject) {
-                return resolve(that)
-            })
-
-        }).catch((error) => {
-            console.error("取得存取權杖失敗:", error);
-            return Promise.reject(error);
-        })
-    }
 
     getCourseSchedule(year, smtr) {
         console.log("🚀 使用改進版 Puppeteer 完全自動化課表獲取...");
-        
-        // 🎯 懶加載 Puppeteer
-        const puppeteerInstance = loadPuppeteer();
-        if (!puppeteerInstance) {
-            console.error("❌ Puppeteer 不可用，請安裝 puppeteer-core");
-            this.setEmptyPersonalSchedule("Puppeteer 不可用，請安裝 puppeteer-core");
-            return Promise.resolve(this);
-        }
         
         if (!this.ALLDATA["original_account"] || !this.ALLDATA["original_password"]) {
             console.error("❌ 缺少登入憑證");
@@ -453,13 +466,19 @@ class BackendService {
                 }
             })
             .catch((error) => {
+                // 檢查是否是因為清理過程導致的錯誤，但實際課表獲取成功
+                if (error.message && error.message.includes('Target closed') && this.course_schedule_data) {
+                    console.warn("⚠️ 檢測到清理過程錯誤，但課表數據已成功獲取，忽略此錯誤");
+                    return Promise.resolve(this);
+                }
+                
                 console.error("❌ 改進版 Puppeteer 課表獲取異常:", error.message);
                 this.setEmptyPersonalSchedule(`系統錯誤: ${error.message}`);
                 return Promise.resolve(this);
             });
     }
 
-    // 🎯 完整的課表獲取流程（基於 complete_schedule.js）
+    // 課表獲取流程
     async getCompleteScheduleData(year = "114", smtr = "1") {
         let browser = null;
         let page = null;
@@ -469,16 +488,20 @@ class BackendService {
             console.log(`👤 學號: ${this.ALLDATA["original_account"]}`);
             console.log(`📚 學期: ${year}年第${smtr}學期`);
 
-            // 確保 Puppeteer 已載入
-            const puppeteerInstance = loadPuppeteer();
-            if (!puppeteerInstance) {
-                throw new Error("Puppeteer 不可用");
+            // 優先重用預熱資源（僅 context，當前才建立 page）
+            if (this._prewarmed && this._prewarmed.expiresAt > Date.now()) {
+                console.log("🔥 使用預熱的 Browserless context");
+                browser = this._prewarmed.browser;
+                // 於實際使用時才開新頁面
+                page = await browser.newPage();
+                // 使用後清空快取，避免被重複佔用
+                this._prewarmed = null;
+            } else {
+                // 啟動瀏覽器
+                console.log("📱 啟動瀏覽器...");
+                browser = await this.launchPuppeteerBrowser();
+                page = await browser.newPage();
             }
-
-            // 啟動瀏覽器
-            console.log("📱 啟動瀏覽器...");
-            browser = await this.launchPuppeteerBrowser();
-            page = await browser.newPage();
             
             // 設置用戶代理
             await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
@@ -489,9 +512,9 @@ class BackendService {
                 throw new Error(`登入失敗: ${loginResult.message}`);
             }
 
-            // 額外等待時間確保頁面元素完全載入
+            // 以網路空閒取代固定等待，確保頁面元素載入完成
             console.log("🔄 確保頁面元素完全載入...");
-            await new Promise(resolve => setTimeout(resolve, 1500));
+            await this.waitForNetworkIdle(page, 600, 8000).catch(() => {});
 
             // 步驟2: 載入課表數據
             const scheduleResult = await this.puppeteerLoadSchedule(page);
@@ -509,12 +532,15 @@ class BackendService {
             console.log(`📝 Label1: ${parseResult.data.label1 ? '✅' : '❌'}`);
             console.log(`📋 Table1: ${parseResult.data.table1 ? '✅' : '❌'}`);
             
-            return {
+            // 在清理瀏覽器之前先保存結果
+            const result = {
                 success: true,
                 data: parseResult.data,
-                cookies: await page.cookies(),
+                cookies: await page.cookies().catch(() => []), // 安全地獲取 cookies
                 message: "課表獲取成功"
             };
+            
+            return result;
 
         } catch (error) {
             console.error("❌ 課表獲取流程失敗:", error.message);
@@ -524,14 +550,18 @@ class BackendService {
                 error: error
             };
         } finally {
-            // 清理資源
+            // 清理資源 - 使用 try-catch 避免清理錯誤影響主要結果
             if (browser) {
-                await this.cleanupPuppeteerBrowser(browser);
+                try {
+                    await this.cleanupPuppeteerBrowser(browser);
+                } catch (cleanupError) {
+                    console.warn("⚠️ 瀏覽器清理過程中出現錯誤，但不影響主要結果:", cleanupError.message);
+                }
             }
         }
     }
 
-    // 新增：解析課表 HTML，專門提取 label1 和 table1，返回詳細資訊
+    // 解析課表 HTML，提取 label1 與 table1 並回傳詳細資訊
     parseScheduleHTMLWithDetails(htmlContent) {
         try {
             console.log("開始解析課表 HTML，尋找 label1 和 table1...");
@@ -661,7 +691,7 @@ class BackendService {
                 credit: this.extractCredit(cells[2] || '0'),
                 time: this.parseTimeSlot(cells[3] || ''),
                 room: cells[4] || '未知教室',
-                teacher_name: cells[5] || '未知教師',
+                teacher_name: this.processTeacherName(cells[5] || '未知教師'),
                 dept_name: '個人課程', // 從個人課表來的都標記為個人課程
                 is_selected: true,
                 source: "官方個人課表 HTML (table1)"
@@ -797,135 +827,38 @@ class BackendService {
         return Promise.resolve(this);
     }
 
-    // 🎯 新增：Puppeteer完全自動化課表獲取方法
-    async getPuppeteerSchedule(year = "114", smtr = "1") {
-        const puppeteerInstance = loadPuppeteer();
-        if (!puppeteerInstance) {
-            throw new Error("Puppeteer 不可用");
-        }
+ 
 
-        let browser = null;
-        let page = null;
-        
-        try {
-            console.log("🚀 啟動 Puppeteer 自動化課表獲取...");
-            console.log(`📚 目標學期: ${year}年第${smtr}學期`);
-            console.log(`👤 使用帳號: ${this.ALLDATA["original_account"]}`);
-
-            // 🔧 啟動瀏覽器
-            browser = await this.launchPuppeteerBrowser();
-            page = await browser.newPage();
-            
-            // 設置用戶代理
-            await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
-
-            // 🔐 執行登入
-            const loginResult = await this.puppeteerLogin(page);
-            if (!loginResult.success) {
-                throw new Error(`登入失敗: ${loginResult.message}`);
-            }
-
-            // 📋 載入課表
-            const scheduleResult = await this.puppeteerLoadSchedule(page);
-            if (!scheduleResult.success) {
-                throw new Error(`課表載入失敗: ${scheduleResult.message}`);
-            }
-
-            // 📊 解析課表數據
-            const parseResult = await this.puppeteerParseSchedule(page);
-            if (!parseResult.success) {
-                throw new Error(`課表解析失敗: ${parseResult.message}`);
-            }
-
-            // ✅ 設置課表數據
-            this.course_schedule_data = {
-                course_list: parseResult.data.course_list,
-                is_personal: true,
-                source: "Puppeteer 完全自動化課表獲取",
-                warning: null,
-                message: `成功從 Puppeteer 載入 ${parseResult.data.course_list.length} 門個人課程`,
-                label1_info: parseResult.data.label1_info,
-                raw_table_html: parseResult.data.raw_table_html,
-                extraction_time: parseResult.data.extraction_time,
-                puppeteer_success: true
-            };
-
-            // 🎯 生成標準課表HTML
-            try {
-                const scheduleHTML = this.generateScheduleTableHTML(parseResult.data.course_list);
-                this.course_schedule_data.schedule_table_html = scheduleHTML;
-                console.log("✅ 課表HTML已生成並保存");
-            } catch (htmlError) {
-                console.warn("⚠️ 生成課表HTML時發生錯誤:", htmlError.message);
-                this.course_schedule_data.schedule_table_html = null;
-            }
-
-            console.log("🎉 Puppeteer 課表獲取完全成功！");
-            return { success: true, message: "Puppeteer 課表獲取成功" };
-
-        } catch (error) {
-            console.error("❌ Puppeteer 課表獲取失敗:", error.message);
-            return { success: false, error: error.message };
-        } finally {
-            // 🧹 清理資源
-            if (browser) {
-                await this.cleanupPuppeteerBrowser(browser);
-            }
-        }
-    }
-
-    // 🔧 啟動Puppeteer瀏覽器（處理各種瀏覽器問題）
+    // 🔧 啟動瀏覽器
     async launchPuppeteerBrowser() {
         try {
-            console.log("🔍 尋找Chrome瀏覽器...");
-            
-            // 🎯 解決問題1: Chrome路徑檢測
-            const chromePath = this.findChromePath();
-            if (!chromePath) {
-                throw new Error("找不到Chrome瀏覽器，請確保已安裝Chrome");
-            }
-            
-            console.log("✅ 找到Chrome:", chromePath);
-            
-            // 🎯 解決問題2: 瀏覽器啟動參數（避免權限和安全問題）
-            const launchOptions = {
-                executablePath: chromePath,
-                headless: true, // 🎯 解決問題4: 生產環境使用headless
-                defaultViewport: null,
-                args: [
-                    '--no-sandbox',                    // 避免沙盒權限問題
-                    '--disable-setuid-sandbox',       // 避免setuid沙盒問題
-                    '--disable-dev-shm-usage',        // 避免/dev/shm空間不足
-                    '--disable-web-security',         // 允許跨域請求
-                    '--disable-features=VizDisplayCompositor',
-                    '--disable-gpu',                  // 避免GPU相關問題
-                    '--disable-extensions',           // 禁用擴展避免干擾
-                    '--disable-plugins',              // 禁用插件
-                    '--disable-images',               // 加速載入
-                    '--disable-javascript-harmony-shipping',
-                    '--disable-background-timer-throttling',
-                    '--disable-renderer-backgrounding',
-                    '--disable-backgrounding-occluded-windows',
-                    '--disable-ipc-flooding-protection',
-                    '--window-size=1280,720'          // 固定視窗大小
-                ],
-                // 🎯 解決問題3: 超時和資源管理
-                timeout: 60000,
-                handleSIGINT: false,
-                handleSIGTERM: false,
-                handleSIGHUP: false
+            console.log("🚀 以 Browserless 啟動上下文...");
+            const root = loadBrowserless();
+            if (!root) throw new Error("Browserless 不可用");
+
+            // 建立 browserless context
+            const browserless = await root.createContext();
+
+            // 輕量 Browser 介面轉接器，與現有呼叫相容（newPage/pages/close）
+            const adapter = {
+                _browserless: browserless,
+                async newPage() {
+                    return await browserless.page();
+                },
+                async pages() {
+                    // browserless 不提供列舉頁面的API，回傳空陣列以符合清理流程
+                    return [];
+                },
+                async close() {
+                    if (typeof browserless.destroyContext === 'function') {
+                        await browserless.destroyContext();
+                    } else if (typeof browserless.destroy === 'function') {
+                        await browserless.destroy();
+                    }
+                }
             };
 
-            console.log("🚀 啟動瀏覽器...");
-            const puppeteerInstance = loadPuppeteer(); // 確保已載入
-            const browser = await puppeteerInstance.launch(launchOptions);
-            
-            // 🎯 解決問題3: 設置瀏覽器事件監聽
-            browser.on('disconnected', () => {
-                console.log("🔄 瀏覽器連接已斷開");
-            });
-
-            return browser;
+            return adapter;
             
         } catch (error) {
             console.error("❌ 瀏覽器啟動失敗:", error.message);
@@ -940,60 +873,67 @@ class BackendService {
         }
     }
 
-    // 🔍 Chrome路徑檢測（跨平台支援）
-    findChromePath() {
-        const possiblePaths = [
-            // Windows 路徑
-            'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-            'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
-            `C:\\Users\\${process.env.USERNAME}\\AppData\\Local\\Google\\Chrome\\Application\\chrome.exe`,
-            
-            // macOS 路徑
-            '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-            
-            // Linux 路徑
-            '/usr/bin/google-chrome',
-            '/usr/bin/google-chrome-stable',
-            '/usr/bin/chromium-browser',
-            '/snap/bin/chromium'
-        ];
-
-        for (const path of possiblePaths) {
-            try {
-                if (fs.existsSync(path)) {
-                    console.log("✅ 找到Chrome路徑:", path);
-                    return path;
-                }
-            } catch (error) {
-                // 繼續檢查下一個路徑
+    // 預熱 Browserless（只建立 context，不自動開頁或導向）
+    async prewarmBrowser() {
+        try {
+            // 已有且未過期，直接回傳
+            if (this._prewarmed && this._prewarmed.expiresAt > Date.now()) {
+                return this._prewarmed;
             }
-        }
-
-        // 🎯 嘗試系統環境變數
-        const envPaths = [
-            process.env.CHROME_BIN,
-            process.env.GOOGLE_CHROME_BIN
-        ].filter(Boolean);
-
-        for (const path of envPaths) {
-            try {
-                if (fs.existsSync(path)) {
-                    console.log("✅ 從環境變數找到Chrome:", path);
-                    return path;
-                }
-            } catch (error) {
-                // 繼續檢查
+            // 進行中的預熱，等待完成
+            if (this._prewarmPromise) {
+                return await this._prewarmPromise;
             }
-        }
 
-        console.error("❌ 找不到Chrome瀏覽器");
-        return null;
+            console.log("🧊 開始預熱 Browserless context...");
+            this._prewarmPromise = (async () => {
+                const browser = await this.launchPuppeteerBrowser();
+
+                this._prewarmed = {
+                    browser,
+                    page: null,
+                    expiresAt: Date.now() + this._prewarmTtlMs
+                };
+                console.log("✅ 預熱完成");
+                return this._prewarmed;
+            })();
+
+            return await this._prewarmPromise;
+        } catch (e) {
+            // 預熱失敗不影響後續登入
+            this._prewarmed = null;
+            throw e;
+        } finally {
+            this._prewarmPromise = null;
+        }
     }
 
-    // 🔐 Puppeteer登入流程（改進版，基於 complete_schedule.js）
+    // 登入流程
     async puppeteerLogin(page) {
         try {
             console.log("🔐 開始Puppeteer登入流程...");
+
+            // 監聽原生 alert/confirm 對話框以偵測登入失敗
+            let loginFailedByDialog = false;
+            const onDialog = async (dialog) => {
+                try {
+                    const msg = dialog && dialog.message ? (dialog.message() || '') : '';
+                    if (msg.includes('Login Failed') || msg.includes('登入失敗')) {
+                        loginFailedByDialog = true;
+                        await dialog.accept().catch(() => {});
+                    } else {
+                        await dialog.dismiss().catch(() => {});
+                    }
+                } catch (_) {}
+            };
+            try { page.on('dialog', onDialog); } catch (_) {}
+
+            let cleaned = false;
+            const cleanup = () => {
+                if (cleaned) return;
+                cleaned = true;
+                try { page.off('dialog', onDialog); } catch (_) {}
+            };
 
             // 前往登入頁面
             await page.goto('https://portalx.yzu.edu.tw/PortalSocialVB/Login.aspx', {
@@ -1003,14 +943,11 @@ class BackendService {
 
             // 等待表單元素載入
             await page.waitForSelector('#Txt_UserID', { timeout: 10000 });
-            await new Promise(resolve => setTimeout(resolve, 800)); // 等待reCaptcha初始化
 
             // 填入帳號密碼
             console.log("📝 填入登入資訊...");
             await page.type('#Txt_UserID', this.ALLDATA["original_account"]);
-            await new Promise(resolve => setTimeout(resolve, 50));
             await page.type('#Txt_Password', this.ALLDATA["original_password"]);
-            await new Promise(resolve => setTimeout(resolve, 50));
 
             // 等待reCaptcha token生成
             console.log("🔒 等待reCaptcha驗證...");
@@ -1024,34 +961,77 @@ class BackendService {
             // 點擊登入按鈕
             await page.click('#ibnSubmit');
 
-            // 等待登入完成
+            // 等待登入成功或對話框失敗（擇一先發生）
             console.log("⏱️ 等待登入完成...");
-            await page.waitForFunction(() => {
-                return window.location.href.includes('DefaultPage.aspx') || 
-                       document.body.innerText.includes('個人portal') ||
-                       document.body.innerText.includes('登入失敗');
-            }, { timeout: 15000 });
+            const successWait = page.waitForFunction(() => {
+                return window.location.href.includes('DefaultPage.aspx') ||
+                       document.body.innerText.includes('個人portal');
+            }, { timeout: 20000 }).then(() => 'SUCCESS');
+
+            // 掃描主頁與所有 iframe 的失敗訊息或模態選擇器
+            const failurePoll = async () => {
+                const hasFailInFrame = async (f) => {
+                    try {
+                        return await f.evaluate(() => {
+                            const text = (document.body && (document.body.innerText || '')) || '';
+                            if (text.includes('Login Failed') || text.includes('登入失敗')) return true;
+                            // 常見 UI 框架的容器
+                            const selectors = ['.swal2-container', '.swal2-popup', '.modal', '.sweet-alert', '#errorBox'];
+                            return selectors.some(sel => document.querySelector(sel));
+                        });
+                    } catch (_) { return false; }
+                };
+
+                // 檢查主頁
+                if (await hasFailInFrame(page.mainFrame())) return true;
+                // 檢查所有子 frame
+                const frames = page.frames();
+                for (const f of frames) {
+                    if (f === page.mainFrame()) continue;
+                    if (await hasFailInFrame(f)) return true;
+                }
+                return false;
+            };
+
+            const dialogOrDomWait = new Promise((resolve) => {
+                const tick = async () => {
+                    if (loginFailedByDialog) return resolve('DIALOG_FAILED');
+                    try {
+                        const failed = await failurePoll();
+                        if (failed) return resolve('DOM_FAILED');
+                    } catch (_) {}
+                    setTimeout(tick, 150);
+                };
+                tick();
+            });
+
+            const outcome = await Promise.race([successWait, dialogOrDomWait]);
 
             const currentUrl = page.url();
             const pageContent = await page.content();
 
-            if (currentUrl.includes('DefaultPage.aspx') || pageContent.includes('個人portal')) {
+            if (outcome === 'SUCCESS' || currentUrl.includes('DefaultPage.aspx') || pageContent.includes('個人portal')) {
                 console.log("✅ 登入成功！");
-                console.log("⏱️ 等待頁面完全載入...");
-                await new Promise(resolve => setTimeout(resolve, 1000)); // 等待頁面完全載入
+                // 登入成功後立即返回，頁面載入在背景進行
+                cleanup();
                 return { success: true };
             } else {
                 console.error("❌ 登入失敗");
-                return { success: false, message: "登入失敗，可能是帳號密碼錯誤" };
+                const message = loginFailedByDialog ? "登入失敗（對話框）" : "登入失敗，可能是帳號密碼錯誤";
+                cleanup();
+                return { success: false, message };
             }
 
         } catch (error) {
             console.error("❌ 登入過程出錯:", error.message);
             return { success: false, message: error.message };
+        } finally {
+            // 確保釋放監聽器
+            try { page.removeAllListeners && page.removeAllListeners('dialog'); } catch (_) {}
         }
     }
 
-    // 🎯 處理iframe中的課表內容（基於 complete_schedule.js）
+    // 處理 iframe 中的課表內容
     async handleScheduleIframe(page) {
         try {
             console.log("🔍 尋找課表iframe...");
@@ -1073,12 +1053,15 @@ class BackendService {
                     if (src && (src.includes('IFrameSub') || src.includes('Schedule') || src.includes('portalfun'))) {
                         console.log(`✅ 找到課表iframe: ${src}`);
                         
-                        // 等待iframe載入
-                        await new Promise(resolve => setTimeout(resolve, 1500));
+                        // 等待 iframe 可取得內容或目標URL
+                        let frame = await iframe.contentFrame();
+                        if (!frame) {
+                            await page.waitForFunction((el) => !!el && !!el.contentWindow, { timeout: 6000 }, iframe).catch(() => {});
+                            frame = await iframe.contentFrame();
+                        }
                         
                         // 嘗試獲取iframe內容
                     try {
-                        const frame = await iframe.contentFrame();
                         if (frame) {
                             
                                 // 等待iframe內容載入
@@ -1152,8 +1135,8 @@ class BackendService {
                                         return { success: true, data: iframeScheduleData };
                 }
             } else {
-                                    console.log("⏱️ iframe尚未導向課表頁面，等待更長時間...");
-                                    await new Promise(resolve => setTimeout(resolve, 3000));
+                                    console.log("⏱️ iframe尚未導向課表頁面，等待網路空閒...");
+                                    await this.waitForNetworkIdle(page, 600, 8000).catch(() => {});
                                     
                                     // 再次檢查URL
                                     const newFrameUrl = await frame.url();
@@ -1183,32 +1166,50 @@ class BackendService {
         }
     }
 
-    // 📋 Puppeteer載入課表（改進版，基於 complete_schedule.js）
+    // 載入課表
     async puppeteerLoadSchedule(page) {
         try {
             console.log("📋 開始載入課表...");
 
-            // 等待頁面完全載入
-            await new Promise(resolve => setTimeout(resolve, 1500));
+            // 等待主頁面可互動（存在課表選單或相關 onclick）
+            await page.waitForFunction(() => {
+                return document.getElementById('tdS14') || Array.from(document.querySelectorAll('*[onclick]')).some(el => {
+                    const text = (el.textContent || el.innerText || '').trim();
+                    const onclick = el.getAttribute('onclick') || '';
+                    return (text.includes('課表') && onclick.includes('S5')) || onclick.includes("GoToURL('App_','S5')");
+                });
+            }, { timeout: 12000 }).catch(() => {});
 
             // 🎯 直接點擊課表菜單項
             const currentUrl = page.url();
             console.log("📍 當前頁面URL:", currentUrl);
             console.log("🔍 尋找課表菜單項...");
 
+            // 等待頁面完全載入，確保菜單元素出現
+            await page.waitForFunction(() => {
+                return document.getElementById('tdS14') || 
+                       document.querySelector('*[onclick*="S5"]') ||
+                       document.querySelector('*[onclick*="GoToURL"]');
+            }, { timeout: 10000 }).catch(() => {
+                console.warn("⚠️ 等待菜單元素超時，繼續嘗試...");
+            });
+
             // 多種方式尋找課表菜單
             const scheduleMenuFound = await page.evaluate(() => {
                 // 開始尋找課表菜單
                 let scheduleElement = document.getElementById('tdS14');
+                console.log("🔍 檢查 tdS14 元素:", !!scheduleElement);
                 
                 // 方法2: 尋找包含"課表"文字且onclick包含S5的元素
                 if (!scheduleElement) {
                     const elements = document.querySelectorAll('*[onclick*="S5"]');
+                    console.log("🔍 找到", elements.length, "個包含S5的元素");
                     for (const el of elements) {
                         const text = el.textContent || el.innerText || '';
                         const onclick = el.getAttribute('onclick') || '';
                         if (text.includes('課表') && onclick.includes('S5')) {
                             scheduleElement = el;
+                            console.log("✅ 找到課表菜單元素:", text.trim());
                             break;
                         }
                     }
@@ -1261,7 +1262,7 @@ class BackendService {
                         if (frame === page.mainFrame() && !navigationCompleted) {
                             navigationCompleted = true;
                             console.log("✅ 檢測到頁面導航完成");
-                            setTimeout(resolve, 1000);
+                            resolve();
                         }
                     });
                     
@@ -1272,7 +1273,7 @@ class BackendService {
                              response.url().includes('FFB_Login')) && !navigationCompleted) {
                             navigationCompleted = true;
                             console.log("✅ 檢測到課表相關請求完成");
-                            setTimeout(resolve, 1500);
+                            resolve();
                         }
                     });
                     
@@ -1306,6 +1307,7 @@ class BackendService {
                 // 等待導航或AJAX完成
                 console.log("⏱️ 等待課表頁面載入...");
                 await navigationPromise;
+                await this.waitForNetworkIdle(page, 600, 12000).catch(() => {});
 
                 // 🎯 檢查並處理iframe中的課表內容
                 console.log("🔍 檢查iframe中的課表內容...");
@@ -1344,7 +1346,7 @@ class BackendService {
         }
     }
 
-    // 📊 Puppeteer解析課表數據（改進版，基於 complete_schedule.js）
+    // 解析課表數據
     async puppeteerParseSchedule(page) {
         try {
             console.log("📊 解析課表數據...");
@@ -1363,8 +1365,10 @@ class BackendService {
                 };
             }
 
-            // 等待可能的頁面載入
-            await new Promise(resolve => setTimeout(resolve, 800));
+            // 等待可能的頁面載入（Label1 或 Table1 出現）
+            await page.waitForFunction(() => !!document.getElementById('Label1') || !!document.getElementById('Table1'), { timeout: 10000 }).catch(() => {
+                console.warn("⚠️ 等待課表元素超時，嘗試繼續解析...");
+            });
 
             // 只抓取 Label1 與 Table1
             const scheduleData = await page.evaluate(() => {
@@ -1395,9 +1399,19 @@ class BackendService {
                         data: processedData
                     };
             } else {
+                // 嘗試檢查頁面是否有其他課表相關元素
+                const pageContent = await page.evaluate(() => {
+                    const bodyText = document.body.innerText || '';
+                    const hasScheduleKeywords = /課表|課程|時間表|schedule/i.test(bodyText);
+                    const hasTableElements = document.querySelectorAll('table').length > 0;
+                    return { hasScheduleKeywords, hasTableElements, bodyText: bodyText.substring(0, 200) };
+                });
+                
+                console.warn("⚠️ 課表解析失敗，頁面內容分析:", pageContent);
+                
                 return {
                     success: false,
-                    message: "頁面中未找到Label1或Table1數據"
+                    message: `頁面中未找到Label1或Table1數據。頁面分析：${pageContent.hasScheduleKeywords ? '包含課表關鍵字' : '無課表關鍵字'}，${pageContent.hasTableElements ? '包含表格元素' : '無表格元素'}`
                 };
             }
 
@@ -1410,7 +1424,7 @@ class BackendService {
         }
     }
 
-    // 🎯 處理並標準化課表數據 - 基於 complete_schedule.js，解析課程資料
+    // 處理並標準化課表數據
     processScheduleDataFromComplete(rawData) {
         const cleanLabel1 = (text) => {
             if (!text) return '';
@@ -1570,7 +1584,7 @@ class BackendService {
             const courseInfo = {
                 course_id: courseId,
                 name: courseName,
-                teacher_name: teacher,
+                teacher_name: this.processTeacherName(teacher),
                 room: room,
                 time: timeInfo,
                 day: dayNum,
@@ -1593,7 +1607,7 @@ class BackendService {
         }
     }
 
-    // 📊 處理Puppeteer課表數據（保留舊版本兼容性）
+    // 處理從課表頁面抓取的數據（相容既有資料結構）
     processPuppeteerScheduleData(rawData) {
         const processed = {
             is_personal: true,
@@ -1642,7 +1656,7 @@ class BackendService {
                     const courseData = {
                         course_id: courseId,
                         name: courseName,
-                        teacher_name: '待查詢', // 從HTML中可能需要進一步解析
+                        teacher_name: this.processTeacherName('待查詢'), // 從HTML中可能需要進一步解析
                         room: room,
                         time: course.time_text || `第${course.period}節`,
                         days: course.day ? [course.day] : [],
@@ -1763,6 +1777,70 @@ class BackendService {
     extractCreditFromText(text) {
         const match = text.match(/\((\d+)\)/);
         return match ? parseInt(match[1]) : 0;
+    }
+
+    // ==================== 通用等待輔助方法 ====================
+    
+    /**
+     * 等待網路空閒：連續 idleMs 期間沒有進行中的請求，或 timeoutMs 超時
+     * @param {import('puppeteer-core').Page} page
+     * @param {number} idleMs 連續空閒毫秒數
+     * @param {number} timeoutMs 總超時毫秒數
+     */
+    async waitForNetworkIdle(page, idleMs = 600, timeoutMs = 8000) {
+        let inflightRequests = 0;
+        let idleTimer = null;
+        let resolved = false;
+
+        const cleanup = () => {
+            try {
+                page.off('request', onRequestStarted);
+                page.off('requestfinished', onRequestCompleted);
+                page.off('requestfailed', onRequestCompleted);
+            } catch (_) {}
+            if (idleTimer) clearTimeout(idleTimer);
+        };
+
+        const onRequestStarted = () => {
+            inflightRequests++;
+            if (idleTimer) {
+                clearTimeout(idleTimer);
+                idleTimer = null;
+            }
+        };
+
+        const onRequestCompleted = () => {
+            inflightRequests = Math.max(0, inflightRequests - 1);
+            if (inflightRequests === 0 && !resolved) {
+                idleTimer = setTimeout(() => {
+                    if (!resolved) {
+                        resolved = true;
+                        cleanup();
+                        resolver();
+                    }
+                }, idleMs);
+            }
+        };
+
+        page.on('request', onRequestStarted);
+        page.on('requestfinished', onRequestCompleted);
+        page.on('requestfailed', onRequestCompleted);
+
+        let resolver;
+        const idlePromise = new Promise((resolve) => { resolver = resolve; });
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => {
+            if (!resolved) {
+                resolved = true;
+                cleanup();
+                reject(new Error('network idle timeout'));
+            }
+        }, timeoutMs));
+
+        try {
+            await Promise.race([idlePromise, timeoutPromise]);
+        } finally {
+            cleanup();
+        }
     }
 
     // 🎯 生成標準課表HTML
@@ -1901,17 +1979,37 @@ class BackendService {
         return html;
     }
 
-    // 🧹 清理Puppeteer瀏覽器
+    // 🧹 清理瀏覽器（相容 Browserless 與 Puppeteer）
     async cleanupPuppeteerBrowser(browser) {
         try {
             console.log("🧹 正在清理瀏覽器資源...");
             
-            // 關閉所有頁面
-            const pages = await browser.pages();
-            await Promise.all(pages.map(page => page.close().catch(() => {})));
-            
-            // 關閉瀏覽器
-            await browser.close();
+            // Browserless 轉接器
+            if (browser && browser._browserless) {
+                // 檢查連接是否仍然有效
+                if (browser.isConnected && browser.isConnected()) {
+                    await browser.close();
+                }
+                console.log("✅ Browserless 上下文已銷毀");
+                return;
+            }
+
+            // Puppeteer：關閉所有頁面與瀏覽器
+            if (browser && typeof browser.pages === 'function') {
+                try {
+                    const pages = await browser.pages();
+                    await Promise.all(pages.map(page => page.close().catch(() => {})));
+                } catch (error) {
+                    console.warn("⚠️ 關閉頁面時出現錯誤:", error.message);
+                }
+            }
+            if (browser && typeof browser.close === 'function') {
+                try {
+                    await browser.close();
+                } catch (error) {
+                    console.warn("⚠️ 關閉瀏覽器時出現錯誤:", error.message);
+                }
+            }
             
             console.log("✅ 瀏覽器資源清理完成");
             
@@ -1927,215 +2025,777 @@ class BackendService {
         }
     }
 
-    _getAppLoginccount() {
-        // 取得學生帳戶資訊的函數
-        // 由於原始 API 可能不可用，我們使用已有的登入資訊來建立基本的帳戶資訊
-        console.log("正在建立學生帳戶資訊...");
-        
-        try {
-            // 從登入資訊中提取學生資料
-            const studentInfo = {
-                "Name": "學生", // 預設名稱，實際應從 API 取得
-                "StudentID": this.ALLDATA["original_account"] || "未知學號", // 使用原始帳號 (未加密)
-                "Department": this.ALLDATA["UserStatus"] ? this.ALLDATA["UserStatus"].split('_')[2] : "未知系所",
-                "Status": this.ALLDATA["UserStatus"] || "未知狀態",
-                "LoginTime": new Date().toLocaleString()
-            };
 
-            // 如果有更多登入資訊，可以進一步解析
-            if (this.login_infomation && this.login_infomation["UserStatus"]) {
-                const statusParts = this.login_infomation["UserStatus"].split('_');
-                if (statusParts.length >= 3) {
-                    studentInfo["Department"] = statusParts[2];
-                }
-                if (statusParts.length >= 1) {
-                    studentInfo["Status"] = statusParts[0];
-                }
+
+
+    /**
+     * 從 portalfun.yzu.edu.tw 取得系所清單和學期選項 (基於 query_course_tbl_view1_byDept.js)
+     * @param {string} year 學年，ex: 114
+     * @param {string} smtr 學期，ex: 1, 2
+     */
+    async getCourseListFromYZUApi(year, smtr) {
+        const cheerio = require("cheerio");
+
+        // 檢查快取
+        const cacheKey = `dept_semester_${year}_${smtr}`;
+        if (this.cachedDeptSemesterData && this.cachedDeptSemesterData[cacheKey]) {
+            console.log("使用快取的系所和學期選項");
+            const cachedData = this.cachedDeptSemesterData[cacheKey];
+            // 確保 dept_options 也被設定
+            this.dept_options = cachedData.dept_options;
+            return cachedData;
+        }
+
+        const BASE = "https://portalfun.yzu.edu.tw/cosSelect/index.aspx?D=G";
+
+        try {
+            console.log("正在從 portalfun.yzu.edu.tw 取得系所和學期選項...");
+
+            // 使用 Electron net 發送 GET
+            const res = await this._httpGet(BASE, {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
+                Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            });
+
+            if (res.statusCode >= 300) {
+                throw new Error(`HTTP ${res.statusCode}`);
             }
 
-            this.std_account_infomation = [studentInfo];
-            
-            var that = this;
-            return new Promise(function (resolve, reject) {
-                console.log("學生帳戶資訊建立完成:", studentInfo);
-                return resolve(that);
-            });
-            
-        } catch (error) {
-            console.error("建立學生帳戶資訊時發生錯誤:", error);
-            
-            // 提供備用的基本資訊
-            this.std_account_infomation = [{
-                "Name": "使用者",
-                "StudentID": this.ALLDATA["original_account"] || "未知",
-                "Department": "未知系所",
-                "Status": "登入成功",
-                "LoginTime": new Date().toLocaleString()
-            }];
-            
-            var that = this;
-            return new Promise(function (resolve, reject) {
-                return resolve(that);
-            });
-        }
-    }
+            const $ = cheerio.load(res.body);
 
-    // 🎯 獲取課表HTML格式
-    getScheduleTableHTML() {
-        console.log("🎯 前端請求課表HTML格式...");
-        
-        if (!this.course_schedule_data) {
-            console.warn("⚠️ 尚未載入課表數據");
-            return null;
-        }
-        
-        // 如果已經有生成好的HTML，直接返回
-        if (this.course_schedule_data.schedule_table_html) {
-            console.log("✅ 返回已生成的課表HTML");
-            return this.course_schedule_data.schedule_table_html;
-        }
-        
-        // 如果沒有，重新生成
-        console.log("🔄 重新生成課表HTML...");
-        try {
-            const scheduleHTML = this.generateScheduleTableHTML(this.course_schedule_data.course_list);
-            this.course_schedule_data.schedule_table_html = scheduleHTML;
-            console.log("✅ 課表HTML重新生成完成");
-            return scheduleHTML;
-        } catch (error) {
-            console.error("❌ 生成課表HTML失敗:", error.message);
-            return null;
-        }
-    }
-
-    // 🎯 獲取課表摘要信息
-    getScheduleSummary() {
-        if (!this.course_schedule_data) {
-            return {
-                isLoaded: false,
-                courseCount: 0,
-                isPersonal: false,
-                source: null
-            };
-        }
-        
-        return {
-            isLoaded: true,
-            courseCount: this.course_schedule_data.course_list?.length || 0,
-            isPersonal: this.course_schedule_data.is_personal || false,
-            source: this.course_schedule_data.source || 'unknown',
-            puppeteerSuccess: this.course_schedule_data.puppeteer_success || false,
-            hasHTML: !!this.course_schedule_data.schedule_table_html,
-            extractionTime: this.course_schedule_data.extraction_time || null
-        };
-    }
-
-    getNotifyList() {
-        var url = "https://portalx.yzu.edu.tw/NewPortal/api/FCM/NotifyList"
-
-        var payload = new URLSearchParams()
-        payload.append("Token", this.ALLDATA["Token"])
-        payload.append("FCMToken", "")
-
-        var headers = {
-            "Accept": this.ALLDATA["Accept"],
-        }
-
-        return Axios.post(url, payload, { headers: headers }).then((response) => {
-            console.log("Notify: ", response.data)
-            this.notify_list = []
-            var length_to_truncate = 20;
-            // 針對 notify item 做處理
-            response.data.forEach(element => {
-                // 截短 Title
-                if (element.Title.length > length_to_truncate) {
-                    element.Title = element.Title.substring(0, length_to_truncate) + "...";
-                } else {
-                    element.Title = element.Title;
+            // 2) 解析系所選項 (DDL_Dept)
+            const dept_list = [];
+            const deptOptions = $("#DDL_Dept option");
+            deptOptions.each((index, element) => {
+                const value = $(element).attr('value');
+                const html = $(element).html() || "";
+                // 保留縮排格式，將HTML實體轉換為實際字符
+                const text = html
+                    .replace(/&nbsp;/g, ' ')  // 將 &nbsp; 轉換為空格
+                    .replace(/<[^>]*>/g, '')   // 移除HTML標籤
+                    .replace(/\s+$/g, '');     // 只移除尾端空白，保留前端縮排
+                if (value && text && value !== "") {
+                    dept_list.push({
+                        value: value,
+                        text: text,
+                        dept_name: text // 相容性欄位
+                    });
                 }
-
-                // 使用 moment 轉換格式
-                element.SendDate = moment(element.SendDate).format('YYYY/MM/DD');
-                this.notify_list.push(element);
             });
 
-            var that = this;
-            // 繼續 promise 的 chain
-            return new Promise(function (resolve, reject) {
-                return resolve(that)
-            })
+            // 3) 解析學期選項 (DDL_YM)
+            const semester_list = [];
+            const semesterOptions = $("#DDL_YM option");
+            semesterOptions.each((index, element) => {
+                const value = $(element).attr('value');
+                const text = $(element).text().trim();
+                if (value && text && value !== "") {
+                    semester_list.push({
+                        value: value,
+                        text: text
+                    });
+                }
+            });
 
-        })
+            console.log(`成功取得 ${dept_list.length} 個系所選項和 ${semester_list.length} 個學期選項`);
+
+            // 將 dept_options 儲存到全域變數以供查詢方法使用
+            this.dept_options = dept_list;
+
+            // 4) 返回相容的格式
+            const result = {
+                course_list: [], // 保持相容性，實際課程查詢使用專門的方法
+                dept_list: dept_list.map(dept => dept.dept_name), // 提取系所名稱陣列以保持相容性
+                dept_options: dept_list, // 完整的系所選項資料
+                semester_list: semester_list,
+                source: "portalfun.yzu.edu.tw",
+                message: `成功取得 ${dept_list.length} 個系所選項`
+            };
+
+            // 儲存到快取
+            if (!this.cachedDeptSemesterData) {
+                this.cachedDeptSemesterData = {};
+            }
+            this.cachedDeptSemesterData[cacheKey] = result;
+
+            return result;
+
+        } catch (err) {
+            console.error("從 portalfun.yzu.edu.tw 取得選項失敗:", err.message);
+            throw new Error(`選項取得失敗: ${err.message}`);
+        }
     }
 
     /**
-     * 得到某一學年某學期修的課程列表 (使用 OpenData API)
-     * @param {string} year 學年，ex: 108, 107
-     * @param {string} smtr 學期，ex: 1, 2
+     * 清除系所和學期選項的快取
+     * @param {string} year 學年，ex: 114 (可選，不提供則清除所有快取)
+     * @param {string} smtr 學期，ex: 1, 2 (可選，不提供則清除所有快取)
      */
-    getCourseListFromYZUApi(year, smtr) {
-        console.log("Calling OpenData API: " + this.openDataAPIurl + this.openDataAPI["CosList"]);
-        
-        var url = this.openDataAPIurl + "api/Open/CosList?year=" + year + "&smtr=" + smtr
-        console.log("查詢參數:", year, smtr);
-        console.log("完整 URL:", url);
+    clearDeptSemesterCache(year = null, smtr = null) {
+        if (!this.cachedDeptSemesterData) {
+            return;
+        }
 
-        return new Promise(function (resolve, reject) {
-            request.get(url, function (err, response, body) {
-                if (!err && response.statusCode == 200) {
-                    var dept_list = []; // 所有科系名稱
+        if (year && smtr) {
+            // 清除特定學年學期的快取
+            const cacheKey = `dept_semester_${year}_${smtr}`;
+            delete this.cachedDeptSemesterData[cacheKey];
+            console.log(`已清除 ${year} 學年第 ${smtr} 學期的快取`);
+        } else {
+            // 清除所有快取
+            this.cachedDeptSemesterData = {};
+            console.log("已清除所有系所和學期選項的快取");
+        }
+    }
 
-                    var data = JSON.parse(body)
-                    data.forEach(function(datum, index, theArray) {
-                        dept_list.indexOf(datum["dept_name"]) === -1 ? dept_list.push(datum["dept_name"].trim()): "";
-                        theArray[index].smtr = datum["smtr"].trim();
-
-                        
-                        var times = datum["WeekandRoom"].split(",")
-                        var r = RegExp("([0-9]{3})\(([0-9a-zA-Z]*)\)", "g");
-
-                        var datumTime = [];
-
-                        times.forEach((time)=>{
-                            if(time==""){
-                                return;
-                            }
-                    
-                            var info = time.match(r);
-                            
-                            if(info==null){
-                                datum["time"] = "無課程資料";
-                                datum["room"] = "無課程資料";
-                            }else if(info.length==1){
-                                datum["time"] = info[0];
-                                datum["room"] = "無教室位置";
-                                datumTime.push(info[0])
-                            }else{
-                                datum["time"] = info[0];
-                                datum["room"] = info[1];
-                                datumTime.push(info[0])
-                            }
-                        })
-                        
-                        if(datumTime.length > 0){
-                            datum["time"] = datumTime.join(",")
-                        }
-
-                        theArray[index].hashid = crypto.createHash('md5').update(JSON.stringify(datum)).digest('hex');
-                    });
-
-                    return resolve({
-                        course_list: data,
-                        dept_list: dept_list,
-                        source: "OpenData API",
-                        message: `成功取得 ${data.length} 門課程資料`
-                    })
-                } else {
-                    console.error("OpenData API 呼叫失敗:", err || `HTTP ${response.statusCode}`);
-                    return reject(new Error("OpenData API 呼叫失敗"));
+    /**
+     * 從課程詳細頁面取得學分數
+     * @param {string} year - 學年
+     * @param {string} smtr - 學期
+     * @param {string} cos_id - 課程代號
+     * @param {string} cos_class - 班級
+     * @returns {Promise<number>} 學分數
+     */
+    async getCourseCredit(year, smtr, cos_id, cos_class) {
+        try {
+            const url = `https://portalfun.yzu.edu.tw/cosSelect/Cos_Plan.aspx?y=${year}&s=${smtr}&id=${cos_id}&c=${cos_class}`;
+            console.log(`正在取得課程學分數: ${url}`);
+            
+            const response = await this._httpGet(url, {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+                Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            });
+            
+            if (response.statusCode >= 300) {
+                throw new Error(`HTTP ${response.statusCode}`);
+            }
+            
+            // 使用cheerio解析HTML
+            const cheerio = require("cheerio");
+            const $ = cheerio.load(response.body);
+            
+            // 尋找包含學分數的td元素
+            const creditCell = $('td.record[title*="授課時數"]');
+            if (creditCell.length > 0) {
+                // 先嘗試從td的內容中取得學分數
+                const cellText = creditCell.text().trim();
+                if (cellText && cellText !== '') {
+                    const credit = parseInt(cellText);
+                    if (!isNaN(credit) && credit > 0) {
+                        console.log(`成功從td內容取得學分數: ${credit}`);
+                        return credit;
+                    }
                 }
-            })
-        })
+                
+                // 如果td內容為空，再嘗試從title屬性取得
+                const title = creditCell.attr('title');
+                if (title) {
+                    const creditMatch = title.match(/授課時數:(\d+)/);
+                    if (creditMatch) {
+                        const credit = parseInt(creditMatch[1]);
+                        console.log(`成功從title屬性取得學分數: ${credit}`);
+                        return credit;
+                    }
+                }
+            }
+            
+            // 如果找不到，嘗試其他可能的選擇器
+            const alternativeSelectors = [
+                'td.record',
+                'td[title*="授課時數"]',
+                'td[title*="時數"]',
+                'td:contains("授課時數")'
+            ];
+            
+            for (const selector of alternativeSelectors) {
+                const element = $(selector);
+                if (element.length > 0) {
+                    // 優先從td內容取得
+                    const cellText = element.text().trim();
+                    if (cellText && cellText !== '') {
+                        const credit = parseInt(cellText);
+                        if (!isNaN(credit) && credit > 0) {
+                            console.log(`透過備用選擇器從td內容取得學分數: ${credit}`);
+                            return credit;
+                        }
+                    }
+                    
+                    // 如果td內容為空，再嘗試從title屬性取得
+                    const title = element.attr('title');
+                    if (title) {
+                        const creditMatch = title.match(/(\d+)/);
+                        if (creditMatch) {
+                            const credit = parseInt(creditMatch[1]);
+                            console.log(`透過備用選擇器從title屬性取得學分數: ${credit}`);
+                            return credit;
+                        }
+                    }
+                }
+            }
+            
+            console.log(`無法從頁面中取得學分數: ${url}`);
+            return 0;
+            
+        } catch (error) {
+            console.error(`取得學分數失敗 (${cos_id}):`, error.message);
+            return 0;
+        }
+    }
+
+    /**
+     * 共用的課程資料解析方法
+     * @param {string} html - 包含課程表格的HTML內容
+     * @returns {Object} 解析結果 { success, courses, message }
+     */
+    parseCourseTable(html) {
+        const cheerio = require("cheerio");
+        const $ = cheerio.load(html);
+        const table1 = $("#Table1");
+
+        if (table1.length) {
+            const courses = [];
+            const rows = table1.find("tr").toArray();
+            
+            for (let i = 1; i < rows.length; i += 2) { // 從第2行開始，每2行為一組
+                const row = $(rows[i]);
+                const cells = row.find("td");
+                
+                if (cells.length >= 7) { // 課程資料行有7列
+                    // 從課號班別欄位提取課程ID和班級
+                    const courseIdCell = $(cells[1]).find("a").text().trim() || $(cells[1]).text().trim();
+                    const courseIdMatch = courseIdCell.match(/^(\w+)\s+([A-Z])$/);
+                    
+                    let cos_id = courseIdCell;
+                    let cos_class = "";
+                    if (courseIdMatch) {
+                        cos_id = courseIdMatch[1];
+                        cos_class = courseIdMatch[2];
+                    }
+                    
+                    // 從課程名稱欄位提取完整文字，保留換行格式
+                    const courseNameHtml = $(cells[3]).html() || "";
+                    // 將 <br> 標籤轉換為換行符號，保留完整格式
+                    const cos_name = courseNameHtml
+                        .replace(/<br\s*\/?>/gi, '\n')  // 將 <br> 轉換為換行
+                        .replace(/<[^>]*>/g, '')        // 移除其他HTML標籤
+                        .replace(/^\s+|\s+$/g, '')      // 只移除首尾空白
+                        .replace(/\n\s+/g, '\n')        // 移除換行後的多餘空白
+                        .replace(/\s+\n/g, '\n');       // 移除換行前的多餘空白
+                    
+                    // 從授課教師欄位提取教師姓名
+                    const rawTeacherText = $(cells[6]).find("a").text().trim() || $(cells[6]).text().trim();
+                    const teacherText = this.processTeacherName(rawTeacherText);
+                    
+                    courses.push({
+                        cos_id: cos_id.trim(),
+                        cos_class: cos_class.trim(),
+                        cos_name: cos_name,
+                        type: $(cells[4]).text().trim(), // 選別
+                        time_room: $(cells[5]).html()
+                            .replace(/<br\s*\/?>/gi, '\n')  // 將 <br> 轉換為換行
+                            .replace(/<[^>]*>/g, '')        // 移除其他HTML標籤
+                            .replace(/^\s+|\s+$/g, '')      // 只移除首尾空白
+                            .replace(/\n\s+/g, '\n')        // 移除換行後的多餘空白
+                            .replace(/\s+\n/g, '\n'),       // 移除換行前的多餘空白
+                        teacher: teacherText, // 授課教師
+                        credits: "", // 學分數在這個結構中不直接顯示
+                        dept_level: $(cells[2]).text().replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim() // 開課系級
+                    });
+                }
+            }
+
+            return {
+                success: true,
+                courses: courses,
+                message: `找到 ${courses.length} 門課程`
+            };
+        } else {
+            return {
+                success: false,
+                courses: [],
+                message: "未找到課程資料"
+            };
+        }
+    }
+
+    /**
+     * 查詢課程 - 使用系所查詢方式 (基於 query_course_byDept.js)
+     * @param {string} ddl_ym - 學年學期，格式如 "114,1  " (注意尾端兩個空白)
+     * @param {string} ddl_dept - 系所名稱 (會自動轉換為對應的 option value)
+     * @param {string} ddl_degree - 年級 (0=全部, 1-4=對應年級)
+     */
+    async queryCourseByDept(ddl_ym, ddl_dept, ddl_degree) {
+        // 將系所名稱轉換為對應的 option value
+        let dept_value = ddl_dept;
+        if (this.dept_options && Array.isArray(this.dept_options)) {
+            const deptOption = this.dept_options.find(opt => opt.dept_name === ddl_dept || opt.text === ddl_dept);
+            if (deptOption) {
+                dept_value = deptOption.value;
+                console.log(`系所名稱 "${ddl_dept}" 對應的 option value: "${dept_value}"`);
+            } else {
+                console.warn(`找不到系所名稱 "${ddl_dept}" 對應的 option value，使用原值`);
+            }
+        }
+
+        const cheerio = require("cheerio");
+        const BASE = "https://portalfun.yzu.edu.tw/cosSelect/Index.aspx?D=G";
+
+        const defaultHeaders = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:142.0) Gecko/20100101 Firefox/142.0",
+            Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "zh-TW,zh;q=0.9,en;q=0.8",
+        };
+
+        // 生成隨機 CheckCode
+
+        // 尋找提交按鈕
+        function findSubmitButton(html) {
+            const $ = cheerio.load(html);
+            let btnName = null;
+            let btnValue = null;
+            let btnIsImage = false;
+
+            // 尋找「確定/送出/查詢」按鈕
+            $("input[type=submit], input[type=image], button").each((_, element) => {
+                const $el = $(element);
+                const text = ($el.attr("value") || $el.text() || "").trim();
+                
+                if (text.includes("確定") || text.includes("送出") || text.includes("查詢")) {
+                    btnName = $el.attr("name");
+                    btnValue = $el.attr("value") || text;
+                    btnIsImage = $el.attr("type") === "image";
+                    return false; // 找到就停止
+                }
+            });
+
+            return { btnName, btnValue, btnIsImage };
+        }
+
+        try {
+            // 確保有 CheckCode cookie (使用現有的 cookie 存儲機制)
+            if (!this._cookieStore) this._cookieStore = {};
+            if (!this._cookieStore["CheckCode"]) {
+                this._cookieStore["CheckCode"] = this.generateCheckCode();
+            }
+
+            // 1) 先 GET 取得 cookies + 隱藏欄位
+            const r1 = await this._httpGet(BASE, defaultHeaders);
+            let hidden = this.parseHiddenFields(r1.body);
+
+            // 防呆：檢查必要的隱藏欄位
+            const requiredFields = ["__VIEWSTATE", "__VIEWSTATEGENERATOR", "__EVENTVALIDATION"];
+            const missingFields = requiredFields.filter(field => !hidden[field]);
+            if (missingFields.length > 0) {
+                throw new Error(`抓不到隱藏欄位: ${missingFields.join(", ")}`);
+            }
+
+            // 2) 第一段 POST：切換系所
+            const step1Form = this.buildForm(hidden, {
+                __EVENTTARGET: "DDL_Dept",
+                __EVENTARGUMENT: "",
+                __LASTFOCUS: "",
+                DDL_Dept: dept_value,
+            });
+
+            const r2 = await this._httpPostForm(BASE, step1Form, {
+                ...defaultHeaders,
+                Origin: "https://portalfun.yzu.edu.tw",
+                Referer: BASE,
+            });
+
+            // 更新隱藏欄位（切換系所後會更新）
+            hidden = this.parseHiddenFields(r2.body);
+
+            // 3) 第二段 POST：送出查詢（按下「確定」）
+            const { btnName, btnValue, btnIsImage } = findSubmitButton(r2.body);
+            
+            const step2Form = this.buildForm(hidden, {
+                __EVENTTARGET: "",
+                __EVENTARGUMENT: "",
+                __LASTFOCUS: "",
+                Q: "RadioButton1",
+                DDL_YM: ddl_ym,
+                DDL_Dept: dept_value,
+                DDL_Degree: ddl_degree,
+            });
+
+            // 加入按鈕資訊
+            if (btnName) {
+                if (btnIsImage) {
+                    step2Form.set(btnName + ".x", "8");
+                    step2Form.set(btnName + ".y", "8");
+                } else {
+                    step2Form.set(btnName, btnValue || "確定");
+                }
+            } else {
+                step2Form.set("Button1", "確定");
+            }
+
+            const r3 = await this._httpPostForm(BASE, step2Form, {
+                ...defaultHeaders,
+                Origin: "https://portalfun.yzu.edu.tw",
+                Referer: BASE,
+            });
+
+            const html = r3.body;
+
+            // 4) 使用共用的課程資料解析方法
+            return this.parseCourseTable(html);
+        } catch (err) {
+            throw new Error(`系所查詢失敗: ${err.message}`);
+        }
+    }
+
+    /**
+     * 查詢課程 - 使用課程名稱查詢方式 (基於 query_course_byName.js)
+     * @param {string} ddl_ym - 學年學期，格式如 "114,1  "
+     * @param {string} cos_name - 課程名稱關鍵字
+     */
+    async queryCourseByName(ddl_ym, cos_name) {
+        const cheerio = require("cheerio");
+
+        const BASE = "https://portalfun.yzu.edu.tw/cosSelect/Index.aspx?D=G";
+
+        const defaultHeaders = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:142.0) Gecko/20100101 Firefox/142.0",
+            Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            Origin: "https://portalfun.yzu.edu.tw",
+            Referer: BASE,
+        };
+
+        try {
+            // 1) 先 GET 取得 cookies + 隱藏欄位
+            const r1 = await this._httpGet(BASE, defaultHeaders);
+            this.ensureCheckCodeCookie(this);
+            let hidden = this.parseHiddenFields(r1.body);
+
+            // 2) 第一段 POST：切換查詢模式到「以科目名稱查詢」
+            const step1Form = this.buildForm(hidden, {
+                Q: "RadioButton2",
+                DDL_YM: ddl_ym,
+                DDL_Dept: "300", // 使用固定值，課程名稱查詢不需要特定系所
+                DDL_Degree: "1", // 使用固定值，課程名稱查詢不需要特定年級
+            });
+
+            const r2 = await this._httpPostForm(BASE, step1Form, defaultHeaders);
+            
+            // 檢查重導向
+            let response = r2;
+            if (r2.status >= 300 && r2.status < 400 && r2.headers.location) {
+                response = await this._httpGet(r2.headers.location, defaultHeaders);
+            }
+
+            hidden = this.parseHiddenFields(response.body);
+
+            // 3) 第二段 POST：送出查詢（按下「確定」）
+            const step2Form = this.buildForm(hidden, {
+                Q: "RadioButton2",
+                DDL_YM2: ddl_ym,
+                Txt_Cos_Name: cos_name,
+                Button2: "確定",
+            });
+
+            const r3 = await this._httpPostForm(BASE, step2Form, defaultHeaders);
+            
+            // 檢查重導向
+            let finalResponse = r3;
+            if (r3.status >= 300 && r3.status < 400 && r3.headers.location) {
+                finalResponse = await this._httpGet(r3.headers.location, defaultHeaders);
+            }
+
+            const html = finalResponse.body;
+
+            // 4) 使用共用的課程資料解析方法
+            return this.parseCourseTable(html);
+        } catch (err) {
+            throw new Error(`課程名稱查詢失敗: ${err.message}`);
+        }
+    }
+
+    /**
+     * 查詢課程 - 使用教師姓名查詢方式 (基於 query_course_byTeacher.js)
+     * @param {string} ddl_ym - 學年學期
+     * @param {string} teacher_name - 教師姓名
+     */
+    async queryCourseByTeacher(ddl_ym, teacher_name) {
+        const cheerio = require("cheerio");
+
+        const BASE = "https://portalfun.yzu.edu.tw/cosSelect/Index.aspx?D=G";
+        const defaultHeaders = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:142.0) Gecko/20100101 Firefox/142.0",
+            Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            Origin: "https://portalfun.yzu.edu.tw",
+            Referer: BASE,
+        };
+
+        try {
+            const r1 = await this._httpGet(BASE, defaultHeaders);
+            this.ensureCheckCodeCookie(this);
+            let hidden = this.parseHiddenFields(r1.body);
+
+            const requiredFields = ["__VIEWSTATE", "__VIEWSTATEGENERATOR", "__EVENTVALIDATION"];
+            const missingFields = requiredFields.filter(field => !hidden[field]);
+            if (missingFields.length > 0) {
+                throw new Error(`抓不到隱藏欄位: ${missingFields.join(", ")}`);
+            }
+
+            // 切換查詢模式到「以教師姓名查詢」
+            const step1Form = this.buildForm(hidden, {
+                Q: "RadioButton3",
+                DDL_YM: ddl_ym,
+            });
+
+            const r2 = await this._httpPostForm(BASE, step1Form, defaultHeaders);
+            hidden = this.parseHiddenFields(r2.body);
+
+            // 送出查詢
+            const step2Form = this.buildForm(hidden, {
+                Q: "RadioButton3",
+                DDL_YM3: ddl_ym,
+                Txt_teacher_Name: teacher_name,
+                Button3: "確定",
+            });
+
+            const r3 = await this._httpPostForm(BASE, step2Form, defaultHeaders);
+            const html = r3.body;
+
+            // 使用共用的課程資料解析方法
+            return this.parseCourseTable(html);
+        } catch (err) {
+            throw new Error(`教師姓名查詢失敗: ${err.message}`);
+        }
+    }
+
+    /**
+     * 查詢課程 - 使用時間查詢方式 (基於 query_course_byTime.js)
+     * @param {string} ddl_ym - 學年學期
+     * @param {string} ctl216 - 時間代碼，格式如 "111" (星期一第1節)
+     */
+    async queryCourseByTime(ddl_ym, ctl216) {
+        const cheerio = require("cheerio");
+
+        const BASE = "https://portalfun.yzu.edu.tw";
+        const defaultHeaders = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:142.0) Gecko/20100101 Firefox/142.0",
+            Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "zh-TW,zh-HK;q=0.8,zh;q=0.6,en-US;q=0.4,en;q=0.2",
+            "Accept-Encoding": "gzip, deflate, br, zstd",
+            "Upgrade-Insecure-Requests": "1",
+            DNT: "1",
+            "Sec-GPC": "1",
+            Connection: "keep-alive",
+            Origin: BASE,
+        };
+
+
+        try {
+            // Step 1: GET 首頁（D=G）
+            const step1Url = `${BASE}/cosSelect/index.aspx?D=G`;
+            const r1 = await this._httpGet(step1Url, defaultHeaders);
+            this.ensureCheckCodeCookie(this);
+            
+            const { data: hidden1, action: action1 } = this.parseHiddenFieldsComplete(r1.body);
+            const urlStep2 = this.buildFullUrl(step1Url, action1);
+            
+            const requiredFields = ["__VIEWSTATE", "__VIEWSTATEGENERATOR", "__EVENTVALIDATION"];
+            const missingFields = requiredFields.filter(field => !hidden1[field]);
+            if (missingFields.length > 0) {
+                throw new Error(`抓不到隱藏欄位: ${missingFields.join(", ")}`);
+            }
+
+            // Step 2: POST 切換 RadioButton4
+            const step2Form = this.buildForm(hidden1, {
+                __EVENTTARGET: "RadioButton4",
+                __EVENTARGUMENT: "",
+                __LASTFOCUS: "",
+                Q: "RadioButton4",
+                DDL_YM: ddl_ym,
+                DDL_Dept: "300", // 時間查詢固定使用300，用戶無法選擇系所
+                DDL_Degree: "1",
+            });
+
+            const r2 = await this._httpPostForm(urlStep2, step2Form, {
+                ...defaultHeaders,
+                Referer: step1Url
+            });
+
+            this.assertNotRedirectLoop(r2);
+
+            let response2 = r2;
+            if (r2.status >= 300 && r2.status < 400 && r2.headers.location) {
+                response2 = await this._httpGet(r2.headers.location, defaultHeaders);
+            }
+
+            const { data: hidden2, action: action2 } = this.parseHiddenFieldsComplete(response2.body);
+            const urlStep3 = this.buildFullUrl(response2.config?.url || step1Url, action2);
+
+            // Step 3: POST 送出實查（Q=111）
+            const step3Form = this.buildForm(hidden2, {
+                __EVENTTARGET: "",
+                __EVENTARGUMENT: "",
+                __LASTFOCUS: "",
+                Q: "RadioButton4",
+                DDL_YM4: ddl_ym,
+                ctl216: ctl216,
+            });
+
+            const finalUrl = urlStep3.includes("Q=") ? urlStep3 : `${BASE}/cosSelect/index.aspx?Q=${ctl216}`;
+
+            const r3 = await this._httpPostForm(finalUrl, step3Form, {
+                ...defaultHeaders,
+                Referer: `${BASE}/cosSelect/index.aspx?D=G`
+            });
+
+            this.assertNotRedirectLoop(r3);
+
+            let finalResponse = r3;
+            if (r3.status >= 300 && r3.status < 400 && r3.headers.location) {
+                finalResponse = await this._httpGet(r3.headers.location, defaultHeaders);
+            }
+
+            const html = finalResponse.body;
+
+            // 使用共用的課程資料解析方法
+            return this.parseCourseTable(html);
+        } catch (err) {
+            throw new Error(`時間查詢失敗: ${err.message}`);
+        }
+    }
+
+    // ==================== 通用輔助方法 ====================
+    
+    /**
+     * 生成隨機驗證碼
+     * @returns {string} 4位隨機字串
+     */
+    generateCheckCode() {
+        const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        let result = "";
+        for (let i = 0; i < 4; i++) {
+            result += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return result;
+    }
+
+    /**
+     * 確保有 CheckCode cookie
+     * @param {Object} ctx - 上下文物件
+     */
+    ensureCheckCodeCookie(ctx) {
+        if (!ctx._cookieStore || !ctx._cookieStore["CheckCode"]) {
+            const checkCode = this.generateCheckCode();
+            ctx._cookieStore["CheckCode"] = checkCode;
+        }
+    }
+
+    /**
+     * 解析隱藏欄位（標準版本）
+     * @param {string} html - HTML內容
+     * @returns {Object} 隱藏欄位物件
+     */
+    parseHiddenFields(html) {
+        const $ = cheerio.load(html);
+        
+        const pick = (name) => {
+            const element = $(`input[name="${name}"]`);
+            return element.val() || "";
+        };
+
+        return {
+            __EVENTTARGET: "",
+            __EVENTARGUMENT: "",
+            __LASTFOCUS: "",
+            __VIEWSTATE: pick("__VIEWSTATE"),
+            __VIEWSTATEGENERATOR: pick("__VIEWSTATEGENERATOR"),
+            __EVENTVALIDATION: pick("__EVENTVALIDATION"),
+        };
+    }
+
+    /**
+     * 解析隱藏欄位（完整版本，用於時間查詢）
+     * @param {string} html - HTML內容
+     * @returns {Object} {data: 隱藏欄位物件, action: 表單action}
+     */
+    parseHiddenFieldsComplete(html) {
+        const $ = cheerio.load(html);
+        const form = $("#form1");
+        
+        if (form.length === 0) {
+            throw new Error("找不到 form1");
+        }
+        
+        const data = {};
+        
+        form.find("input[type='hidden']").each((_, element) => {
+            const name = $(element).attr("name");
+            if (name) {
+                data[name] = $(element).attr("value") || "";
+            }
+        });
+        
+        form.find("select").each((_, element) => {
+            const name = $(element).attr("name");
+            if (name) {
+                const selected = $(element).find("option[selected]").first();
+                if (selected.length > 0) {
+                    data[name] = selected.attr("value") || "";
+                }
+            }
+        });
+        
+        const action = form.attr("action") || "./index.aspx?D=G";
+        return { data, action };
+    }
+
+    /**
+     * 檢查是否為重導向迴圈
+     * @param {Object} response - HTTP回應物件
+     */
+    assertNotRedirectLoop(response) {
+        if (response.status >= 300 && response.status < 400) {
+            const location = response.headers.location || "";
+            if (location.includes("cosSelect/Index.aspx?D=G") || location.includes("cosSelect/index.aspx?D=G")) {
+                throw new Error("伺服器重導回查詢首頁，通常是缺少 CheckCode 或隱藏欄位不正確造成。");
+            }
+        }
+    }
+
+    /**
+     * 建立表單資料
+     * @param {Object} hiddenFields - 隱藏欄位
+     * @param {Object} additionalFields - 額外欄位
+     * @returns {URLSearchParams} 表單資料
+     */
+    buildForm(hiddenFields, additionalFields = {}) {
+        const form = new URLSearchParams();
+        
+        // 隱藏欄位
+        for (const [key, value] of Object.entries(hiddenFields)) {
+            form.set(key, value);
+        }
+        
+        // 額外欄位
+        for (const [key, value] of Object.entries(additionalFields)) {
+            form.set(key, value);
+        }
+        
+        return form;
+    }
+
+    /**
+     * 建立完整URL
+     * @param {string} baseUrl - 基礎URL
+     * @param {string} action - 動作路徑
+     * @returns {string} 完整URL
+     */
+    buildFullUrl(baseUrl, action) {
+        if (action.startsWith("http")) {
+            return action;
+        }
+        if (action.startsWith("/")) {
+            return new URL(action, baseUrl).href;
+        }
+        return new URL(action, baseUrl).href;
     }
 }
 

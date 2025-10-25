@@ -1,32 +1,33 @@
 @charset "UTF-8";
 
-// Color
+// Core Variables and Utilities
 @import "color-variables";
-
-// Variables;
 @import "variables";
 
-// Reset
+// Reset and Base Styles
 @import "normalize";
-
-
-// Typography
 @import "typography";
 
-
+// Third-party Components
 @import "materializecss/tapTarget";
 @import "materializecss/modal";
 
 // Global Settings
 @import "global";
 
-// Login Page 
+// Page Layouts
 @import "login-page";
-
-// Content Page
 @import "content-page";
-
 @import "sidebar";
 
+// UI Components (converted from separate CSS files)
+@import "tabs";
+@import "simple-scrollbar";
+@import "modal";
+@import "about-modal";
 
+// Interactive Elements
 @import "hover";
+
+// Schedule Table Styles
+@import "schedule";

@@ -6,7 +6,9 @@
   "scripts": {
     "start": "electron .",
     "build": "node build.js",
-    "build:win": "electron-builder --win"
+    "build:win": "electron-builder --win",
+    "build:css": "sass renderer/scss/wannaclass.scss renderer/css/wannaclass.css --style=compressed --source-map",
+    "watch:css": "sass renderer/scss/wannaclass.scss renderer/css/wannaclass.css --watch --style=expanded --source-map"
   },
   "keywords": [
     "electron"
@@ -24,16 +26,20 @@
   "devDependencies": {
     "electron": "^38.0.0",
     "electron-builder": "^26.0.12",
-    "electron-rebuild": "^3.2.9"
+    "electron-rebuild": "^3.2.9",
+    "sass": "^1.92.1"
   },
   "dependencies": {
     "@fortawesome/fontawesome-svg-core": "^1.2.30",
     "axios": "^1.11.0",
+    "axios-cookiejar-support": "^6.0.4",
+    "cheerio": "^1.1.2",
+    "browserless": "^10.9.4",
     "moment": "^2.29.1",
     "node-rsa": "^1.1.1",
-    "puppeteer-core": "^24.19.0",
     "request": "^2.88.2",
     "sqlite3": "^5.0.2",
+    "tough-cookie": "^6.0.0",
     "vue": "^3.0.11"
   }
 }

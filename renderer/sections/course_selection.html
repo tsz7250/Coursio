@@ -1,0 +1,502 @@
+<!-- Python yzuCourseBot 自動選課介面 -->
+<div class="course-selection-section">
+    <div class="section-header">
+        <h3>🐍 自動選課機器人 (Python yzuCourseBot)</h3>
+        <p class="section-description">
+            使用 AI 驗證碼識別技術的專業選課機器人，支援自動登入和智能選課
+        </p>
+    </div>
+
+    <!-- 環境狀態檢查 -->
+    <div class="environment-status" id="environmentStatus">
+        <h4>🔍 環境狀態檢查</h4>
+        <div class="status-grid">
+            <div class="status-item" id="pythonStatus">
+                <span class="status-icon">⏳</span>
+                <span class="status-text">檢查 Python 安裝...</span>
+            </div>
+            <div class="status-item" id="packagesStatus">
+                <span class="status-icon">⏳</span>
+                <span class="status-text">檢查 Python 套件...</span>
+            </div>
+            <div class="status-item" id="modelStatus">
+                <span class="status-icon">⏳</span>
+                <span class="status-text">檢查 AI 模型檔案...</span>
+            </div>
+            <div class="status-item" id="accountStatus">
+                <span class="status-icon">⏳</span>
+                <span class="status-text">檢查帳號設定...</span>
+            </div>
+        </div>
+        <button id="checkEnvironmentBtn" class="btn btn-outline">🔄 重新檢查環境</button>
+    </div>
+
+    
+
+    <!-- 選課清單顯示 (從資料庫讀取) -->
+    <div class="course-list-display" id="courseListDisplay">
+        <h4>📋 選課任務列表</h4>
+        <p class="section-description">
+            顯示從「課程查詢」頁面加入的選課任務，Python 機器人將會自動選取這些課程
+        </p>
+        
+        <div class="course-list-container">
+            <div id="taskListPreview" class="task-list-preview">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>課程代號</th>
+                            <th>課程名稱</th>
+                            <th>授課教師</th>
+                            <th>學分</th>
+                            <th>狀態</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="taskListBody">
+                        <tr class="no-tasks">
+                            <td colspan="6" class="text-center">
+                                <div class="empty-state">
+                                    <span class="empty-icon">📝</span>
+                                    <p>尚無待選課程</p>
+                                    <small>請前往「課程查詢」頁面，點擊「加入選課清單」按鈕加入課程</small>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="course-list-actions">
+                <button id="refreshTaskListBtn" class="btn btn-outline">🔄 重新載入</button>
+                <button id="clearCompletedBtn" class="btn btn-outline">🗑️ 清除已完成</button>
+            </div>
+        </div>
+        
+        <div class="course-list-stats">
+            <span id="taskCount">待選課程: 0 門</span>
+        </div>
+    </div>
+
+    <!-- 機器人設定 -->
+    <div class="bot-settings" id="botSettings">
+        <h4>⚙️ 機器人設定</h4>
+        <div class="form-group">
+            <label for="selectionDelay">選課間隔 (秒):</label>
+            <input type="number" id="selectionDelay" min="0.5" max="10" step="0.1" value="2.5" class="form-control">
+            <small class="help-text">建議 2.5 秒以避免被系統封鎖</small>
+        </div>
+        <div class="form-group">
+            <label for="maxAttempts">最大嘗試次數:</label>
+            <input type="number" id="maxAttempts" min="0" max="1000" value="0" class="form-control">
+            <small class="help-text">0 表示無上限；填正數將限制整體循環次數</small>
+        </div>
+    </div>
+
+    <!-- 機器人控制 -->
+    <div class="bot-control" id="botControl">
+        <h4>🎮 機器人控制</h4>
+        <div class="control-buttons">
+            <button id="startBotBtn" class="btn btn-success btn-large">🚀 啟動選課機器人</button>
+            <button id="stopBotBtn" class="btn btn-danger btn-large" disabled>⏹️ 停止機器人</button>
+        </div>
+        
+        <div class="bot-status" id="botStatus">
+            <div class="status-indicator" id="statusIndicator">
+                <span class="status-dot"></span>
+                <span class="status-label">待機中</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 即時輸出 -->
+    <div class="bot-output" id="botOutput">
+        <h4>📊 即時輸出</h4>
+        <div class="output-controls">
+            <button id="clearOutputBtn" class="btn btn-outline btn-small">🗑️ 清空輸出</button>
+            <label class="auto-scroll-control">
+                <input type="checkbox" id="autoScrollOutput" checked> 自動捲動
+            </label>
+        </div>
+        <div class="output-container" id="outputContainer">
+            <div class="output-content" id="outputContent">
+                <div class="output-item system">
+                    <span class="timestamp">[系統]</span>
+                    <span class="message">Python yzuCourseBot 自動選課機器人準備就緒</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 說明與注意事項 -->
+    <div class="bot-info" id="botInfo">
+        <h4>ℹ️ 使用說明</h4>
+        <div class="info-content">
+            <div class="info-section">
+                <h5>🔧 環境需求</h5>
+                <ul>
+                    <li>Python 3.12+ (已自動檢測安裝狀況)</li>
+                    <li>TensorFlow 2.13+ (用於 AI 驗證碼識別)</li>
+                    <li>OpenCV (圖像處理)</li>
+                    <li>穩定的網路連線</li>
+                </ul>
+            </div>
+            
+            <div class="info-section">
+                <h5>📝 使用步驟</h5>
+                <ol>
+                    <li>確保環境狀態檢查全部通過 ✅</li>
+                    <li>設定 Portal 帳號密碼</li>
+                    <li>新增要搶的課程清單 (格式：系所代碼 + 課程代碼 + 班級)</li>
+                    <li>調整機器人設定 (建議延遲 2.5 秒)</li>
+                    <li>點擊「啟動選課機器人」開始自動選課</li>
+                </ol>
+            </div>
+            
+            <div class="info-section">
+                <h5>⚠️ 注意事項</h5>
+                <ul>
+                    <li><strong>請遵守學校選課規定</strong>，本工具僅供學習研究用途</li>
+                    <li>選課間隔不要設太短，避免被系統判定為異常行為</li>
+                    <li>確保選課時間內系統開放</li>
+                    <li>建議在穩定網路環境下使用</li>
+                    <li>使用過程中請勿關閉程式</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.course-selection-section {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.section-header {
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+.section-header h3 {
+    color: #2196F3;
+    margin-bottom: 10px;
+}
+
+.section-description {
+    color: #666;
+    font-size: 14px;
+}
+
+/* 環境狀態 */
+.environment-status, .account-setup, .course-list-setup, .bot-settings, .bot-control, .bot-output, .bot-info {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.status-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.status-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    background: white;
+    border-radius: 6px;
+    border: 1px solid #e9ecef;
+}
+
+.status-icon {
+    font-size: 16px;
+    width: 20px;
+    text-align: center;
+}
+
+.status-text {
+    flex: 1;
+}
+
+/* 表單樣式 */
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 500;
+    color: #495057;
+}
+
+.form-control {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.form-control:focus {
+    outline: none;
+    border-color: #2196F3;
+    box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.2);
+}
+
+.help-text {
+    color: #6c757d;
+    font-size: 12px;
+    margin-top: 4px;
+    display: block;
+}
+
+/* 課程清單 */
+.course-item {
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+    padding: 15px;
+    margin-bottom: 10px;
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 2fr 1fr auto;
+    gap: 15px;
+    align-items: end;
+}
+
+.course-preview {
+    margin-top: 8px;
+    font-family: monospace;
+}
+
+.preview-text {
+    color: #6c757d;
+    background: #f8f9fa;
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+
+.course-list-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.course-list-stats {
+    margin-top: 15px;
+    color: #6c757d;
+}
+
+/* 按鈕樣式 */
+.btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.btn-primary {
+    background: #2196F3;
+    color: white;
+}
+
+.btn-primary:hover {
+    background: #1976D2;
+}
+
+.btn-success {
+    background: #4CAF50;
+    color: white;
+}
+
+.btn-success:hover {
+    background: #45a049;
+}
+
+.btn-danger {
+    background: #f44336;
+    color: white;
+}
+
+.btn-danger:hover {
+    background: #d32f2f;
+}
+
+.btn-outline {
+    background: transparent;
+    border: 1px solid #2196F3;
+    color: #2196F3;
+}
+
+.btn-outline:hover {
+    background: #2196F3;
+    color: white;
+}
+
+.btn-large {
+    padding: 12px 24px;
+    font-size: 16px;
+}
+
+.btn-small {
+    padding: 4px 8px;
+    font-size: 12px;
+}
+
+.btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* 控制面板 */
+.control-buttons {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.bot-status {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.status-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.status-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #ccc;
+    animation: pulse 2s infinite;
+}
+
+.status-dot.running {
+    background: #4CAF50;
+}
+
+.status-dot.error {
+    background: #f44336;
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+
+/* 輸出視窗 */
+.output-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.auto-scroll-control {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    color: #6c757d;
+    cursor: pointer;
+}
+
+.output-container {
+    background: #1e1e1e;
+    border-radius: 4px;
+    height: 300px;
+    overflow-y: auto;
+}
+
+.output-content {
+    padding: 10px;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+.output-item {
+    margin-bottom: 5px;
+    word-wrap: break-word;
+}
+
+.output-item.system {
+    color: #03DAC6;
+}
+
+.output-item.stdout {
+    color: #ffffff;
+}
+
+.output-item.stderr {
+    color: #ff6b6b;
+}
+
+.output-item.success {
+    color: #4CAF50;
+}
+
+.timestamp {
+    color: #888;
+    margin-right: 10px;
+}
+
+/* 說明區塊 */
+.info-content {
+    display: grid;
+    gap: 20px;
+}
+
+.info-section h5 {
+    color: #495057;
+    margin-bottom: 10px;
+}
+
+.info-section ul, .info-section ol {
+    margin-left: 20px;
+    line-height: 1.6;
+}
+
+.info-section li {
+    margin-bottom: 5px;
+}
+
+/* 響應式設計 */
+@media (max-width: 768px) {
+    .course-selection-section {
+        padding: 15px;
+    }
+    
+    .form-row {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+    
+    .control-buttons {
+        flex-direction: column;
+    }
+    
+    .status-grid {
+        grid-template-columns: 1fr;
+    }
+}
+</style>

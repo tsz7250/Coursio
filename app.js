@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Main } = require("electron");
+const { app, BrowserWindow, ipcMain, shell } = require("electron");
 const path = require("path");
 const fs = require("fs")
 
@@ -7,7 +7,7 @@ const renderer_dirpath = path.join("./", "renderer")
 var settingFilePath = "settings.json"
 
 let MainWindow = null
-let SelectCourseWorkerWindow = null
+// 移除舊的選課 Worker Window，改用 Python yzuCourseBot
 var initConfigSettingJson = {"interval":2, "stage": "1"};
 
 function readOrcreateSettingJson() {
@@ -17,7 +17,6 @@ function readOrcreateSettingJson() {
         fs.writeFile(settingFilePath, JSON.stringify(initConfigSettingJson), "utf-8", function (err, data) {})
     }
 }``
-
 
 function createWindow() {
     readOrcreateSettingJson()
@@ -45,45 +44,20 @@ function createWindow() {
     MainWindow.loadFile(path.join(renderer_dirpath, "index.html"))
     MainWindow.webContents.openDevTools();
 
-
-
-
-
-    // 建立選課worker window
-    SelectCourseWorkerWindow = new BrowserWindow({
-        width: 0,
-        height: 0,
-        show: false,
-        webPreferences: {
-            nodeIntegration: true,
-            contextIsolation: false,
-            // preload: path.join(renderer_dirpath, "js", "preload.js"),
+    // 在主畫面關閉時清理資源
+    MainWindow.on("close", function () {
+        // 確保刪除登入 Token 
+        try {
+            var settings = JSON.parse(fs.readFileSync(settingFilePath, "utf-8") || '{}');
+            settings["token"] = "";
+            fs.writeFile(settingFilePath, JSON.stringify(settings), "utf-8", function (err, data) {
+                if (err) console.error("清理 token 失敗:", err);
+            });
+        } catch (error) {
+            console.error("清理設定檔失敗:", error);
         }
     })
-    SelectCourseWorkerWindow.loadFile(path.join(renderer_dirpath, "CourseSelWorker.html"))
-    // SelectCourseWorkerWindow.openDevTools()
-
-
-
-
-    // 在主畫面關閉時 關閉 Worker
-    MainWindow.on("close", function () {
-        SelectCourseWorkerWindow.close()
-
-        // 確保刪除登入 Token 
-        var settings = fs.readFileSync(settingFilePath, "utf-8")
-        settings["token"] = ""
-        fs.writeFile(settingFilePath, JSON.stringify(settings), "utf-8", function (err, data) {})
-
-    })
-
-
-
-
 }
-
-
-
 
 // 有些 API 只能在這個事件發生後才能用。
 app.whenReady().then(createWindow)
@@ -106,21 +80,42 @@ app.on('activate', () => {
     }
 })
 
-
-
-
-
-
-
-
-
-
-
-// IPC 
-ipcMain.on("addTaskCourse", (event, data)=>{
-    SelectCourseWorkerWindow.webContents.send("addTaskCourse", data);
+// IPC - Python Bot 輸出
+ipcMain.on("pythonBotOutput", (event, data)=>{
+    // 轉發 Python 機器人輸出到主視窗
+    MainWindow.webContents.send("pythonBotOutput", data);
 })
-// IPC 重讀設定檔
-ipcMain.on("regetSettings", (event, data)=>{
-    SelectCourseWorkerWindow.webContents.send("regetSettings", data);
+
+// IPC - Python Bot 狀態
+ipcMain.on("pythonBotStatus", (event, data)=>{
+    // 轉發 Python 機器人狀態到主視窗
+    MainWindow.webContents.send("pythonBotStatus", data);
+})
+// IPC 開啟課程詳細頁面（在 Electron 新視窗中）
+ipcMain.on("openCourseDetail", (event, data)=>{
+    const { year, smtr, cos_id, cos_class } = data;
+    const url = `https://portalfun.yzu.edu.tw/cosSelect/Cos_Plan.aspx?y=${year}&s=${smtr}&id=${cos_id}&c=${cos_class}`;
+    console.log("Opening course detail URL in new window:", url);
+    
+    // 建立新的 BrowserWindow 來顯示課程詳細頁面
+    let courseDetailWindow = new BrowserWindow({
+        width: 1000,
+        height: 800,
+        parent: MainWindow, // 設定父視窗
+        modal: false, // 非模態視窗
+        autoHideMenuBar: true, // 自動隱藏選單列
+        webPreferences: {
+            nodeIntegration: false,
+            contextIsolation: true,
+            webSecurity: true
+        }
+    });
+    
+    // 載入課程詳細頁面
+    courseDetailWindow.loadURL(url);
+    
+    // 當視窗關閉時清理資源
+    courseDetailWindow.on('closed', () => {
+        courseDetailWindow = null;
+    });
 })

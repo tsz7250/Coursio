@@ -5,14 +5,27 @@
 '''
 
 import os
+import sys
 import cv2
 import time
 import requests
 import numpy as np
 import configparser
 from bs4 import BeautifulSoup
+
+# 設定輸出編碼為 UTF-8
+sys.stdout.reconfigure(encoding='utf-8')
+sys.stderr.reconfigure(encoding='utf-8')
+
+# 設定 TensorFlow 環境變數來抑制警告
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # 只顯示錯誤訊息
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'  # 關閉 oneDNN 優化警告
+
 from keras.models import load_model
 import tensorflow as tf
+
+# 設定 TensorFlow 日誌級別
+tf.get_logger().setLevel('ERROR')
 
 class CourseBot:
     def __init__(self, account, password):
@@ -69,8 +82,20 @@ class CourseBot:
         return predicStr
 
     def captchaOCR(self):
-        captchaImg = cv2.imread('captcha.png') / 255.0
-        return self.predict(captchaImg)
+        # 檢查檔案是否存在
+        if not os.path.exists('captcha.png'):
+            self.log("錯誤：captcha.png 檔案不存在")
+            return "ERROR"
+        
+        captchaImg = cv2.imread('captcha.png')
+        if captchaImg is None:
+            self.log("錯誤：無法讀取 captcha.png 檔案")
+            return "ERROR"
+        
+        captchaImg = captchaImg / 255.0
+        
+        result = self.predict(captchaImg)
+        return result
 
     # login into system and get session
     def login(self):
@@ -83,6 +108,7 @@ class CourseBot:
             with self.session.get(self.captchaUrl, stream= True) as captchaHtml:
                 with open('captcha.png', 'wb') as img:
                     img.write(captchaHtml.content)
+            
             captcha = self.captchaOCR()
 
             # get login data
@@ -166,7 +192,14 @@ class CourseBot:
 
 
 
-    def selectCourses(self, coursesList, delay = 0):
+    def selectCourses(self, coursesList, delay = 5):
+        # 從環境變數讀取最大循環次數（0 或未設定視為無上限）
+        try:
+            max_attempts_env = int(os.environ.get('MAX_ATTEMPTS', '0'))
+        except Exception:
+            max_attempts_env = 0
+
+        attemptCount = 0
         while len(coursesList) > 0:
             for course in coursesList.copy():
                 tokens = course.split(',')
@@ -214,6 +247,9 @@ class CourseBot:
                     self.login()
 
                 time.sleep(delay)
+            attemptCount += 1
+            if max_attempts_env > 0 and attemptCount >= max_attempts_env:
+                break
 
     def log(self, msg):
         print(time.strftime("[%Y-%m-%d %H:%M:%S]", time.localtime()), msg)
@@ -233,7 +269,7 @@ if __name__ == '__main__':
 
 # the courses you want to select, format: '`deptId`,`courseId``classId`'
     coursesList = [
-         '312,EEB219A' #智慧型科技應用
+        '　　機械工程學系學士班,ME105A'
     ]
 
     # Time Parameter, sleep n seconds

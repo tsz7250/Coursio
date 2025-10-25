@@ -88,13 +88,43 @@ body {
     flex-direction: column;
     align-items: center;
     justify-content: center;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 2000;
+    background: #ffffff;
+    transition: opacity 0.3s ease-in-out;
+}
 
-    z-index: 1000;
+#loading-panel img {
+    width: 200px;
+    height: 200px;
+    margin-bottom: 20px;
+}
 
-    background: hsla(0, 0%, 100%, 0.884);
+#loading-panel h3 {
+    color: #333;
+    font-size: 18px;
+    font-weight: 500;
+    margin: 0;
 }
 
 
 .point-it {
     cursor: pointer;
+}
+
+// 視覺上隱藏，但保留可存取性的文字（螢幕閱讀器可讀）
+.sr-only {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    padding: 0 !important;
+    margin: -1px !important;
+    overflow: hidden !important;
+    clip: rect(0, 0, 0, 0) !important;
+    white-space: nowrap !important;
+    border: 0 !important;
 }
