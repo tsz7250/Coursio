@@ -484,11 +484,13 @@ const app = Vue.createApp({
 				}
 
 				try {
-					// 1) 準備加密參數
-					const service1 = await apibackend._getRSAKey();
-					await service1._encryptData(sid.value, spwd.value);
+					// 1) 設置帳號和密碼到 BackendService
+					apibackend._setSidSpwd(sid.value, spwd.value);
+					
+					// 2) 直接使用 Puppeteer 進行登入驗證（不再透過 RSA API）
+					// puppeteerLogin 會直接在登入頁輸入這組帳密，因此這裡不需要先呼叫 _getRSAKey / _encryptData。
 
-					// 2) 快速登入驗證，然後在背景完成課表載入
+					// 3) 快速登入驗證，然後在背景完成課表載入
 					loading_text.value = "驗證帳密中...";
 					
 					// 創建一個臨時的 Puppeteer 頁面進行快速登入驗證

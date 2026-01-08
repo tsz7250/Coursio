@@ -1,5 +1,4 @@
 const crypto = require('crypto');
-const request = require("request")
 const { default: Axios } = require("axios")
 const NodeRSA = require('node-rsa');
 const moment = require("moment")
@@ -16,14 +15,18 @@ let browserlessRoot = null; // 單例根瀏覽器管理器
 let browserlessLoaded = false;
 
 // 配置 axios 以處理自簽名證書和網路問題
-Axios.defaults.httpsAgent = new https.Agent({
-    rejectUnauthorized: false,
-    keepAlive: true,
-    timeout: 30000
-});
+// 只在 Node.js 環境中設置 httpsAgent（瀏覽器環境中無效）
+var isNodeEnv = typeof process !== 'undefined' && process.versions && process.versions.node && typeof window === 'undefined';
+if (isNodeEnv) {
+    Axios.defaults.httpsAgent = new https.Agent({
+        rejectUnauthorized: false,
+        keepAlive: true,
+        timeout: 30000
+    });
+}
 
 Axios.defaults.timeout = 30000;
-Axios.defaults.maxRedirects = 5;
+Axios.defaults.maxRedirects = 3; // 減少重定向次數，避免重定向循環
 
  
 
@@ -358,6 +361,9 @@ class BackendService {
             "AppId": this.ALLDATA["AppId"],
             "Content-Type": "application/x-www-form-urlencoded",
         }
+        // 注意：在瀏覽器 / Electron 渲染進程中，某些 header（例如 User-Agent, Origin, Referer）
+        // 無法由程式碼手動設定，會被視為「unsafe header」而被瀏覽器拒絕。
+        // 這裡只設置允許的 header，其餘交由瀏覽器自動處理。
         var headers = {
             "Accept": "application/json",
             "Authorization": "Basic " + Buffer.from(ss).toString('base64'),
@@ -374,20 +380,84 @@ class BackendService {
 
         var that = this
 
-        return Axios.post(url, params, {
+        // 在 Electron 渲染進程中，axios 使用瀏覽器適配器（XMLHttpRequest）
+        // 注意：瀏覽器環境中無法設置 User-Agent header（會被拒絕）
+        // 禁用自動重定向跟隨，避免重定向循環
+        var axiosConfig = {
             headers: headers,
-            httpsAgent: new https.Agent({
-                rejectUnauthorized: false
-            }),
-            timeout: 30000
-        }).then((respones) => {
-            that.ALLDATA["PublicKeyXml"] = respones.data["RSAkey"]
-            that.ALLDATA["Modulus"] = respones.data["Modulus"]
-            that.ALLDATA["Exponent"] = respones.data["Exponent"]
+            timeout: 30000,
+            maxRedirects: 0, // 禁用自動重定向，避免 ERR_TOO_MANY_REDIRECTS
+            validateStatus: function (status) {
+                // 接受所有狀態碼，包括重定向，以便手動處理
+                return status >= 200 && status < 500;
+            }
+        }
 
-            return new Promise(function (resolve, reject) {
-                return resolve(that)
-            })
+        // 在 Electron 渲染進程中，httpsAgent 無效（使用瀏覽器適配器）
+        // 不設置 httpsAgent，讓瀏覽器處理 HTTPS
+
+        return Axios.post(url, params, axiosConfig).then((response) => {
+            // 檢查是否為重定向回應
+            if (response.status >= 300 && response.status < 400) {
+                var location = response.headers.location || response.headers.Location;
+                console.warn("收到重定向回應，狀態碼:", response.status);
+                console.warn("重定向位置:", location);
+                
+                // 如果重定向到登入頁面，可能是認證問題
+                if (location && (location.includes('Login') || location.includes('login'))) {
+                    throw new Error('伺服器要求重新登入，請檢查 API 認證資訊');
+                }
+                
+                // 如果是相對路徑，構建完整 URL
+                if (location && !location.startsWith('http')) {
+                    var baseUrl = url.substring(0, url.indexOf('/NewPortal/') + '/NewPortal/'.length);
+                    location = baseUrl + location;
+                }
+                
+                // 嘗試跟隨重定向（只跟隨一次）
+                if (location) {
+                    console.log("嘗試跟隨重定向到:", location);
+                    // 更新 Referer header
+                    var redirectHeaders = Object.assign({}, headers);
+                    redirectHeaders["Referer"] = url;
+                    
+                    return Axios.post(location, params, {
+                        headers: redirectHeaders,
+                        timeout: 30000,
+                        maxRedirects: 0,
+                        validateStatus: function (status) {
+                            return status >= 200 && status < 500;
+                        }
+                    }).then((redirectResponse) => {
+                        // 處理重定向後的回應
+                        if (redirectResponse.status >= 200 && redirectResponse.status < 300) {
+                            that.ALLDATA["PublicKeyXml"] = redirectResponse.data["RSAkey"]
+                            that.ALLDATA["Modulus"] = redirectResponse.data["Modulus"]
+                            that.ALLDATA["Exponent"] = redirectResponse.data["Exponent"]
+                            return that;
+                        } else if (redirectResponse.status >= 300 && redirectResponse.status < 400) {
+                            throw new Error('重定向循環：收到第二次重定向回應');
+                        } else {
+                            throw new Error(`重定向後收到意外的回應狀態碼: ${redirectResponse.status}`);
+                        }
+                    });
+                } else {
+                    throw new Error('收到重定向回應但沒有 Location header');
+                }
+            }
+            
+            // 正常回應（200-299）
+            if (response.status >= 200 && response.status < 300) {
+                that.ALLDATA["PublicKeyXml"] = response.data["RSAkey"]
+                that.ALLDATA["Modulus"] = response.data["Modulus"]
+                that.ALLDATA["Exponent"] = response.data["Exponent"]
+
+                return new Promise(function (resolve, reject) {
+                    return resolve(that)
+                })
+            } else {
+                throw new Error(`意外的回應狀態碼: ${response.status}`);
+            }
 
         }).catch((error) => {
             console.error("RSA Key 取得失敗:", error);
@@ -946,8 +1016,11 @@ class BackendService {
 
             // 填入帳號密碼
             console.log("📝 填入登入資訊...");
-            await page.type('#Txt_UserID', this.ALLDATA["original_account"]);
-            await page.type('#Txt_Password', this.ALLDATA["original_password"]);
+            // 確保帳號和密碼是字符串
+            const accountStr = String(this.ALLDATA["original_account"] || '');
+            const passwordStr = String(this.ALLDATA["original_password"] || '');
+            await page.type('#Txt_UserID', accountStr);
+            await page.type('#Txt_Password', passwordStr);
 
             // 等待reCaptcha token生成
             console.log("🔒 等待reCaptcha驗證...");
@@ -964,8 +1037,13 @@ class BackendService {
             // 等待登入成功或對話框失敗（擇一先發生）
             console.log("⏱️ 等待登入完成...");
             const successWait = page.waitForFunction(() => {
-                return window.location.href.includes('DefaultPage.aspx') ||
-                       document.body.innerText.includes('個人portal');
+                try {
+                    const bodyText = document.body && document.body.innerText ? String(document.body.innerText) : '';
+                    return window.location.href.includes('DefaultPage.aspx') ||
+                           bodyText.includes('個人portal');
+                } catch (e) {
+                    return false;
+                }
             }, { timeout: 20000 }).then(() => 'SUCCESS');
 
             // 掃描主頁與所有 iframe 的失敗訊息或模態選擇器
@@ -973,23 +1051,63 @@ class BackendService {
                 const hasFailInFrame = async (f) => {
                     try {
                         return await f.evaluate(() => {
-                            const text = (document.body && (document.body.innerText || '')) || '';
-                            if (text.includes('Login Failed') || text.includes('登入失敗')) return true;
-                            // 常見 UI 框架的容器
-                            const selectors = ['.swal2-container', '.swal2-popup', '.modal', '.sweet-alert', '#errorBox'];
-                            return selectors.some(sel => document.querySelector(sel));
+                            try {
+                                const bodyText = document.body && document.body.innerText ? String(document.body.innerText) : '';
+                                if (bodyText.includes('Login Failed') || bodyText.includes('登入失敗')) return true;
+                                // 常見 UI 框架的容器
+                                const selectors = ['.swal2-container', '.swal2-popup', '.modal', '.sweet-alert', '#errorBox'];
+                                return selectors.some(sel => document.querySelector(sel));
+                            } catch (e) {
+                                return false;
+                            }
                         });
-                    } catch (_) { return false; }
+                    } catch (e) {
+                        return false;
+                    }
                 };
 
                 // 檢查主頁
-                if (await hasFailInFrame(page.mainFrame())) return true;
-                // 檢查所有子 frame
-                const frames = page.frames();
-                for (const f of frames) {
-                    if (f === page.mainFrame()) continue;
-                    if (await hasFailInFrame(f)) return true;
+                try {
+                    if (await hasFailInFrame(page.mainFrame())) return true;
+                } catch (_) {}
+
+                // 檢查所有子 frame（確保 frames 是數組或可迭代對象）
+                try {
+                    const frames = page.frames();
+                    if (frames) {
+                        // 確保 frames 是可迭代的數組
+                        let framesArray = [];
+                        if (Array.isArray(frames)) {
+                            framesArray = frames;
+                        } else if (frames && typeof frames[Symbol.iterator] === 'function') {
+                            // 如果是可迭代對象，轉換為數組
+                            try {
+                                framesArray = Array.from(frames);
+                            } catch (e) {
+                                throw e;
+                            }
+                        } else if (typeof frames.length === 'number') {
+                            // 如果是類數組對象，轉換為數組
+                            try {
+                                framesArray = Array.from(frames);
+                            } catch (e) {
+                                throw e;
+                            }
+                        }
+                        
+                        for (const f of framesArray) {
+                            if (!f || f === page.mainFrame()) continue;
+                            try {
+                                if (await hasFailInFrame(f)) return true;
+                            } catch (e) {
+                                // 忽略單個 frame 的錯誤
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.warn("檢查 frames 時出錯:", e);
                 }
+                
                 return false;
             };
 
@@ -1007,10 +1125,23 @@ class BackendService {
 
             const outcome = await Promise.race([successWait, dialogOrDomWait]);
 
-            const currentUrl = page.url();
-            const pageContent = await page.content();
+            // 安全地獲取 URL 和頁面內容
+            let currentUrl = '';
+            let pageContent = '';
+            try {
+                currentUrl = String(page.url() || '');
+            } catch (e) {
+                console.warn("無法獲取當前 URL:", e);
+            }
+            try {
+                pageContent = String(await page.content() || '');
+            } catch (e) {
+                console.warn("無法獲取頁面內容:", e);
+            }
 
-            if (outcome === 'SUCCESS' || currentUrl.includes('DefaultPage.aspx') || pageContent.includes('個人portal')) {
+            if (outcome === 'SUCCESS' || 
+                (currentUrl && currentUrl.includes('DefaultPage.aspx')) || 
+                (pageContent && pageContent.includes('個人portal'))) {
                 console.log("✅ 登入成功！");
                 // 登入成功後立即返回，頁面載入在背景進行
                 cleanup();
@@ -1717,18 +1848,23 @@ class BackendService {
         // 提取時間資訊 - 改進版本
         const timeMatches = [];
         
+        // 確保 text 是字符串
+        const textStr = String(text || '');
+        
         // 匹配 "第X節" 格式
-        const periodMatch = text.match(/第\s*(\d+)\s*節/g);
-        if (periodMatch) {
+        const periodMatch = textStr.match(/第\s*(\d+)\s*節/g);
+        if (periodMatch && Array.isArray(periodMatch)) {
             periodMatch.forEach(match => {
-                const periodNum = match.match(/\d+/)[0];
-                timeMatches.push(`第${periodNum}節`);
+                const periodNum = match.match(/\d+/);
+                if (periodNum && periodNum[0]) {
+                    timeMatches.push(`第${periodNum[0]}節`);
+                }
             });
         }
         
         // 匹配具體時間格式 "XX:XX-XX:XX"
-        const timeRangeMatch = text.match(/\d{1,2}:\d{2}\s*[-~]\s*\d{1,2}:\d{2}/g);
-        if (timeRangeMatch) {
+        const timeRangeMatch = textStr.match(/\d{1,2}:\d{2}\s*[-~]\s*\d{1,2}:\d{2}/g);
+        if (timeRangeMatch && Array.isArray(timeRangeMatch)) {
             timeMatches.push(...timeRangeMatch);
         }
         
