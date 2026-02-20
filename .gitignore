@@ -8,6 +8,7 @@ settings.json
 
 # Python yzuCourseBot 相關檔案 (包含個人資訊)
 py/accounts.ini
+renderer/py/accounts.ini
 py/captcha.png
 py/__pycache__/
 py/*.pyc
