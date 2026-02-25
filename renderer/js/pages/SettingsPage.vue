@@ -73,7 +73,7 @@
             <div style="display:flex;gap:6px;align-items:center;">
               <input v-model="configPath" class="form-control"
                 style="width:180px;font-size:11px;"
-                :placeholder="defaultConfigPath || 'APPDATA\\WannaClass\\config.ini'">
+                :placeholder="defaultConfigPath || 'APPDATA\\Coursio\\config.ini'">
               <button class="btn btn-outline btn-sm" @click="browseConfigPath" title="瀏覽檔案">
                 <i data-lucide="folder-open" style="width:13px;height:13px;"></i>
               </button>

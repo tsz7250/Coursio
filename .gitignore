@@ -2,7 +2,8 @@ note.md
 dev.js
 # 注意: test_schedule.js 包含認證信息，提交前請確保移除真實的 Token 和 Authorization
 build/*
-*.sqlite
+db.sqlite
+!db.sqlite.init
 config/settings.json
 settings.json
 
@@ -81,5 +82,5 @@ Query_Request_test/*.html
 renderer/dist/
 
 # SCSS 編譯產物
-renderer/css/wannaclass.css
-renderer/css/wannaclass.css.map
+renderer/css/coursio.css
+renderer/css/coursio.css.map

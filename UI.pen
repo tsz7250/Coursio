@@ -18,7 +18,7 @@
           "id": "oVQTX",
           "name": "DS Title",
           "fill": "$text-primary",
-          "content": "WannaClass Design System",
+          "content": "Coursio Design System",
           "fontFamily": "Poppins",
           "fontSize": 28,
           "fontWeight": "700"
@@ -778,7 +778,7 @@
                           "type": "text",
                           "id": "4UiyI",
                           "fill": "$text-white",
-                          "content": "W",
+                          "content": "C",
                           "fontFamily": "Poppins",
                           "fontSize": 22,
                           "fontWeight": "700"
@@ -789,7 +789,7 @@
                       "type": "text",
                       "id": "slm2v",
                       "fill": "$text-white",
-                      "content": "WannaClass",
+                      "content": "Coursio ",
                       "fontFamily": "Poppins",
                       "fontSize": 20,
                       "fontWeight": "700"
@@ -1164,7 +1164,7 @@
                       "type": "text",
                       "id": "BGOSX",
                       "fill": "$text-white",
-                      "content": "W",
+                      "content": "C",
                       "fontFamily": "Poppins",
                       "fontSize": 18,
                       "fontWeight": "700"
@@ -1175,7 +1175,7 @@
                   "type": "text",
                   "id": "h4wLC",
                   "fill": "$text-primary",
-                  "content": "WannaClass",
+                  "content": "Coursio ",
                   "fontFamily": "Poppins",
                   "fontSize": 16,
                   "fontWeight": "700"
@@ -1986,7 +1986,7 @@
                       "type": "text",
                       "id": "5H6nG",
                       "fill": "$text-white",
-                      "content": "W",
+                      "content": "C",
                       "fontFamily": "Poppins",
                       "fontSize": 18,
                       "fontWeight": "700"
@@ -1997,7 +1997,7 @@
                   "type": "text",
                   "id": "3eDpW",
                   "fill": "$text-primary",
-                  "content": "WannaClass",
+                  "content": "Coursio ",
                   "fontFamily": "Poppins",
                   "fontSize": 16,
                   "fontWeight": "700"
@@ -4103,7 +4103,7 @@
                       "type": "text",
                       "id": "gIvmp",
                       "fill": "$text-white",
-                      "content": "W",
+                      "content": "C",
                       "fontFamily": "Poppins",
                       "fontSize": 18,
                       "fontWeight": "700"
@@ -4114,7 +4114,7 @@
                   "type": "text",
                   "id": "HnWyb",
                   "fill": "$text-primary",
-                  "content": "WannaClass",
+                  "content": "Coursio ",
                   "fontFamily": "Poppins",
                   "fontSize": 16,
                   "fontWeight": "700"
@@ -7915,7 +7915,7 @@
                       "id": "0k2Za",
                       "name": "logoW05",
                       "fill": "#FFFFFF",
-                      "content": "W",
+                      "content": "C",
                       "fontFamily": "Poppins",
                       "fontSize": 18,
                       "fontWeight": "700"
@@ -7927,7 +7927,7 @@
                   "id": "YMbqX",
                   "name": "logoText05",
                   "fill": "$text-primary",
-                  "content": "WannaClass",
+                  "content": "Coursio ",
                   "fontFamily": "Poppins",
                   "fontSize": 16,
                   "fontWeight": "700"
@@ -8545,7 +8545,8 @@
                       "fill": "$text-muted",
                       "content": "從「課程查詢」頁面加入的待選課程，機器人將自動選取",
                       "fontFamily": "Open Sans",
-                      "fontSize": 12
+                      "fontSize": 12,
+                      "fontWeight": "normal"
                     },
                     {
                       "type": "frame",
@@ -8763,7 +8764,8 @@
                                   "fill": "$text-secondary",
                                   "content": "王大明",
                                   "fontFamily": "Open Sans",
-                                  "fontSize": 13
+                                  "fontSize": 13,
+                                  "fontWeight": "normal"
                                 }
                               ]
                             },
@@ -8782,7 +8784,8 @@
                                   "fill": "$text-secondary",
                                   "content": "3",
                                   "fontFamily": "Open Sans",
-                                  "fontSize": 13
+                                  "fontSize": 13,
+                                  "fontWeight": "normal"
                                 }
                               ]
                             },
@@ -8914,7 +8917,8 @@
                                   "fill": "$text-secondary",
                                   "content": "李小華",
                                   "fontFamily": "Open Sans",
-                                  "fontSize": 13
+                                  "fontSize": 13,
+                                  "fontWeight": "normal"
                                 }
                               ]
                             },
@@ -8933,7 +8937,8 @@
                                   "fill": "$text-secondary",
                                   "content": "3",
                                   "fontFamily": "Open Sans",
-                                  "fontSize": 13
+                                  "fontSize": 13,
+                                  "fontWeight": "normal"
                                 }
                               ]
                             },
@@ -9060,7 +9065,8 @@
                                   "fill": "$text-secondary",
                                   "content": "張國英",
                                   "fontFamily": "Open Sans",
-                                  "fontSize": 13
+                                  "fontSize": 13,
+                                  "fontWeight": "normal"
                                 }
                               ]
                             },
@@ -9079,7 +9085,8 @@
                                   "fill": "$text-secondary",
                                   "content": "3",
                                   "fontFamily": "Open Sans",
-                                  "fontSize": 13
+                                  "fontSize": 13,
+                                  "fontWeight": "normal"
                                 }
                               ]
                             },
@@ -9241,7 +9248,8 @@
                           "fill": "$text-muted",
                           "content": "待選課程: 2 門",
                           "fontFamily": "Open Sans",
-                          "fontSize": 12
+                          "fontSize": 12,
+                          "fontWeight": "normal"
                         }
                       ]
                     }
@@ -9346,7 +9354,8 @@
                                   "fill": "$text-primary",
                                   "content": "2.5",
                                   "fontFamily": "Open Sans",
-                                  "fontSize": 14
+                                  "fontSize": 14,
+                                  "fontWeight": "normal"
                                 }
                               ]
                             },
@@ -9357,7 +9366,8 @@
                               "fill": "$text-muted",
                               "content": "建議 2.5 秒以避免被系統封鎖",
                               "fontFamily": "Open Sans",
-                              "fontSize": 11
+                              "fontSize": 11,
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -9406,7 +9416,8 @@
                                   "fill": "$text-primary",
                                   "content": "0",
                                   "fontFamily": "Open Sans",
-                                  "fontSize": 14
+                                  "fontSize": 14,
+                                  "fontWeight": "normal"
                                 }
                               ]
                             },
@@ -9417,7 +9428,8 @@
                               "fill": "$text-muted",
                               "content": "0 表示無上限",
                               "fontFamily": "Open Sans",
-                              "fontSize": 11
+                              "fontSize": 11,
+                              "fontWeight": "normal"
                             }
                           ]
                         }
@@ -9507,7 +9519,8 @@
                               "fill": "$text-muted",
                               "content": "機器人準備就緒",
                               "fontFamily": "Open Sans",
-                              "fontSize": 12
+                              "fontSize": 12,
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -9717,7 +9730,8 @@
                           "fill": "#94A3B8",
                           "content": "[系統] Python yzuCourseBot 自動選課機器人準備就緒",
                           "fontFamily": "Inter",
-                          "fontSize": 12
+                          "fontSize": 12,
+                          "fontWeight": "normal"
                         },
                         {
                           "type": "text",
@@ -9726,7 +9740,8 @@
                           "fill": "#22C55E",
                           "content": "[系統] 環境檢查完成 — Python 3.12.0",
                           "fontFamily": "Inter",
-                          "fontSize": 12
+                          "fontSize": 12,
+                          "fontWeight": "normal"
                         },
                         {
                           "type": "text",
@@ -9735,7 +9750,8 @@
                           "fill": "#22C55E",
                           "content": "[系統] AI 驗證碼模型載入成功",
                           "fontFamily": "Inter",
-                          "fontSize": 12
+                          "fontSize": 12,
+                          "fontWeight": "normal"
                         },
                         {
                           "type": "text",
@@ -9744,7 +9760,8 @@
                           "fill": "#F59E0B",
                           "content": "[等待] 等待使用者啟動...",
                           "fontFamily": "Inter",
-                          "fontSize": 12
+                          "fontSize": 12,
+                          "fontWeight": "normal"
                         }
                       ]
                     }
@@ -9816,7 +9833,7 @@
                       "id": "wAAcq",
                       "name": "lw06",
                       "fill": "#FFFFFF",
-                      "content": "W",
+                      "content": "C",
                       "fontFamily": "Poppins",
                       "fontSize": 18,
                       "fontWeight": "700"
@@ -9828,7 +9845,7 @@
                   "id": "zHLgx",
                   "name": "lt06",
                   "fill": "$text-primary",
-                  "content": "WannaClass",
+                  "content": "Coursio ",
                   "fontFamily": "Poppins",
                   "fontSize": 16,
                   "fontWeight": "700"
@@ -10244,7 +10261,8 @@
                               "fill": "$text-muted",
                               "content": "元智大學 Portal 登入帳號",
                               "fontFamily": "Open Sans",
-                              "fontSize": 12
+                              "fontSize": 12,
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -10273,7 +10291,8 @@
                               "fill": "$text-primary",
                               "content": "S1234567",
                               "fontFamily": "Open Sans",
-                              "fontSize": 14
+                              "fontSize": 14,
+                              "fontWeight": "normal"
                             }
                           ]
                         }
@@ -10320,7 +10339,8 @@
                               "fill": "$text-muted",
                               "content": "登入密碼（已加密儲存）",
                               "fontFamily": "Open Sans",
-                              "fontSize": 12
+                              "fontSize": 12,
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -10349,7 +10369,8 @@
                               "fill": "$text-muted",
                               "content": "••••••••",
                               "fontFamily": "Open Sans",
-                              "fontSize": 14
+                              "fontSize": 14,
+                              "fontWeight": "normal"
                             }
                           ]
                         }
@@ -10391,7 +10412,8 @@
                               "fill": "$text-muted",
                               "content": "選擇目前的選課階段",
                               "fontFamily": "Open Sans",
-                              "fontSize": 12
+                              "fontSize": 12,
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -10421,7 +10443,8 @@
                               "fill": "$text-primary",
                               "content": "第一階段選課",
                               "fontFamily": "Open Sans",
-                              "fontSize": 14
+                              "fontSize": 14,
+                              "fontWeight": "normal"
                             },
                             {
                               "type": "icon_font",
@@ -10521,9 +10544,10 @@
                               "type": "text",
                               "id": "OOtzi",
                               "fill": "$text-muted",
-                              "content": "系統啟動時自動開啟 WannaClass",
+                              "content": "系統啟動時自動開啟 ",
                               "fontFamily": "Open Sans",
-                              "fontSize": 12
+                              "fontSize": 12,
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -10592,7 +10616,8 @@
                               "fill": "$text-muted",
                               "content": "選課成功或失敗時發送系統通知",
                               "fontFamily": "Open Sans",
-                              "fontSize": 12
+                              "fontSize": 12,
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -10656,7 +10681,8 @@
                               "fill": "$text-muted",
                               "content": "切換深色主題",
                               "fontFamily": "Open Sans",
-                              "fontSize": 12
+                              "fontSize": 12,
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -10771,7 +10797,8 @@
                               "fill": "$text-muted",
                               "content": "刪除所有已儲存的選課任務與紀錄",
                               "fontFamily": "Open Sans",
-                              "fontSize": 12
+                              "fontSize": 12,
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -10852,7 +10879,8 @@
                               "fill": "$text-muted",
                               "content": "將所有設定恢復為預設值",
                               "fontFamily": "Open Sans",
-                              "fontSize": 12
+                              "fontSize": 12,
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -10964,7 +10992,7 @@
                       "type": "text",
                       "id": "1S3jH",
                       "fill": "#FFFFFF",
-                      "content": "W",
+                      "content": "C",
                       "fontFamily": "Poppins",
                       "fontSize": 18,
                       "fontWeight": "700"
@@ -10975,7 +11003,7 @@
                   "type": "text",
                   "id": "SFxRd",
                   "fill": "$text-primary",
-                  "content": "WannaClass",
+                  "content": "Coursio ",
                   "fontFamily": "Poppins",
                   "fontSize": 16,
                   "fontWeight": "700"
@@ -11365,7 +11393,7 @@
                       "type": "text",
                       "id": "PzL0J",
                       "fill": "#FFFFFF",
-                      "content": "WannaClass",
+                      "content": "",
                       "fontFamily": "Poppins",
                       "fontSize": 28,
                       "fontWeight": "700"
@@ -11376,7 +11404,8 @@
                       "fill": "#E0F7FA",
                       "content": "元智大學智慧選課系統",
                       "fontFamily": "Open Sans",
-                      "fontSize": 16
+                      "fontSize": 16,
+                      "fontWeight": "normal"
                     },
                     {
                       "type": "frame",
@@ -11476,7 +11505,8 @@
                           "fill": "$text-muted",
                           "content": "多條件搜尋課程，依課名、教師、系所、時間查找",
                           "fontFamily": "Open Sans",
-                          "fontSize": 12
+                          "fontSize": 12,
+                          "fontWeight": "normal"
                         }
                       ]
                     },
@@ -11533,7 +11563,8 @@
                           "fill": "$text-muted",
                           "content": "視覺化課表檢視，自動偵測衝堂與時間衝突",
                           "fontFamily": "Open Sans",
-                          "fontSize": 12
+                          "fontSize": 12,
+                          "fontWeight": "normal"
                         }
                       ]
                     },
@@ -11590,7 +11621,8 @@
                           "fill": "$text-muted",
                           "content": "AI 驗證碼識別，自動搶課機器人",
                           "fontFamily": "Open Sans",
-                          "fontSize": 12
+                          "fontSize": 12,
+                          "fontWeight": "normal"
                         }
                       ]
                     },
@@ -11647,7 +11679,8 @@
                           "fill": "$text-muted",
                           "content": "帳號密碼加密存放，確保資料安全",
                           "fontFamily": "Open Sans",
-                          "fontSize": 12
+                          "fontSize": 12,
+                          "fontWeight": "normal"
                         }
                       ]
                     }
@@ -12025,7 +12058,8 @@
                       "fill": "$text-muted",
                       "content": "Made with ❤ for YZU Students",
                       "fontFamily": "Open Sans",
-                      "fontSize": 13
+                      "fontSize": 13,
+                      "fontWeight": "normal"
                     }
                   ]
                 }

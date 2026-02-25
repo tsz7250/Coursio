@@ -35,21 +35,11 @@
     }
 
     .hero-logo-icon {
-        width          : 48px;
-        height         : 48px;
-        border-radius  : 12px;
-        background     : rgba(255, 255, 255, 0.2);
-        display        : flex;
-        align-items    : center;
-        justify-content: center;
-        flex-shrink    : 0;
-
-        span {
-            color      : #FFFFFF;
-            font-family: 'Poppins', sans-serif;
-            font-size  : 22px;
-            font-weight: 700;
-        }
+        width        : 48px;
+        height       : 48px;
+        border-radius: 12px;
+        flex-shrink  : 0;
+        object-fit   : contain;
     }
 
     .hero-logo-text {

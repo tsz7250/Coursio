@@ -45,6 +45,7 @@ function createWindow() {
         winHeight: 800,
         transparent: false,
         frame: true,
+        icon: path.join(__dirname, "assets", "icon.png"),
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,
@@ -126,6 +127,7 @@ ipcMain.on("openCourseDetail", (event, data) => {
         parent: MainWindow,
         modal: false,
         autoHideMenuBar: true,
+        icon: path.join(__dirname, "assets", "icon.png"),
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,

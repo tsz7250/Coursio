@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <!-- Main gradient: teal to deep cyan -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0EA5E9"/>
+      <stop offset="100%" stop-color="#0891B2"/>
+    </linearGradient>
+    <!-- Subtle highlight gradient for depth -->
+    <linearGradient id="shineGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="rgba(255,255,255,0.25)"/>
+      <stop offset="50%" stop-color="rgba(255,255,255,0)"/>
+    </linearGradient>
+    <!-- Lightning bolt gradient -->
+    <linearGradient id="boltGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FDE68A"/>
+      <stop offset="100%" stop-color="#F59E0B"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Rounded square background -->
+  <rect x="16" y="16" width="480" height="480" rx="96" ry="96" fill="url(#bgGrad)"/>
+  <!-- Shine overlay for premium feel -->
+  <rect x="16" y="16" width="480" height="480" rx="96" ry="96" fill="url(#shineGrad)"/>
+
+  <g transform="translate(38, 0)">
+    <!-- Stylized "C" letter — represents Coursio & Course -->
+    <path d="M310,148 
+             A128,128 0 1,0 310,364" 
+          fill="none" 
+          stroke="#FFFFFF" 
+          stroke-width="52" 
+          stroke-linecap="round"/>
+
+    <!-- Lightning bolt inside/overlapping the C — represents speed/fast selection -->
+    <polygon points="290,195 248,270 280,270 250,345 320,255 285,255 310,195" 
+             fill="url(#boltGrad)" 
+             stroke="#FFFFFF" 
+             stroke-width="6" 
+             stroke-linejoin="round"/>
+  </g>
+</svg>

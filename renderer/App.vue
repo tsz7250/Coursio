@@ -12,10 +12,8 @@
       <div class="hero-panel">
         <div class="hero-content">
           <div class="hero-logo">
-            <div class="hero-logo-icon">
-              <span>W</span>
-            </div>
-            <span class="hero-logo-text">WannaClass</span>
+            <img class="hero-logo-icon" src="./assets/icon.png" alt="Coursio">
+            <span class="hero-logo-text">Coursio</span>
           </div>
           <div class="hero-headline">
             <h1>半夜依舊在電腦前守著?</h1>
@@ -37,14 +35,8 @@
           </div>
         </div>
         <div class="hero-footer">
-          <a target="_blank" href="https://missterhao.me">
-            <i data-lucide="globe"></i>
-          </a>
-          <a target="_blank" href="https://github.com/MissterHao/WannaClass">
+          <a target="_blank" href="https://github.com/tsz7250/Coursio">
             <i data-lucide="github"></i>
-          </a>
-          <a target="_blank" href="https://www.linkedin.com/in/haowei526/">
-            <i data-lucide="linkedin"></i>
           </a>
         </div>
       </div>
@@ -75,10 +67,8 @@
     <div class="content-panel section">
       <div class="sidebar">
         <div class="sidebar-header header">
-          <div class="sidebar-logo-box">
-            <span class="sidebar-logo-text">W</span>
-          </div>
-          <span class="sidebar-brand">WannaClass</span>
+          <img class="sidebar-logo-img" src="./assets/icon.png" alt="Coursio">
+          <span class="sidebar-brand">Coursio</span>
         </div>
 
         <div class="sidebar-funcitonal-items point-it">

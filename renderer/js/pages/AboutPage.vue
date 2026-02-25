@@ -26,9 +26,9 @@
       <!-- Brand Card -->
       <div class="about-brand-card">
         <div class="about-brand-logo">
-          <span>W</span>
+          <img src="../../assets/icon.png" alt="Coursio" style="width: 48px; height: 48px; border-radius: 12px;">
         </div>
-        <h2 class="about-brand-name">WannaClass</h2>
+        <h2 class="about-brand-name">Coursio</h2>
         <p class="about-brand-subtitle">元智大學智慧選課系統</p>
         <div class="about-version-badge">v{{ version }}</div>
       </div>
@@ -117,14 +117,14 @@
       <!-- Links Row -->
       <div class="about-links-row">
         <a class="about-link-btn"
-           href="https://github.com/MissterHao/WannaClass"
+           href="https://github.com/tsz7250/Coursio"
            target="_blank">
           <i data-lucide="github" style="width:20px;height:20px;color:var(--color-text-primary);"></i>
           <span>GitHub Repository</span>
           <i data-lucide="external-link" style="width:14px;height:14px;color:var(--color-text-muted);"></i>
         </a>
         <a class="about-link-btn"
-           href="https://github.com/MissterHao/WannaClass/issues"
+           href="https://github.com/tsz7250/Coursio/issues"
            target="_blank">
           <i data-lucide="bug" style="width:20px;height:20px;color:var(--color-text-primary);"></i>
           <span>回報問題</span>

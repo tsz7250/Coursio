@@ -29,7 +29,7 @@ window.lucide = {
 };
 
 // CSS（Vite 會合併打包，不再需要 <link> 標籤）
-import './scss/wannaclass.scss';
+import './scss/coursio.scss';
 import './css/tailwind.css';
 
 // UMD / IIFE 副作用模組（設定 window 全域變數）

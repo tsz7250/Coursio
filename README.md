@@ -1,32 +1,23 @@
-<p align="center">
-    <img src="icon-512x512.png" height="130">
-</p>
-<p align="center">
-    
-<a href="https://github.com/MissterHao/WannaClass" alt="WannaClass Total Download count">
-  <img src="https://img.shields.io/github/downloads/MissterHao/WannaClass/total" />
-</a>
-    
-<a href="https://img.shields.io/badge/NodeJs-v14.15.3-green" alt="Node Js Version">
-  <img src="https://img.shields.io/badge/NodeJs-v14.15.3-green" />
-</a>
-<a href="https://img.shields.io/badge/Platform-Win%2010-lightgrey" alt="Supported Platform">
-  <img src="https://img.shields.io/badge/Platform-Win%2010-lightgrey" />
-</a>
-<a href="https://img.shields.io/github/package-json/v/MissterHao/WannaClass" alt="Wanna Class Version">
-  <img src="https://img.shields.io/github/package-json/v/MissterHao/WannaClass" />
-</a>
-</p>
-
-
 ## 專案說明
-本專案是基於原始 Wanna Class 進行 fork 並新增以下功能的版本。主要修改包括：
-- 新增個人時間表
-- 更改課程查詢的請求方法
-- 新增自動選課功能
-- 新增訪客登入功能
+本專案參考 [Wanna Class](https://github.com/MissterHao/WannaClass) 的框架進行重構，並擴充以下功能：
+- 個人時間表
+- 課程查詢
+- 自動選課
+- 訪客登入
 
-# Wanna Class 元智選課系統
+### 架構重構
+原始 Wanna Class 採用 Vanilla JS + jQuery 開發。本專案重構為以下技術棧：
+
+| 層級 | 技術 |
+|------|------|
+| 框架 | Electron |
+| 前端 | Vue 3 |
+| 建置工具 | Vite + SCSS |
+| 主程序 | Node.js（`app.js` / `main_ipc.js`） |
+| 資料庫 | SQLite3 |
+| 爬蟲 | Puppeteer |
+
+# Coursio 元智選課系統
 
 半夜依舊在電腦前守著？
 想修熱門的課卻永遠搶不到？
@@ -42,23 +33,44 @@
   不像其他程式會使用電腦挖礦，本程式使用最基本的方式簡化您電腦需要的資源！
 
 
-## 左方列表功能：
+## 功能展示
 
-<img src="./assets/sidebar.png" height=300>
+### 側邊導航
+<img src="./assets/demo/sidebar.png" height=300>
 
+本系統分為以下多個核心板塊：
 
-+ 課程查詢
-  快速查詢每學期的課表，點擊列表可以顯示該課程資訊(學分數、上課教室、教授名稱等資訊)，列表最右方有「加入選課清單」按鈕可以加入選課任務列表中。
+1. **首頁**
+   <img src="./assets/demo/index.png" alt="index" height=300>
+   快速查看目前的選課狀態、系統公告以及使用統計，讓您一目了然所有資訊。
 
-<img src="./assets/Course%20Selection%20Screen.png" alt="Course Selection Screen" height=300>
-<img src="./assets/Login%20Screen%20Demo.png" alt="Login Screen" height=300>
-<img src="./assets/Loading%20Screen%20Demo.png" alt="Loading Screen" height=300>
-<img src="./assets/timetable.png" alt="Timetable" height=300>
-<img src="./assets/course_bot.png" alt="Course Bot" height=300>
+2. **我的課表**
+   <img src="./assets/demo/timetable.png" alt="Timetable" height=300>
+   以直觀的圖表記錄您已選過的課程，包含上課時間與地點，並支援匯出功能。
 
-## 作者聲明
+3. **課程查詢**
+   <img src="./assets/demo/Course%20Selection%20Screen.png" alt="Course Selection Screen" height=300>
+   快速查詢每學期的全校課表。點擊列表即可詳細顯示課程資訊（學分數、教室、教授名稱等），並可一鍵「加入選課清單」。
 
-本程式只供本人學術上的作品集使用喔！
+4. **自動選課**
+   <img src="./assets/demo/course_bot.png" alt="Course Bot" height=300>
+   設定選課任務後，系統將模擬使用者行為進行全自動化搶課，大幅節省手動點擊的時間與壓力。
+
+5. **系統設定**
+   <img src="./assets/demo/settings.png" alt="settings" height=300>
+   調整重試頻率、登入階段以及其他個性化偏好，讓軟體更符合您的使用習慣。
+
+6. **關於系統**
+   <img src="./assets/demo/about.png" alt="about" height=300>
+   查看版本資訊、開發團隊以及相關授權文件。
+
+---
+
+### 登入與初始化
+<img src="./assets/demo/Login%20Screen%20Demo.png" alt="Login Screen" height=300>
+<img src="./assets/demo/Loading%20Screen%20Demo.png" alt="Loading Screen" height=300>
+系統登入介面簡潔安全，並在載入時提供流暢的視覺體驗。
+
 
 ## License
 

@@ -27,8 +27,21 @@ function getSqlite3() {
 
 function getDb() {
     if (!db) {
+        const dbPath = 'db.sqlite';
+        const dbInitPath = 'db.sqlite.init';
+
+        // 如果 db.sqlite 不存在但 init 範本存在，則進行複製
+        if (!fs.existsSync(dbPath) && fs.existsSync(dbInitPath)) {
+            try {
+                fs.copyFileSync(dbInitPath, dbPath);
+                console.log('✅ 已從範本初始化 db.sqlite');
+            } catch (err) {
+                console.error('❌ 初始化 db.sqlite 失敗:', err.message);
+            }
+        }
+
         const s3 = getSqlite3();
-        db = new s3.Database('db.sqlite', (err) => {
+        db = new s3.Database(dbPath, (err) => {
             if (err) console.error('❌ 資料庫連線失敗:', err.message);
             else console.log('✅ Main Process 資料庫連線已建立');
         });
@@ -308,7 +321,7 @@ const defaultSettings = { interval: 2, stage: '1' };
 // ─── Config INI 工具函式 ───────────────────────────────────────────
 function getDefaultConfigPath() {
     const appdata = process.env.APPDATA || require('os').homedir();
-    return path.join(appdata, 'WannaClass', 'config.ini');
+    return path.join(appdata, 'Coursio', 'config.ini');
 }
 
 function parseSimpleIni(content) {

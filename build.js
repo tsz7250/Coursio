@@ -7,8 +7,8 @@ builder.build({
 
     win: ['nsis', 'portable'],  // nsis . portable
     config: {
-        "appId": "com.missterhao.wannaclass",
-        "productName": "Wanna Class", // 應用程式名稱 ( 顯示在應用程式與功能 )
+        "appId": "com.tsz7250.coursio",
+        "productName": "Coursio", // 應用程式名稱 ( 顯示在應用程式與功能 )
         // "copyright": "Copyright © year ${author} "
         "directories": {
             "output": "build/win"

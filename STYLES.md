@@ -1,131 +1,94 @@
-# WannaClass Styles Architecture
+# Coursio Styles Architecture
 
 ## Overview
-This project uses a unified SCSS architecture to manage all styles in a single, maintainable system. All component styles are compiled into a single CSS file to avoid conflicts and improve performance.
+This project uses a modern frontend architecture powered by **Vite**, **Vue 3**, and a hybrid styling system combining **SCSS** and **Tailwind CSS v4**. 
 
-## File Structure
+- **SCSS**: Used for core component logic, complex animations, and legacy integration.
+- **Tailwind CSS**: Used for rapid UI construction, layout utilities, and consistent spacing/colors via its theme system.
+- **Lucide Icons**: A tree-shakeable icon set integrated into the Vue application.
+
+## File Structure (SCSS)
+
+All primary styles are located in `renderer/scss/` and are bundled by Vite.
 
 ```
 renderer/scss/
-├── wannaclass.scss          # Main SCSS file that imports all others
-├── _variables.scss          # Global variables and settings
+├── coursio.scss             # Main entry (imports all modules)
+├── _variables.scss          # Global SCSS variables
 ├── _color-variables.scss    # Color system and theme variables
+├── _ds-components.scss      # Core Design System components (Buttons, Inputs, etc.)
 ├── _normalize.scss          # CSS reset and normalization
 ├── _typography.scss         # Font styles and text formatting
 ├── _global.scss            # Global base styles
 ├── _login-page.scss        # Login page specific styles
 ├── _content-page.scss      # Content page specific styles
 ├── _sidebar.scss           # Sidebar navigation styles
+├── _schedule.scss          # Schedule table and time-table styles
+├── _tabs.scss              # Tab component styles
+├── _modal.scss             # Modal component styles
+├── _about-modal.scss       # About dialog specific styles
+├── _components.scss        # General UI components
 ├── _hover.scss             # Interactive hover effects
-├── _tabs.scss              # Tab component styles (formerly tabs.css)
-├── _simple-scrollbar.scss  # Custom scrollbar styles (formerly simple-scrollbar.css)
-├── _modal.scss             # Modal component styles (formerly MHModal.css)
-└── materializecss/         # Third-party Materialize components
+├── _simple-scrollbar.scss  # Custom scrollbar styles
+└── materializecss/         # Materialize component overrides
     ├── _modal.scss
     └── _tapTarget.scss
 ```
 
+## Styling Technologies
+
+### 1. Tailwind CSS v4
+The project uses Tailwind CSS for utility-first styling. The configuration and theme are defined in `renderer/css/tailwind.css`.
+- **Theme Variables**: Custom colors like `primary`, `success`, `danger`, and `warning` are available as Tailwind classes (e.g., `text-primary`, `bg-success`).
+- **Integration**: Imported in `renderer/main.js`.
+
+### 2. SCSS Design System
+The `_ds-components.scss` file contains high-level, reusable component styles that follow a consistent design language. This is where most complex UI elements are defined.
+
+### 3. Lucide Icons
+Icons are imported selectively to minimize bundle size. Usage can be found in `renderer/main.js`.
+
 ## Build Process
+
+The styling build process is fully integrated into Vite. You no longer need separate watch scripts for CSS.
 
 ### Development
 ```bash
-npm run watch:css    # Watch for changes and auto-compile
+npm run dev         # Starts development environment with HMR
 ```
 
-### Production
+### Production Build
 ```bash
-npm run build:css    # Compile SCSS to compressed CSS
+npm run build:renderer   # Compiles and minifies all assets via Vite
 ```
 
-## Key Improvements
+## Development Guidelines
 
-### 1. Unified Architecture
-- All styles now managed in one place
-- Clear separation of concerns with modular SCSS files
-- Consistent variable system across all components
+### Adding New Styles
+1. **Utility-first**: Prefer Tailwind CSS classes for layout, spacing, and simple styling.
+2. **Components**: For complex, reusable components, create a new SCSS file (e.g., `_my-component.scss`).
+3. **Registration**: Import new SCSS files in `renderer/scss/coursio.scss`.
+4. **Icons**: Add new Lucide icons to the import list in `renderer/main.js` if they are not already available.
 
-### 2. Better Maintainability
-- Component-based organization
-- Shared variables prevent inconsistencies
-- Easy to find and modify specific styles
+### BEM & Naming
+When writing SCSS, follow the BEM (Block Element Modifier) methodology for clarity and to prevent nesting issues.
 
-### 3. Performance Optimization
-- Single CSS file reduces HTTP requests
-- Compressed output for production
-- Source maps for debugging
-
-### 4. Conflict Prevention
-- Namespaced components prevent style conflicts
-- Proper cascade hierarchy
-- Clear dependency management
-
-## Component Guidelines
-
-### Adding New Components
-1. Create a new SCSS file with underscore prefix (e.g., `_new-component.scss`)
-2. Add variables at the top of the file
-3. Use BEM methodology for CSS classes
-4. Import the file in `wannaclass.scss`
-5. Run build process to compile
-
-### Variable Usage
-- Use existing color variables from `_color-variables.scss`
-- Add component-specific variables at the top of component files
-- Follow naming convention: `$component-property-modifier`
-
-### Example Component Structure
 ```scss
-// Component Variables
-$component-primary: $primary-color;
-$component-spacing: 1rem;
-$component-transition: 0.3s ease;
-
-// Component Styles
-.component-name {
-  color: $component-primary;
-  margin: $component-spacing;
-  transition: all $component-transition;
+.wc-card {
+  @apply shadow-sm rounded-lg; // Mix with Tailwind utilities
   
-  &__element {
-    // Element styles
+  &__header {
+    margin-bottom: $spacing-md;
   }
   
-  &--modifier {
-    // Modifier styles
-  }
-  
-  &:hover {
-    // Interactive states
+  &--featured {
+    border-color: var(--color-primary);
   }
 }
 ```
 
 ## Migration Notes
-
-The following files have been integrated into the SCSS architecture:
-- `tabs.css` → `_tabs.scss`
-- `simple-scrollbar.css` → `_simple-scrollbar.scss` 
-- `MHModal.css` → `_modal.scss`
-
-The HTML now loads only one compiled CSS file instead of multiple separate files, improving performance and reducing potential conflicts.
-
-## Development Workflow
-
-1. Make changes to SCSS files
-2. Run `npm run watch:css` for development
-3. Test changes in the application
-4. Run `npm run build:css` for production build
-5. Commit both SCSS source and compiled CSS
-
-## Troubleshooting
-
-### Common Issues
-- **Compilation errors**: Check SCSS syntax and import paths
-- **Missing styles**: Ensure component is imported in `wannaclass.scss`
-- **Variable conflicts**: Check variable scope and naming
-
-### Development Tips
-- Use browser dev tools with source maps to debug
-- Keep component files focused and small
-- Test across different screen sizes
-- Validate compiled CSS output
+The project has moved from a legacy standalone SCSS build to a unified Vite pipeline. Key changes:
+- `tabs.css`, `simple-scrollbar.css`, and `MHModal.css` are now integrated as SCSS modules.
+- Tailwind CSS is now the primary tool for layout and rapid prototyping.
+- Vue components (`.vue` files) can use `<style scoped lang="scss">` for component-specific isolation.
