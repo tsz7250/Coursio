@@ -1,0 +1,155 @@
+/* 顯著的登入提示 Toast 樣式 */
+.auth-toast {
+  background: #e74c3c !important;
+  color: #fff !important;
+  font-weight: 600;
+  text-align: center;
+  box-shadow: 0 6px 18px rgba(231, 76, 60, 0.45);
+}
+
+/* 將 Materialize Toast 置於上方置中，並移除左下進場延遲 */
+#toast-container {
+  position: fixed !important;
+  top: 16px !important;
+  bottom: auto !important;
+  left: 50% !important;
+  right: auto !important;
+  transform: translateX(-50%) !important;
+  margin: 0 auto !important;
+  z-index: 9999 !important;
+  pointer-events: none;
+}
+#toast-container .toast {
+  pointer-events: all;
+}
+
+/* 訪客模式下的側邊欄弱化樣式 */
+.guest-disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: grayscale(20%);
+}
+.guest-disabled:hover {
+  opacity: 0.55;
+}
+/* 組件樣式 - 從 index.html 提取的內嵌樣式 */
+
+/* .sr-only 樣式已移至 _global.scss，避免重複定義 */
+
+/* 課程列表樣式調整 */
+#courses-list-data-table th { white-space: nowrap; }
+#courses-list-data-table td { vertical-align: middle; }
+
+/* 系所下拉選單樣式調整 */
+#querySelectQueryDept option { white-space: pre; }
+
+/* 保持 inline-flex 以確保 icon + text 同行對齊 */
+.wc-container .btn,
+.content-panel .btn,
+.btabs .btn {
+    display: inline-flex;
+    align-items: center;
+}
+
+#courses-list-data-table td.name-cell {
+    white-space: pre-line; 
+    word-break: keep-all; 
+    line-height: 1.3;
+}
+
+#courses-list-data-table td.code-cell,
+#courses-list-data-table td.dept-cell,
+#courses-list-data-table td.type-cell,
+#courses-list-data-table td.teacher-cell {
+    white-space: nowrap; 
+    overflow: hidden; 
+    text-overflow: ellipsis;
+}
+
+/* 課程列表欄位寬度 */
+#courses-list-data-table colgroup col:nth-child(1) { width: 110px; } /* 課號班別 */
+#courses-list-data-table colgroup col:nth-child(2) { width: 180px; } /* 開課系級 */
+#courses-list-data-table colgroup col:nth-child(3) { width: auto; }   /* 課程名稱 */
+#courses-list-data-table colgroup col:nth-child(4) { width: 80px; }   /* 選別 */
+#courses-list-data-table colgroup col:nth-child(5) { width: 200px; }  /* 時間,教室 */
+#courses-list-data-table colgroup col:nth-child(6) { width: 90px; }   /* 授課教師 */
+#courses-list-data-table colgroup col:nth-child(7) { width: 80px; }   /* 學分數 */
+#courses-list-data-table colgroup col:nth-child(8) { width: 140px; }  /* 加入選課名單 */
+
+/* 教師欄：若含括號允許在括號前換行，並縮小欄寬 */
+#courses-list-data-table td.teacher-cell {
+    white-space: normal;
+    word-break: keep-all;
+}
+
+#courses-list-data-table td.teacher-cell .name,
+#courses-list-data-table td.teacher-cell .meta {
+    display: inline;
+}
+
+#courses-list-data-table td.teacher-cell .meta::before {
+    content: "\A";
+    white-space: pre; /* 在 meta 前插入換行 */
+}
+
+#courses-list-data-table td.time-room-cell { 
+    white-space: pre-line; 
+    word-break: keep-all; 
+    line-height: 1.3; 
+}
+
+#courses-list-data-table td.time-room-cell .time { white-space: pre-line; }
+#courses-list-data-table td.time-room-cell .room { white-space: pre-line; color: #555; }
+
+/* 學分數欄位樣式 */
+#courses-list-data-table td.credit-cell {
+    text-align: center;
+    white-space: nowrap;
+}
+
+/* 查詢區塊樣式強化 */
+.query-actions { text-align: right; }
+.query-actions .btn { min-width: 120px; }
+
+/* 適度收窄欄位寬度 */
+.form-group.narrow { max-width: 320px; }
+.form-group.medium { max-width: 480px; }
+.query-actions { max-width: 320px; } /* 讓按鈕容器與其他欄位寬度一致 */
+
+@media (max-width: 576px) {
+    .query-actions { text-align: center; }
+    .query-actions .btn { width: 100%; }
+    .form-group.narrow, .form-group.medium { max-width: 100%; }
+}
+
+/* 防止查詢區與課程列表在小視窗重疊 */
+#section-School-timetable-Query .btabs { margin-bottom: 0; }
+#section-School-timetable-Query .btabs .content { position: relative; z-index: 2;}
+#section-School-timetable-Query .courses-list { position: relative; z-index: 1; margin-top: 0; clear: both; }
+
+/* SimpleScrollbar 內容容器確保正常文流排列 */
+/* 使用更具體的選擇器替代 !important */
+#section-School-timetable-Query .ss-wrapper, 
+#section-School-timetable-Query .ss-content { 
+    position: static; 
+}
+
+/* 移除內嵌樣式改用CSS類別 */
+.loading-panel-hidden { display: none; }
+.login-icon { height: 100px; }
+.guest-btn { background: #6c757d; }
+.login-disabled-btn { background: #ccc; cursor: not-allowed; }
+.schedule-controls { margin: 20px 0; }
+.schedule-loading { text-align: center; padding: 40px; display: none; }
+.schedule-error { display: none; text-align: center; padding: 40px; }
+.schedule-error-text { color: #e74c3c; }
+.schedule-info { margin-top: 30px; padding: 20px; background: #f8f9fa; border-radius: 8px; }
+.courses-table { border-collapse: collapse; }
+.content-padding { padding: 2rem; }
+
+@media (max-width: 992px) {
+    #section-School-timetable-Query .btabs .content { margin-bottom: 0; }
+    #section-School-timetable-Query .courses-list { margin-top: 0; }
+}
+
+/* About Modal 樣式已移至 SCSS: _about-modal.scss */

@@ -1,0 +1,123 @@
+// ==========================================================================
+// Materialize variables
+// ==========================================================================
+//
+// Table of Contents:
+//
+//  1. Colors
+//  11. Global
+//  20. Typography
+
+
+
+// 1. Colors — UI.pen Design System (Cyan)
+// ==========================================================================
+$background-color: #F8FFFE;
+$primary-color: #0891B2;
+$primary-color-light: #22D3EE;
+$primary-color-dark: #0E7490;
+$primary-color-bg: #ECFEFF;
+$primary-color-subtle: #CFFAFE;
+$primary-color-muted: #F0FDFA;
+
+$bg-card: #FFFFFF;
+$bg-hover: #F0FDFA;
+$bg-sidebar: #FFFFFF;
+$border-light: #F1F5F9;
+$border-default: #E2E8F0;
+
+$primary-text-color: #FFFFFF;
+$secondary-text-color: #164E63;
+
+// 統一的主題色彩系統
+$theme-colors: (
+  "primary": $primary-color,
+  "primary-light": $primary-color-light,
+  "primary-dark": $primary-color-dark,
+  "primary-bg": $primary-color-bg,
+  "primary-muted": $primary-color-muted,
+  "success": #22C55E,
+  "success-dark": #16A34A,
+  "danger": #EF4444,
+  "warning": #F59E0B,
+  "info": $primary-color,
+  "light": #f8f9fa,
+  "dark": #343a40
+) !default;
+
+// 文字顏色系統
+$text-colors: (
+  "primary": #164E63,
+  "secondary": #475569,
+  "muted": #94A3B8,
+  "white": #FFFFFF,
+  "black": #000000
+) !default;
+
+
+// $primary-color: color("materialize-red", "lighten-2") !default;
+// $primary-color-light: lighten($primary-color, 15%) !default;
+// $primary-color-dark: darken($primary-color, 15%) !default;
+
+// $secondary-color: color("teal", "lighten-1") !default;
+// $success-color: color("green", "base") !default;
+// $error-color: color("red", "base") !default;
+// $link-color: color("light-blue", "darken-1") !default;
+
+
+
+// 11. Global
+// ==========================================================================
+
+// Media Query Ranges
+$small-screen-up: 601px !default;
+$medium-screen-up: 993px !default;
+$large-screen-up: 1201px !default;
+$small-screen: 600px !default;
+$medium-screen: 992px !default;
+$large-screen: 1200px !default;
+
+$medium-and-up: "only screen and (min-width : #{$small-screen-up})" !default;
+$large-and-up: "only screen and (min-width : #{$medium-screen-up})" !default;
+$extra-large-and-up: "only screen and (min-width : #{$large-screen-up})" !default;
+$small-and-down: "only screen and (max-width : #{$small-screen})" !default;
+$medium-and-down: "only screen and (max-width : #{$medium-screen})" !default;
+$medium-only: "only screen and (min-width : #{$small-screen-up}) and (max-width : #{$medium-screen})" !default;
+
+
+// 20. Typography
+// ==========================================================================
+
+$font-stack: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif !default;
+$off-black: rgba(0, 0, 0, 0.87) !default;
+// Header Styles
+$h1-fontsize: 4.2rem !default;
+$h2-fontsize: 3.56rem !default;
+$h3-fontsize: 2.92rem !default;
+$h4-fontsize: 2.28rem !default;
+$h5-fontsize: 1.64rem !default;
+$h6-fontsize: 1.15rem !default;
+
+// 21. Z-Index System
+// ==========================================================================
+// 統一的 z-index 層級系統，避免模態框和組件衝突
+
+$z-index-dropdown: 1000 !default;
+$z-index-sticky: 1020 !default;
+$z-index-fixed: 1030 !default;
+$z-index-modal-backdrop: 1040 !default;
+$z-index-modal: 1050 !default;
+$z-index-popover: 1060 !default;
+$z-index-tooltip: 1070 !default;
+
+// 22. Helper Functions
+// ==========================================================================
+// 輔助函數來使用統一的變數系統
+
+@function theme-color($key: "primary") {
+  @return map-get($theme-colors, $key);
+}
+
+@function text-color($key: "primary") {
+  @return map-get($text-colors, $key);
+}

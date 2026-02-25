@@ -1,0 +1,202 @@
+// MH Modal Component Styles
+// Converted from MHModal.css to SCSS
+
+// Variables
+$modal-primary: #2c3e50;
+$modal-secondary: #3498db;
+$modal-success: #2ecc71;
+$modal-danger: #e74c3c;
+$modal-transition: 250ms ease;
+$modal-bg-opacity: 0.7;
+$modal-bg-z-index: $z-index-modal-backdrop;
+$modal-content-z-index: $z-index-modal;
+
+.MHmodal-btn {
+  position: relative;
+  display: table-cell;
+  width: 100px;
+  height: 100px;
+  background-color: $modal-primary;
+  box-shadow: 0 0 40px rgba(0, 0, 0, 0.3);
+  border-radius: 50%;
+  font-size: 36px;
+  color: black;
+  text-align: center;
+  line-height: 2.75;
+  transition: box-shadow $modal-transition;
+
+  &:hover {
+    box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
+  }
+}
+
+.MHmodal-bg {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  z-index: $modal-bg-z-index;
+  visibility: hidden;
+  transition: background-color 250ms linear;
+}
+
+.MHmodal-content {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  width: 50%;
+  height: auto;
+  margin-top: -18%;
+  margin-left: -25%;
+  padding: 30px;
+  background-color: white;
+  border-radius: 4px;
+  box-shadow: 0 0 50px rgba(0, 0, 0, 0.5);
+  transform: scale(0);
+  transition: transform $modal-transition;
+  visibility: hidden;
+  z-index: $modal-content-z-index;
+  color: black;
+
+  .close {
+    position: relative;
+    float: right;
+    font-size: 18px;
+    transition: transform 500ms ease;
+    z-index: 11;
+
+    &:hover {
+      color: $modal-secondary;
+      transform: rotate(540deg);
+    }
+  }
+
+  header {
+    position: relative;
+    display: block;
+    border-bottom: 1px solid #eee;
+
+    h2 {
+      margin: 0 0 10px;
+      padding: 0;
+      font-size: 28px;
+    }
+  }
+
+  article {
+    position: relative;
+    display: block;
+    margin: 0;
+    padding: 0;
+    font-size: 16px;
+    line-height: 1.75;
+  }
+
+  footer {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    width: 100%;
+    margin: 0;
+    padding: 10px 0 0;
+
+    .button {
+      position: relative;
+      padding: 10px 30px;
+      border-radius: 3px;
+      font-size: 14px;
+      font-weight: 400;
+      color: black;
+      text-transform: uppercase;
+      overflow: hidden;
+
+      &:before {
+        position: absolute;
+        content: '';
+        top: 0;
+        left: 0;
+        width: 0;
+        height: 100%;
+        background-color: rgba(255, 255, 255, 0.2);
+        transition: width $modal-transition;
+        z-index: 0;
+      }
+
+      &:hover:before {
+        width: 100%;
+      }
+
+      &.success {
+        margin-right: 5px;
+        background-color: $modal-success;
+      }
+
+      &.danger {
+        background-color: $modal-danger;
+        margin-bottom: 0;
+      }
+    }
+  }
+}
+
+#MHmodal {
+  display: none;
+
+  &:checked {
+    ~ .MHmodal-bg {
+      visibility: visible;
+      background-color: black;
+      opacity: $modal-bg-opacity;
+      transition: background-color 250ms linear;
+    }
+
+    ~ .MHmodal-content {
+      visibility: visible;
+      transform: scale(1);
+      transition: transform $modal-transition;
+      z-index: $modal-content-z-index;
+    }
+  }
+}
+
+// Toast 錯誤樣式
+.login-error-toast {
+  background-color: #c62828 !important; // red darken-3
+  color: #fff !important;
+  border-radius: 8px !important;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25) !important;
+
+  i, strong, span {
+    color: #fff !important;
+  }
+}
+
+// Toast 內容樣式
+.toast-error-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.toast-error-icon {
+  color: #fff;
+  font-size: 18px;
+}
+
+.toast-error-title {
+  color: #fff;
+}
+
+.toast-error-message {
+  color: #ffe;
+  opacity: 0.95;
+}
+
+// 認證提示樣式
+.auth-toast {
+  background-color: #ff9800 !important;
+  color: #fff !important;
+}

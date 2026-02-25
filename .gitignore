@@ -1,0 +1,85 @@
+note.md
+dev.js
+# 注意: test_schedule.js 包含認證信息，提交前請確保移除真實的 Token 和 Authorization
+build/*
+*.sqlite
+config/settings.json
+settings.json
+
+# Python yzuCourseBot 相關檔案 (包含個人資訊)
+py/accounts.ini
+renderer/py/accounts.ini
+py/captcha.png
+py/__pycache__/
+py/*.pyc
+py/*.log
+
+.DS_Store
+.env
+.gclient_done
+**/.npmrc
+.tags*
+.vs/
+.vscode/
+*.log
+*.pyc
+*.sln
+*.swp
+*.VC.db
+*.VC.VC.opendb
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.xcodeproj
+/.idea/
+/dist/
+node_modules/
+SHASUMS256.txt
+**/package-lock.json
+compile_commands.json
+.envrc
+
+# npm package
+/npm/dist
+/npm/path.txt
+
+.npmrc
+
+# Generated API definitions
+electron-api.json
+electron.d.ts
+
+# Spec hash calculation
+spec/.hash
+
+# Eslint Cache
+.eslintcache*
+
+# Generated native addon files
+/spec-main/fixtures/native-addon/echo/build/
+
+# If someone runs tsc this is where stuff will end up
+ts-gen
+
+# Used to accelerate CI builds
+.depshash
+.depshash-target
+
+# Used to accelerate builds after sync
+patches/mtime-cache.json
+
+spec/fixtures/logo.png
+renderer/py/captcha.png
+
+# Query_Request 測試腳本產生的 HTML 檔案（開發/測試用）
+Query_Request_test/*.html
+
+.github/
+.cursor/
+
+# Vite 建置輸出
+renderer/dist/
+
+# SCSS 編譯產物
+renderer/css/wannaclass.css
+renderer/css/wannaclass.css.map

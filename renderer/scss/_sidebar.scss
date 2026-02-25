@@ -1,0 +1,157 @@
+﻿// ==========================================================================
+// Sidebar — UI.pen Design (240px fixed, Cyan active state)
+// ==========================================================================
+
+.sidebar {
+    width           : 240px;
+    flex            : 0 0 240px;
+    height          : 100vh;
+    overflow        : hidden;
+    display         : flex;
+    flex-direction  : column;
+    align-items     : flex-start;
+    justify-content : flex-start;
+    padding         : 24px 12px;
+    padding-bottom  : 2rem;
+    background-color: #FFFFFF;
+    border-right    : 1px solid #F1F5F9;
+    box-sizing      : border-box;
+
+    .sidebar-header {
+        width         : 100%;
+        display       : flex;
+        align-items   : center;
+        gap           : 10px;
+        padding       : 4px 8px 16px;
+        margin-bottom : 8px;
+
+        img {
+            width        : 36px;
+            height       : 36px;
+            border-radius: 8px;
+            object-fit   : contain;
+        }
+
+        span {
+            font-family: 'Poppins', sans-serif;
+            font-size  : 15px;
+            font-weight: 600;
+            color      : #164E63;
+        }
+    }
+
+    // 新 Logo 色塊
+    .sidebar-logo-box {
+        width          : 36px;
+        height         : 36px;
+        border-radius  : 8px;
+        background     : linear-gradient(135deg, #0891B2 0%, #22D3EE 100%);
+        display        : flex;
+        align-items    : center;
+        justify-content: center;
+        flex-shrink    : 0;
+
+        .sidebar-logo-text {
+            color      : #FFFFFF;
+            font-family: 'Poppins', sans-serif;
+            font-size  : 16px;
+            font-weight: 700;
+        }
+    }
+
+    .sidebar-brand {
+        font-family: 'Poppins', sans-serif;
+        font-size  : 15px;
+        font-weight: 600;
+        color      : #164E63;
+    }
+
+    .sidebar-funcitonal-items {
+        width: 100%;
+        flex : 1;
+    }
+
+    &-item {
+        width        : 100%;
+        height       : 44px;
+        padding      : 0 16px;
+        margin       : 2px 0;
+        border-radius: 8px;
+        display      : flex;
+        align-items  : center;
+        gap          : 12px;
+        color        : #475569;
+        cursor       : pointer;
+        transition   : all 0.2s ease;
+        font-family  : 'Open Sans', sans-serif;
+        font-size    : 14px;
+        font-weight  : 500;
+        box-sizing   : border-box;
+
+        // Lucide SVG icons
+        svg, i[data-lucide] {
+            width      : 18px;
+            height     : 18px;
+            flex-shrink: 0;
+        }
+
+        // FontAwesome fallback
+        i.fas, i.fab, i.fa {
+            width     : 18px;
+            text-align: center;
+            font-size : 0.9rem;
+        }
+
+        span {
+            font-weight: 500;
+        }
+
+        &:hover {
+            background-color: #F0FDFA;
+            color           : #0891B2;
+        }
+
+        &.active {
+            background-color: #ECFEFF;
+            color           : #0891B2;
+            font-weight     : 600;
+            position        : relative;
+
+            &::before {
+                content      : '';
+                position     : absolute;
+                left         : 0;
+                top          : 50%;
+                transform    : translateY(-50%);
+                width        : 4px;
+                height       : 28px;
+                border-radius: 2px;
+                background   : #0891B2;
+            }
+        }
+
+        &.guest-disabled {
+            opacity       : 0.45;
+            cursor        : not-allowed;
+            pointer-events: none;
+        }
+
+        img {
+            width     : 18px;
+            object-fit: contain;
+        }
+    }
+
+    #About-sidebar-item {
+        margin-top: auto;
+    }
+}
+
+.header {
+    flex   : 0 0 auto;
+    padding: 10px 0px;
+    width  : 100%;
+    display: flex;
+    justify-content: center;
+    align-items    : center;
+}

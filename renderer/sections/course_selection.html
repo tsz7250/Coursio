@@ -1,0 +1,168 @@
+﻿<!-- Python yzuCourseBot 自動選課介面 -->
+<div class="course-selection-section">
+    <div class="section-header">
+        <h3><i data-lucide="bot" style="width:20px;height:20px;flex-shrink:0;"></i> 自動選課機器人 (Python yzuCourseBot)</h3>
+        <p class="section-description">
+            使用 AI 驗證碼識別技術的專業選課機器人，支援自動登入和智能選課
+        </p>
+    </div>
+
+    <!-- 環境狀態 Pills -->
+    <div class="bot-card" id="environmentStatus">
+        <div class="bot-card-header">
+            <i data-lucide="activity" style="width:16px;height:16px;color:var(--color-primary);flex-shrink:0;"></i>
+            <span class="bot-card-title">環境狀態</span>
+            <button id="checkEnvironmentBtn" class="btn btn-outline btn-sm" style="margin-left:auto;">
+                <i data-lucide="refresh-cw" style="width:14px;height:14px;"></i> 重新檢查
+            </button>
+        </div>
+        <div class="env-pill-row">
+            <div class="env-pill" id="pythonStatus">
+                <span class="env-pill-dot env-pill-dot-pending"></span>
+                <span class="env-pill-label">Python</span>
+                <span class="env-pill-status">檢查中...</span>
+            </div>
+            <div class="env-pill" id="packagesStatus">
+                <span class="env-pill-dot env-pill-dot-pending"></span>
+                <span class="env-pill-label">套件</span>
+                <span class="env-pill-status">檢查中...</span>
+            </div>
+            <div class="env-pill" id="modelStatus">
+                <span class="env-pill-dot env-pill-dot-pending"></span>
+                <span class="env-pill-label">AI 模型</span>
+                <span class="env-pill-status">檢查中...</span>
+            </div>
+            <div class="env-pill" id="accountStatus">
+                <span class="env-pill-dot env-pill-dot-pending"></span>
+                <span class="env-pill-label">帳號</span>
+                <span class="env-pill-status">檢查中...</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Portal 帳號設定 -->
+    <div class="bot-card" id="portalAccountCard">
+        <div class="bot-card-header">
+            <i data-lucide="key" style="width:16px;height:16px;color:var(--color-primary);flex-shrink:0;"></i>
+            <span class="bot-card-title">Portal 帳號設定</span>
+            <span id="accountSetHint" class="bot-task-count" style="margin-left:auto;"></span>
+        </div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
+            <div class="form-group" style="flex:1;min-width:140px;margin-bottom:0;">
+                <label class="form-label" for="portalAccount">學號</label>
+                <input type="text" id="portalAccount" class="form-control" placeholder="e.g. s1234567" autocomplete="username">
+            </div>
+            <div class="form-group" style="flex:1;min-width:140px;margin-bottom:0;">
+                <label class="form-label" for="portalPassword">密碼</label>
+                <input type="password" id="portalPassword" class="form-control" placeholder="Portal 密碼" autocomplete="current-password">
+            </div>
+            <button id="saveAccountBtn" class="btn btn-primary btn-sm" style="height:38px;">
+                <i data-lucide="save" style="width:14px;height:14px;"></i> 儲存帳號
+            </button>
+        </div>
+    </div>
+
+    <!-- 選課任務列表 -->
+    <div class="bot-card" id="courseListDisplay">
+        <div class="bot-card-header">
+            <i data-lucide="list-checks" style="width:16px;height:16px;color:var(--color-primary);flex-shrink:0;"></i>
+            <span class="bot-card-title">選課任務列表</span>
+            <span class="bot-task-count" id="taskCount">0 門待選</span>
+            <button id="refreshTaskListBtn" class="btn btn-outline btn-sm">
+                <i data-lucide="refresh-cw" style="width:14px;height:14px;"></i>
+            </button>
+            <button id="clearCompletedBtn" class="btn btn-outline btn-sm">清除已完成</button>
+        </div>
+        <div class="bot-task-table-wrap">
+            <table class="bot-task-table">
+                <thead>
+                    <tr>
+                        <th class="btc-id">課程代號</th>
+                        <th class="btc-name">課程名稱</th>
+                        <th class="btc-teacher">教師</th>
+                        <th class="btc-credit">學分</th>
+                        <th class="btc-status">狀態</th>
+                        <th class="btc-action">操作</th>
+                    </tr>
+                </thead>
+                <tbody id="taskListBody">
+                    <tr class="bot-task-empty-row">
+                        <td colspan="6">
+                            <div class="bot-task-empty">
+                                <i data-lucide="list-checks" style="width:32px;height:32px;color:var(--color-text-muted);"></i>
+                                <p>尚無待選課程</p>
+                                <small>請前往「課程查詢」頁面加入課程</small>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- 設定 + 控制 (2-col) -->
+    <div class="bot-2col-row">
+        <!-- 機器人設定 -->
+        <div class="bot-card" id="botSettings">
+            <div class="bot-card-header">
+                <i data-lucide="sliders-horizontal" style="width:16px;height:16px;color:var(--color-primary);flex-shrink:0;"></i>
+                <span class="bot-card-title">機器人設定</span>
+            </div>
+            <div class="form-group" style="margin-bottom:14px;">
+                <label class="form-label" for="selectionDelay">選課間隔（秒）</label>
+                <input type="number" id="selectionDelay" min="0.5" max="10" step="0.1" value="2.5" class="form-control">
+                <small class="help-text">建議 2.5 秒以避免被系統封鎖</small>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="maxAttempts">最大嘗試次數</label>
+                <input type="number" id="maxAttempts" min="0" max="1000" value="0" class="form-control">
+                <small class="help-text">0 = 無上限</small>
+            </div>
+        </div>
+
+        <!-- 機器人控制 -->
+        <div class="bot-card" id="botControl">
+            <div class="bot-card-header">
+                <i data-lucide="play-circle" style="width:16px;height:16px;color:var(--color-primary);flex-shrink:0;"></i>
+                <span class="bot-card-title">機器人控制</span>
+            </div>
+            <div class="bot-status-area" id="botStatus">
+                <div class="bot-status-dot-row" id="statusIndicator">
+                    <span class="status-dot"></span>
+                    <div>
+                        <span class="status-label">待機中</span>
+                        <span class="status-sub">等待啟動指令</span>
+                    </div>
+                </div>
+            </div>
+            <div class="bot-ctrl-btns">
+                <button id="startBotBtn" class="btn btn-success">
+                    <i data-lucide="play-circle" style="width:16px;height:16px;"></i> 啟動
+                </button>
+                <button id="stopBotBtn" class="btn btn-danger" disabled>
+                    <i data-lucide="x" style="width:16px;height:16px;"></i> 停止
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 即時輸出 -->
+    <div class="bot-card bot-card-output" id="botOutput">
+        <div class="bot-output-header">
+            <i data-lucide="terminal" style="width:16px;height:16px;color:#94A3B8;flex-shrink:0;"></i>
+            <span class="bot-output-title">即時輸出</span>
+            <button id="clearOutputBtn" class="btn btn-ghost btn-sm" style="margin-left:auto;">清空</button>
+            <label class="auto-scroll-label">
+                <input type="checkbox" id="autoScrollOutput" checked> 自動捲動
+            </label>
+        </div>
+        <div class="output-container" id="outputContainer">
+            <div class="output-content" id="outputContent">
+                <div class="output-item system">
+                    <span class="timestamp">[系統]</span>
+                    <span class="message">Python yzuCourseBot 自動選課機器人準備就緒</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

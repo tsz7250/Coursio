@@ -1,0 +1,211 @@
+// Tabs Component Styles
+// Converted from tabs.css to SCSS
+
+@import url("https://fonts.googleapis.com/css?family=Montserrat:400,700|Raleway:300,400");
+
+// Variables - 使用不同的變數名稱避免與全域變數衝突
+$tab-primary-color: black;
+$tab-text-color: #efefef;
+$tab-hover-color: rgba(0, 0, 0, 0.08);
+$tab-slider-bg: $tab-primary-color;
+$tab-transition-duration: 0.3s;
+$tab-transition-easing: ease-in-out;
+
+// Tab container
+.btabs {
+  left: 50%;
+  transform: translateX(-50%);
+  position: relative;
+  color: $tab-text-color;
+  padding: 2rem 2rem 0rem 2rem;
+  width: 100%;
+  height: 250px;
+  border-radius: 5px;
+  min-width: 240px;
+
+  input[name="query-tab-control"] {
+    display: none;
+  }
+
+  .content section h2,
+  ul li label {
+    font-family: "Montserrat";
+    font-weight: bold;
+    font-size: 18px;
+    color: $tab-primary-color;
+  }
+
+  ul {
+    list-style-type: none;
+    padding-left: 0;
+    display: flex;
+    flex-direction: row;
+    margin-bottom: 10px;
+    justify-content: space-between;
+    align-items: flex-end;
+    flex-wrap: wrap;
+
+    li {
+      box-sizing: border-box;
+      flex: 1;
+      width: 25%;
+      padding: 0 10px;
+      text-align: center;
+
+      label {
+        transition: all $tab-transition-duration $tab-transition-easing;
+        color: $tab-primary-color;
+        padding: 5px auto;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        display: block;
+        cursor: pointer;
+        white-space: nowrap;
+        user-select: none;
+
+        br {
+          display: none;
+        }
+
+        svg {
+          fill: #929daf;
+          height: 1.2em;
+          vertical-align: bottom;
+          margin-right: 0.2em;
+          transition: all 0.2s $tab-transition-easing;
+        }
+
+        &:hover,
+        &:focus,
+        &:active {
+          outline: 0;
+          color: $tab-primary-color;
+
+          svg {
+            fill: $tab-primary-color;
+          }
+        }
+      }
+    }
+  }
+
+  .slider {
+    position: relative;
+    width: 25%;
+    transition: all 0.33s cubic-bezier(0.38, 0.8, 0.32, 1.07);
+
+    .indicator {
+      position: relative;
+      width: 50px;
+      max-width: 100%;
+      margin: 0 auto;
+      height: 4px;
+      background: $tab-slider-bg;
+      border-radius: 1px;
+    }
+  }
+
+  .content {
+    margin-top: 30px;
+
+    section {
+      display: none;
+      animation: content 0.3s ease-in-out 1 normal;
+      line-height: 1.4;
+
+      h2 {
+        color: $tab-primary-color;
+        display: none;
+
+        &::after {
+          content: "";
+          position: relative;
+          display: block;
+          width: 30px;
+          height: 3px;
+          background: $tab-primary-color;
+          margin-top: 5px;
+          left: 1px;
+        }
+      }
+    }
+  }
+
+  // Tab controls (generated for 4 tabs)
+  @for $i from 1 through 4 {
+    input[name="query-tab-control"]:nth-of-type(#{$i}):checked {
+      ~ ul > li:nth-child(#{$i}) > label {
+        cursor: default;
+        color: $tab-primary-color;
+
+        svg {
+          fill: $tab-primary-color;
+        }
+
+        @media (max-width: 600px) {
+          background: $tab-hover-color;
+        }
+      }
+
+      ~ .slider {
+        transform: translateX(#{($i - 1) * 100%});
+      }
+
+      ~ .content > section:nth-child(#{$i}) {
+        display: block;
+      }
+    }
+  }
+}
+
+// Animations
+@keyframes content {
+  from {
+    opacity: 0;
+    transform: translateY(5%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0%);
+  }
+}
+
+// Responsive design
+@media (max-width: 1000px) {
+  .btabs ul li label {
+    white-space: initial;
+
+    br {
+      display: initial;
+    }
+
+    svg {
+      height: 1.5em;
+    }
+  }
+}
+
+@media (max-width: 600px) {
+  .btabs {
+    ul li label {
+      padding: 5px;
+      border-radius: 5px;
+
+      span {
+        display: none;
+      }
+    }
+
+    .slider {
+      display: none;
+    }
+
+    .content {
+      margin-top: 20px;
+
+      section h2 {
+        display: block;
+      }
+    }
+  }
+}

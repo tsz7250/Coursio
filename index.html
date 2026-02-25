@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="zh-hant">
+
+<head>
+    <meta charset="UTF-8">
+    <!-- C-06: Content Security Policy — 限制資源來源 -->
+    <meta http-equiv="Content-Security-Policy"
+          content="default-src 'self';
+                   script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com;
+                   style-src  'self' https://cdn.jsdelivr.net 'unsafe-inline';
+                   img-src    'self' data: blob:;
+                   font-src   'self';
+                   connect-src 'self' https://*.yzu.edu.tw;
+                   object-src 'none';">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wanna Class Application</title>
+
+
+    <!-- Fontawesome -->
+    <link rel="stylesheet" href="./css/fontawesome/css/all.css">
+
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-eOJMYsd53ii+scO/bJGFsiCZc+5NDVN2yr8+0RDqr0Ql0h+rP48ckxlpbzKgwra6" crossorigin="anonymous">
+
+    <!-- Compiled WannaClass Styles (includes all component styles) -->
+    <link rel="stylesheet" href="./css/wannaclass.css">
+
+    <!-- YZU Backend 已移至主程序載入，不再於渲染器端引入 -->
+
+    <!-- Simple Scrollbar -->
+    <script src="./js/simple-scrollbar.js"></script>
+
+    <!-- Vue 3 -->
+    <!-- <script src="https://unpkg.com/vue@next"></script> -->
+    <script src="./js/vue.global.js"></script>
+    <!-- Vue Router -->
+    <script src="./js/vue-router.global.js"></script>
+
+    <!-- Axios 已移至主程序，不再於渲染器端引入 -->
+
+    <!-- Bootstrap -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-JEW9xMcG8R+pH31jmWH6WWP0WintQrMb4s7ZOdauHnUtxwoG2vI5DkLtS3qm9Ekf"
+        crossorigin="anonymous"></script>
+
+    <!-- Compiled and minified JavaScript -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
+
+
+</head>
+
+<body>
+
+    <div id="app" class="section">
+
+        <!-- Loading Panel -->
+        <div v-show="isLoading" id="loading-panel" class="section">
+            <div class="loading-spinner"></div>
+            <h3>{{ loading_text }}</h3>
+        </div>
+
+
+        <!-- Login Panel -->
+        <div class="login-panel section">
+            <div class="header">
+                <img class="login-icon" src="../assets/icon.png" alt="ICON">
+            </div>
+            <div class="middle wc-container">
+                <div class="hero-image move-to-hidden">
+                    <i class="fas fa-laptop-code" style="font-size: 6rem; color: var(--primary-color, #0891B2); opacity: 0.85;"></i>
+                </div>
+                <div class="hero-text move-to-hidden">
+                    <h2>半夜依舊在電腦前守著?</h2>
+                    <span class="hero-desc">黑眼圈熬出來也不一定搶得到課R?</span>
+                    <span>專屬於元智人的搶課程式幫助妳/你！</span>
+                </div>
+                <div class="login-block">
+                    <div class="login-block-inner wc-container">
+                        <h2>登入</h2>
+                        <div class="login-block-inner-input-group">
+                            <input v-model="sid" class="login-block-input-element" placeholder="學號" type="text"
+                                id="student_id" pattern="s[0-9]{7}" required @keydown.enter="login" @input="handleSidInput">
+                            <input v-model="spwd" class="login-block-input-element" placeholder="密碼" type="password"
+                                id="student_pwd" required @keydown.enter="login" @input="handleSpwdInput">
+                            <button @click="login" class="login-block-input-element" id="login-btn">開始搶課！</button>
+                            <button @click="browseAsGuest" class="login-block-input-element guest-btn" id="guest-btn">訪客瀏覽課程</button>
+                        </div>
+                        <div class="login-block-lockimg"><i class="fas fa-user-lock"></i></div>
+                    </div>
+                </div>
+            </div>
+            <div class="footer wc-container">
+                <ul>
+                    <li><a target="_blank" href="https://missterhao.me"><i class="fab fab fa-wordpress-simple"></i></a></li>
+                    <li><a target="_blank" href="https://github.com/MissterHao/WannaClass"><i class="fab fa-github"></i></a></li>
+                    <li><a target="_blank" href="https://www.linkedin.com/in/haowei526/"><i class="fab fa-linkedin-in"></i></a></li>
+                </ul>
+            </div>
+        </div><!-- End of Login Panel -->
+
+
+        <!-- Content Panel -->
+        <div class="content-panel section">
+            <div class="sidebar">
+                <div class="sidebar-header header">
+                    <img src="../assets/icon.png" alt="ICON">
+                </div>
+
+                <div class="sidebar-funcitonal-items point-it">
+                    <div @click="navigateTo('Main')" id="Main-sidebar-item" class="sidebar-item">
+                        <i class="fas fa-home"></i>
+                        <span>首頁</span>
+                    </div>
+                    <div @click="navigateTo('Schedule')" id="Schedule-sidebar-item" class="sidebar-item point-it" :class="!isLoggedIn ? 'guest-disabled' : ''">
+                        <i class="fas fa-calendar-alt"></i>
+                        <span>我的課表</span>
+                    </div>
+                    <div @click="navigateTo('CourseQuery')" id="School-timetable-Query-sidebar-item"
+                        class="sidebar-item point-it">
+                        <i class="fas fa-search"></i>
+                        <span>課程查詢</span>
+                    </div>
+                    <div @click="navigateTo('AutoSelection')" id="Auto-Selection-sidebar-item" class="sidebar-item point-it" :class="!isLoggedIn ? 'guest-disabled' : ''">
+                        <i class="fas fa-paper-plane"></i>
+                        <span>自動選課</span>
+                    </div>
+                    
+                    <div @click="navigateTo('Settings')" id="Settings-sidebar-item" class="sidebar-item point-it" :class="!isLoggedIn ? 'guest-disabled' : ''">
+                        <i class="fas fa-cog"></i>
+                        <span>設定</span>
+                    </div>
+                </div>
+
+                <div id="author-sidebar-item" class="sidebar-item point-it" @click="showAboutModal">
+                    <span>關於</span>
+                </div>
+
+                <div id="guest-login-sidebar-item" class="sidebar-item point-it" @click="returnToLogin">
+                    <i class="fas fa-sign-in-alt"></i>
+                    <span>返回登入</span>
+                </div>
+            </div> <!-- End of Sidebar -->
+
+            <div id="inner-content-panel">
+                <router-view></router-view>
+            </div>
+        </div> <!-- End of Content Panel -->
+
+
+
+        <div id="about-modal-container"></div>
+
+    </div> <!-- End of app div -->
+
+    <!-- Import js -->
+    <script src="./js/store.js"></script>
+    <script src="./js/pages/MainDashboard.js"></script>
+    <script src="./js/pages/SchedulePage.js"></script>
+    <script src="./js/pages/CourseQueryPage.js"></script>
+    <script src="./js/pages/AutoSelectionPage.js"></script>
+    <script src="./js/pages/SettingsPage.js"></script>
+    <script src="./js/router.js"></script>
+    <script src="./js/app_vue.js"></script>
+    <script src="./js/python_course_bot.js"></script>
+    <script src="./js/course_selection_controller.js"></script>
+</body>
+
+</html>

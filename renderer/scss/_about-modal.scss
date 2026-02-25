@@ -1,0 +1,183 @@
+// About Modal Component Styles
+// 關於模態框組件樣式 - 完全獨立，避免與 Materialize CSS 衝突
+
+// Variables
+$about-modal-z-index: $z-index-modal;
+$about-modal-bg: white;
+$about-modal-border-radius: 8px;
+$about-modal-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+$about-modal-width: 80vw;
+$about-modal-min-width: 600px;
+$about-modal-max-width: 800px;
+$about-modal-height: 85vh;
+
+// Colors
+$about-modal-title-color: #333;
+$about-modal-subtitle-color: #555;
+$about-modal-text-color: #333;
+$about-modal-link-color: #007bff;
+$about-modal-border-color: #007bff;
+$about-modal-hr-color: #ddd;
+
+// Spacing
+$about-modal-padding: 2rem;
+$about-modal-title-margin: 1rem;
+$about-modal-subtitle-margin: 1.5rem 0 0.5rem;
+$about-modal-text-margin: 1rem;
+$about-modal-list-margin: 0.8rem;
+$about-modal-hr-margin: 1.5rem 0;
+
+// Typography
+$about-modal-line-height: 1.6;
+$about-modal-list-line-height: 1.5;
+
+// About Modal Container - 完全獨立的樣式
+.about-modal-container {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: $about-modal-z-index;
+  
+  // Show state
+  &.show {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+// About Modal Content - 實際的模態框內容
+.about-modal-content {
+  background: $about-modal-bg;
+  border-radius: $about-modal-border-radius;
+  width: $about-modal-width;
+  min-width: $about-modal-min-width;
+  max-width: $about-modal-max-width;
+  max-height: $about-modal-height;
+  overflow-y: auto;
+  box-shadow: $about-modal-shadow;
+  position: relative;
+  padding: $about-modal-padding;
+  text-align: center;
+  
+  // 確保只有一個滾動條
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 4px;
+  }
+  
+  &::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+  }
+}
+
+// Typography
+.about-modal-content {
+  h4 {
+    color: $about-modal-title-color;
+    margin-bottom: $about-modal-title-margin;
+    border-bottom: 2px solid $about-modal-border-color;
+    padding-bottom: 0.5rem;
+    text-align: left;
+  }
+
+  h5 {
+    color: $about-modal-subtitle-color;
+    margin: $about-modal-subtitle-margin;
+    text-align: left;
+  }
+
+  p {
+    line-height: $about-modal-line-height;
+    margin-bottom: $about-modal-text-margin;
+    text-align: left;
+  }
+
+  // Lists
+  ol {
+    padding-left: 1.5rem;
+    text-align: left;
+    display: inline-block;
+  }
+
+  li {
+    margin-bottom: $about-modal-list-margin;
+    line-height: $about-modal-list-line-height;
+  }
+
+  // Horizontal rule
+  hr {
+    margin: $about-modal-hr-margin;
+    border: none;
+    border-top: 1px solid $about-modal-hr-color;
+  }
+
+  // Links
+  a {
+    color: $about-modal-link-color;
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+
+  // Close button
+  .modal-close {
+    position: absolute;
+    top: 15px;
+    right: 20px;
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: #999;
+    transition: color 0.2s ease;
+    z-index: 1;
+
+    &:hover {
+      color: #666;
+    }
+  }
+}
+
+// 為了向後兼容，保留 ID 選擇器但指向新的類別
+#about-modal {
+  // 這個 ID 現在指向 .about-modal-container
+  // 保持 JavaScript 的兼容性
+}
+
+// Responsive Design
+@media (max-width: 768px) {
+  .about-modal-content {
+    width: 95vw;
+    min-width: 300px;
+    max-width: none;
+    margin: 20px;
+    padding: 1.5rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .about-modal-content {
+    width: 100vw;
+    height: 100vh;
+    max-height: none;
+    border-radius: 0;
+    margin: 0;
+    padding: 1rem;
+  }
+}
