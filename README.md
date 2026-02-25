@@ -42,26 +42,32 @@
 
 1. **首頁**
    <img src="./assets/demo/index.png" alt="index" height=300>
+
    快速查看目前的選課狀態、系統公告以及使用統計，讓您一目了然所有資訊。
 
 2. **我的課表**
    <img src="./assets/demo/timetable.png" alt="Timetable" height=300>
+
    以直觀的圖表記錄您已選過的課程，包含上課時間與地點，並支援匯出功能。
 
 3. **課程查詢**
    <img src="./assets/demo/Course%20Selection%20Screen.png" alt="Course Selection Screen" height=300>
+
    快速查詢每學期的全校課表。點擊列表即可詳細顯示課程資訊（學分數、教室、教授名稱等），並可一鍵「加入選課清單」。
 
 4. **自動選課**
    <img src="./assets/demo/course_bot.png" alt="Course Bot" height=300>
+
    設定選課任務後，系統將模擬使用者行為進行全自動化搶課，大幅節省手動點擊的時間與壓力。
 
 5. **系統設定**
    <img src="./assets/demo/settings.png" alt="settings" height=300>
+
    調整重試頻率、登入階段以及其他個性化偏好，讓軟體更符合您的使用習慣。
 
 6. **關於系統**
    <img src="./assets/demo/about.png" alt="about" height=300>
+
    查看版本資訊、開發團隊以及相關授權文件。
 
 ---
