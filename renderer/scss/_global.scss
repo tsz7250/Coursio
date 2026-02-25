@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Noto+Sans+TC&display=swap');
 
 html,
 body {
@@ -7,7 +7,8 @@ body {
     overflow-x: hidden;
     overflow-y: hidden;
 
-    font-family: 'Noto Sans TC', sans-serif;
+    font-family: 'Noto Sans TC', 'Poppins', sans-serif;
+    background-color: #F8FFFE;
 }
 
 

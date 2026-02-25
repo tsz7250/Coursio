@@ -14,14 +14,19 @@ let createBrowser = null;
 let browserlessRoot = null; // 單例根瀏覽器管理器
 let browserlessLoaded = false;
 
-// 配置 axios 以處理自簽名證書和網路問題
-// 只在 Node.js 環境中設置 httpsAgent（瀏覽器環境中無效）
+// H-11: 僅對 yzu.edu.tw 域名停用 TLS 驗證（該校使用自簽憑證）
+// 不再全域覆蓋 Axios.defaults.httpsAgent，改用 request interceptor
 var isNodeEnv = typeof process !== 'undefined' && process.versions && process.versions.node && typeof window === 'undefined';
 if (isNodeEnv) {
-    Axios.defaults.httpsAgent = new https.Agent({
-        rejectUnauthorized: false,
-        keepAlive: true,
-        timeout: 30000
+    const _yzuHttpsAgent = new https.Agent({ rejectUnauthorized: false, keepAlive: true, timeout: 30000 });
+    Axios.interceptors.request.use((config) => {
+        try {
+            const hostname = new URL(config.url || '').hostname;
+            if (hostname === 'yzu.edu.tw' || hostname.endsWith('.yzu.edu.tw')) {
+                config.httpsAgent = _yzuHttpsAgent;
+            }
+        } catch (_) { /* 忽略無效 URL */ }
+        return config;
     });
 }
 
@@ -96,7 +101,7 @@ class BackendService {
                         path: url.pathname + (url.search || ''),
                         method: 'GET',
                         headers: headers || {},
-                        rejectUnauthorized: false,
+                        rejectUnauthorized: !(url.hostname === 'yzu.edu.tw' || url.hostname.endsWith('.yzu.edu.tw')),
                     }, (res) => {
                         const status = res.statusCode || 0;
                         // 處理 3xx 重導向
@@ -174,7 +179,7 @@ class BackendService {
                         path: url.pathname + (url.search || ''),
                         method: 'POST',
                         headers: mergedHeaders,
-                        rejectUnauthorized: false,
+                        rejectUnauthorized: !(url.hostname === 'yzu.edu.tw' || url.hostname.endsWith('.yzu.edu.tw')),
                     }, (res) => {
                         const status = res.statusCode || 0;
                         // 更新 cookies

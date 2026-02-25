@@ -1,50 +1,11 @@
-const { ipcRenderer } = require("electron");
-// BackendService 已在 HTML 中載入
+// BackendService 已移至主程序 (main_ipc.js)，透過 window.electronAPI.backend.* 存取
 const { ref, onMounted, onUpdated, computed, watch, shallowRef, nextTick } = Vue;
 
-// 避免重複宣告 fs，直接使用 Node.js 的 require
-const electron_fs = require('fs');
-var settingFilePath = "settings.json"
+// 設定檔預設值 — 非同步更新於 onMounted 呼叫 window.electronAPI.settings.read()
+let settings = { interval: 2 };
 
-// 安全地載入設定檔
-let settings;
-try {
-    settings = JSON.parse(electron_fs.readFileSync(settingFilePath))
-} catch (error) {
-    console.log("設定檔載入失敗，使用預設值");
-    settings = {"interval": 2, "stage": "1"};
-}
-
-var apibackend = new BackendService()
-
-// 讓 apibackend 全域可用
-window.apibackend = apibackend;
-
-// 事件驅動的預熱優先級控制
+// 覆寫全域對話框：攔截登入失敗提示，派發事件給 Vue 以避免流程卡住
 document.addEventListener('DOMContentLoaded', () => {
-    // 立即開始預熱，並使用 Promise 控制後續任務
-    try {
-        console.log("🚀 開始優先預熱 Browserless...");
-        
-        // 創建預熱 Promise，供其他任務等待
-        window.prewarmPromise = apibackend.prewarmBrowser().then(() => {
-            console.log("✅ 預熱完成，觸發後續任務");
-            // 觸發自定義事件，通知其他任務可以開始
-            window.dispatchEvent(new CustomEvent('prewarm-completed'));
-            return true;
-        }).catch((error) => {
-            console.warn("預熱失敗，但不影響應用運行:", error);
-            // 即使預熱失敗，也觸發事件讓其他任務繼續
-            window.dispatchEvent(new CustomEvent('prewarm-completed'));
-            return false;
-        });
-    } catch (error) {
-        console.warn("預熱初始化失敗:", error);
-        // 立即觸發事件
-        window.dispatchEvent(new CustomEvent('prewarm-completed'));
-    }
-    
-    // 覆寫全域對話框：攔截登入失敗提示，派發事件給 Vue 以避免流程卡住
     try {
         const originalAlert = window.alert;
         const originalConfirm = window.confirm;
@@ -68,145 +29,14 @@ document.addEventListener('DOMContentLoaded', () => {
             return originalConfirm.apply(window, arguments);
         };
     } catch (_) {}
-
-    // Toast 樣式已移至 CSS 檔案中
 });
 
-var sqlite3 = require('sqlite3').verbose();
+// M-03: year_now, smtr_now, filterSemesterListForTime 已在 store.js（確保所有 page 元件都能使用）
 
-// 資料庫連線管理類別
-class DatabaseManager {
-    constructor() {
-        this.database = null;
-        this.isInitialized = false;
-    }
-
-    // 取得資料庫連線
-    getConnection() {
-        if (!this.database) {
-            this.database = new sqlite3.Database('db.sqlite', (err) => {
-                if (err) {
-                    console.error('❌ 資料庫連線失敗:', err.message);
-                    throw err;
-                }
-                console.log('✅ 資料庫連線已建立');
-            });
-        }
-        return this.database;
-    }
-
-    // 初始化資料庫表格
-    async initialize() {
-        if (this.isInitialized) return Promise.resolve();
-        
-        return new Promise((resolve, reject) => {
-            const db = this.getConnection();
-            db.serialize(() => {
-                // 建立選課任務資料表（簡化版）
-                // 欄位說明：
-                // - id: 主鍵，自動遞增
-                // - cos_id: 課程代碼 (如: "CS354") - 前端顯示用
-                // - cos_class: 課程班別 (如: "A", "B") - 自動選課用
-                // - name: 課程名稱 (如: "電腦與網路安全概論") - 前端顯示用
-                // - teacher_name: 授課教師 (如: "王小明") - 前端顯示用
-                // - credit: 學分數 (如: 3) - 前端顯示用
-                // - dept_id: 系所代號 (如: "304") - 自動選課用
-                // - status: 狀態 (0=尚未選到, 1=已選到, 2=選課失敗)
-                db.run(`CREATE TABLE IF NOT EXISTS tasks (
-                    "id" INTEGER PRIMARY KEY AUTOINCREMENT, 
-                    "cos_id" TEXT,
-                    "cos_class" TEXT,
-                    "name" TEXT,
-                    "teacher_name" TEXT,
-                    "credit" INTEGER,
-                    "dept_id" TEXT,
-                    "status" INTEGER
-                )`, (err) => {
-                    if (err) {
-                        console.error('❌ 建立 tasks 表格失敗:', err.message);
-                        reject(err);
-                    } else {
-                        console.log('✅ Tasks 資料庫表格已準備就緒');
-                        this.isInitialized = true;
-                        resolve();
-                    }
-                });
-            });
-        });
-    }
-
-    // 安全地執行資料庫操作
-    async executeQuery(query, params = []) {
-        return new Promise((resolve, reject) => {
-            const db = this.getConnection();
-            db.run(query, params, function(err) {
-                if (err) {
-                    console.error('❌ 資料庫操作失敗:', err.message);
-                    console.error('查詢:', query);
-                    console.error('參數:', params);
-                    reject(err);
-                } else {
-                    console.log('✅ 資料庫操作成功');
-                    resolve({ id: this.lastID, changes: this.changes });
-                }
-            });
-        });
-    }
-
-    // 安全地查詢資料
-    async getQuery(query, params = []) {
-        return new Promise((resolve, reject) => {
-            const db = this.getConnection();
-            db.get(query, params, (err, row) => {
-                if (err) {
-                    console.error('❌ 資料庫查詢失敗:', err.message);
-                    console.error('查詢:', query);
-                    console.error('參數:', params);
-                    reject(err);
-                } else {
-                    resolve(row);
-                }
-            });
-        });
-    }
-
-    // 關閉資料庫連線
-    close() {
-        if (this.database) {
-            this.database.close((err) => {
-                if (err) {
-                    console.error('❌ 關閉資料庫連線失敗:', err.message);
-                } else {
-                    console.log('✅ 資料庫連線已關閉');
-                }
-            });
-            this.database = null;
-            this.isInitialized = false;
-        }
-    }
-}
-
-// 建立全域資料庫管理器實例
-const dbManager = new DatabaseManager();
-
-// 初始化資料庫
-dbManager.initialize().catch(err => {
-    console.error('❌ 資料庫初始化失敗:', err);
-});
-
-
-
-var year_now = new Date().getFullYear() - 1911;
-var smtr_now = new Date().getMonth() >= 7 ? 1 : 2;
-
-function saveSettingFile(){
-	electron_fs.writeFileSync(settingFilePath, JSON.stringify(settings))
-}
 
 const app = Vue.createApp({
-	el: '#app',
-	//   delimiters: ['@{', '}'],
 	setup() {
+		const router = VueRouter.useRouter();
 		/**
 		 * Variables
 		 */
@@ -219,10 +49,10 @@ const app = Vue.createApp({
 		const debounceDelay = 50; // 50ms 防抖動延遲
 
 		const greetings = ref("")
-		const isLoggedIn = ref(false);  // 追蹤登入狀態
+		const isLoggedIn = computed({ get: () => Store.isLoggedIn, set: v => { Store.isLoggedIn = v; } });
 
-		const isLoading = ref(false);  // 是否
-		const loading_text = ref("");
+		const isLoading = computed({ get: () => Store.isLoading, set: v => { Store.isLoading = v; } });
+		const loading_text = computed({ get: () => Store.loadingText, set: v => { Store.loadingText = v; } });
 		
 		// 優化響應式更新 - 使用 shallowRef 減少深度監聽開銷
 		const inputStates = shallowRef({
@@ -344,40 +174,11 @@ const app = Vue.createApp({
 			return !hasError;
 		}
 
-		// 過濾學期清單，只保留5年且只包含XXX1和XXX2格式
-		function filterSemesterListForTime(semesterList) {
-			if (!Array.isArray(semesterList)) return [];
-			
-			// 取得當前學年（動態計算）
-			const currentYear = year_now;
-			const minYear = currentYear - 4; // 保留5年，包括現在
-			
-			return semesterList.filter(semester => {
-				// 檢查格式是否為 XXX1 或 XXX2
-				const value = semester.value;
-				if (!value || typeof value !== 'string') return false;
-				
-				// 提取學年數字
-				const yearMatch = value.match(/^(\d+),/);
-				if (!yearMatch) return false;
-				
-				const year = parseInt(yearMatch[1]);
-				const semesterNum = value.split(',')[1]?.trim();
-				
-				// 只保留XXX1和XXX2格式，且在5年範圍內
-				return (semesterNum === '1' || semesterNum === '2') && 
-					   year >= minYear && year <= currentYear;
-			}).sort((a, b) => {
-				// 按學年降序排列（最新的在前）
-				const yearA = parseInt(a.value.split(',')[0]);
-				const yearB = parseInt(b.value.split(',')[0]);
-				const semesterA = parseInt(a.value.split(',')[1]);
-				const semesterB = parseInt(b.value.split(',')[1]);
-				
-				if (yearA !== yearB) return yearB - yearA;
-				return semesterB - semesterA;
-			});
-		}
+		// M-03: filterSemesterListForTime 已移至 store.js（全域共用函數）
+
+
+
+
 
 
 
@@ -426,7 +227,6 @@ const app = Vue.createApp({
 
 		// Settings
 		const StealCourseInterval = ref(settings.interval); // 選課時間間隔
-		const StealCourseStage = ref(settings.stage); // 選課階段
 
 		/**
 		 * Functions
@@ -466,7 +266,6 @@ const app = Vue.createApp({
 				// 確保載入面板完全覆蓋整個螢幕，避免閃爍
 				const loadingPanel = document.getElementById('loading-panel');
 				if (loadingPanel) {
-					// 強制設定樣式，確保載入面板在最上層
 					loadingPanel.style.cssText = `
 						position: fixed !important;
 						top: 0 !important;
@@ -483,26 +282,23 @@ const app = Vue.createApp({
 					`;
 				}
 
+				// 訂閱 Puppeteer 進度事件
+				let cleanupProgress = null;
 				try {
-					// 1) 設置帳號和密碼到 BackendService
-					apibackend._setSidSpwd(sid.value, spwd.value);
-					
-					// 2) 直接使用 Puppeteer 進行登入驗證（不再透過 RSA API）
-					// puppeteerLogin 會直接在登入頁輸入這組帳密，因此這裡不需要先呼叫 _getRSAKey / _encryptData。
+					cleanupProgress = window.electronAPI.puppeteer.onProgress(step => {
+						loading_text.value = step;
+					});
+				} catch (_) {}
 
-					// 3) 快速登入驗證，然後在背景完成課表載入
+				try {
+					// 1) 設定帳號密碼到後端
+					await window.electronAPI.backend.setSidSpwd(sid.value, spwd.value);
+					
+					// 2) 透過 IPC 進行 Puppeteer 登入
 					loading_text.value = "驗證帳密中...";
-					
-					// 創建一個臨時的 Puppeteer 頁面進行快速登入驗證
-					const browser = await apibackend.launchPuppeteerBrowser();
-					const page = await browser.newPage();
-					await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
-					
-					// 只執行登入驗證
-					const loginResult = await apibackend.puppeteerLogin(page);
+					const loginResult = await window.electronAPI.puppeteer.login(sid.value, spwd.value);
 					
 					if (!loginResult || !loginResult.success) {
-						await browser.close();
 						throw new Error(loginResult && loginResult.message ? loginResult.message : '登入失敗');
 					}
 
@@ -525,117 +321,70 @@ const app = Vue.createApp({
 					// 在動畫進行到一半時開始淡入內容面板
 					setTimeout(() => {
 						contentPanel.style.opacity = "1";
-						showSectionById("Main");
+						router.push({ name: 'Main' });
 						setTimeout(() => updateMainHeader(), 50);
-					}, 400); // 動畫進行到一半時
+					}, 400);
 					
 					// 動畫完成後清理
 					setTimeout(() => {
 						loginPanel.style.display = "none";
 						loginPanel.classList.remove("slide-up");
-						contentPanel.style.transition = ""; // 清除過渡效果
+						contentPanel.style.transition = "";
 					}, 800);
 					
 					// 立即隱藏載入面板，讓滑動動畫正常進行
-					const loadingPanel = document.getElementById('loading-panel');
-					if (loadingPanel) {
+					const loadingPanelHide = document.getElementById('loading-panel');
+					if (loadingPanelHide) {
 						isLoading.value = false;
 						loading_text.value = "";
-						// 重置載入面板樣式
-						loadingPanel.style.cssText = '';
+						loadingPanelHide.style.cssText = '';
 					}
 
 					// 在背景完成課表載入和課程查詢資料載入
-					console.log("🔄 背景載入完整資料中...");
-					window.isBackgroundLoadingSchedule = true; // 設定背景載入標記
+					window.isBackgroundLoadingSchedule = true;
 					
 					Promise.allSettled([
-						// 完成課表載入（重用已登入的頁面）
+						// 透過 IPC 取得個人課表（使用已登入的 puppeteer session）
 						(async () => {
 							try {
-								console.log("🔄 開始背景課表載入流程...");
-								
-								// 等待頁面元素載入完成（從 puppeteerLogin 移過來的邏輯）
-								console.log("⏱️ 等待頁面完全載入...");
-								// 減少等待時間，避免 UI 卡住
-								await apibackend.waitForNetworkIdle(page, 300, 4000).catch(() => {});
-								await page.waitForFunction(() => {
-									return document.getElementById('tdS14') || Array.from(document.querySelectorAll('*[onclick]')).some(el => {
-										const text = (el.textContent || el.innerText || '').trim();
-										const onclick = el.getAttribute('onclick') || '';
-										return text.includes('課表') && onclick.includes('S5');
-									});
-								}, { timeout: 8000 }).catch(() => {});
-								
-								// 載入課表數據
-								const scheduleResult = await apibackend.puppeteerLoadSchedule(page);
-								if (!scheduleResult.success) {
-									throw new Error(`課表載入失敗: ${scheduleResult.message}`);
-								}
-
-								// 解析課表數據
-								const parseResult = await apibackend.puppeteerParseSchedule(page);
-								if (!parseResult.success) {
-									throw new Error(`課表解析失敗: ${parseResult.message}`);
-								}
-
-								// 設置課表資料
-								if (window.apibackend && parseResult.data) {
-									window.apibackend.course_schedule_data = Object.assign({}, parseResult.data, {
-										is_personal: true,
-										year: String(year_now),
-										smtr: String(smtr_now)
-									});								
+								const scheduleResult = await window.electronAPI.puppeteer.getSchedule();
+								if (scheduleResult && scheduleResult.success && scheduleResult.data) {
+									window.courseScheduleData = scheduleResult.data;
 								} else {
-									console.error("❌ 課表資料設置失敗:", { apibackend: !!window.apibackend, data: !!parseResult.data });
+									throw new Error(scheduleResult?.message || '課表載入失敗');
 								}
-								
-								console.log("✅ 個人課表資料載入完成");
 							} catch (error) {
 								console.error("❌ 背景課表載入失敗:", error.message);
-								// 清除背景載入標記，避免前端卡在載入狀態
-								window.isBackgroundLoadingSchedule = false;
+								window.courseScheduleData = null;
 								throw error;
-							} finally {
-								await browser.close();
 							}
 						})(),
 						// 載入課程查詢資料
 						getCourseListForQuery({ showLoading: false, returnPromise: true, storeInWindow: true })
 					]).then(() => {
 						console.log("✅ 所有背景資料載入完成");
-						window.isBackgroundLoadingSchedule = false; // 清除背景載入標記
+						window.isBackgroundLoadingSchedule = false;
 						
 						// 檢查當前是否在課表頁面，並自動生成課表
 						const scheduleSection = document.getElementById('section-Schedule');
 						const isScheduleVisible = scheduleSection && scheduleSection.classList.contains('is-shown');
 						
 						if (isScheduleVisible) {
-							console.log("🔄 當前在課表頁面，自動生成課表...");
-							setTimeout(() => {					
-								if (window.apibackend && window.apibackend.course_schedule_data && 
-									window.apibackend.course_schedule_data.course_list && 
-									window.apibackend.course_schedule_data.course_list.length > 0) {
-									console.log("📊 開始生成課表...");
+							setTimeout(() => {
+								if (window.courseScheduleData && window.courseScheduleData.course_list &&
+									window.courseScheduleData.course_list.length > 0) {
 									window.generateScheduleTable();
-								} else {
-									console.warn("⚠️ 課表資料不完整，無法生成課表");
-									console.log("📋 完整課表資料:", window.apibackend?.course_schedule_data);
 								}
 							}, 100);
-						} else {
-							console.log("ℹ️ 當前不在課表頁面，課表資料已準備就緒");
 						}
 					}).catch((error) => {
 						console.warn("⚠️ 背景資料載入失敗:", error);
-						window.isBackgroundLoadingSchedule = false; // 清除背景載入標記
+						window.isBackgroundLoadingSchedule = false;
 						
-						// 如果當前在課表頁面，顯示錯誤狀態
 						const scheduleSection = document.getElementById('section-Schedule');
 						const isScheduleVisible = scheduleSection && scheduleSection.classList.contains('is-shown');
 						
 						if (isScheduleVisible) {
-							console.log("🔄 課表載入失敗，顯示錯誤狀態...");
 							setTimeout(() => {
 								const scheduleLoading = document.getElementById('schedule-loading');
 								const scheduleContent = document.getElementById('schedule-content');
@@ -651,17 +400,16 @@ const app = Vue.createApp({
 				} catch (error) {
 					console.error("登入失敗:", error);
 					
-					// 立即隱藏載入面板
-					const loadingPanel = document.getElementById('loading-panel');
-					if (loadingPanel) {
+					const loadingPanelErr = document.getElementById('loading-panel');
+					if (loadingPanelErr) {
 						isLoading.value = false;
 						loading_text.value = "";
-						// 重置載入面板樣式
-						loadingPanel.style.cssText = '';
+						loadingPanelErr.style.cssText = '';
 					}
 					
 					showToastError(error.message || String(error));
-					// 保持在登入頁，不切換
+				} finally {
+					if (cleanupProgress) { try { cleanupProgress(); } catch (_) {} }
 				}
 			} else {
 				alert("請輸入學號和密碼");
@@ -688,7 +436,7 @@ const app = Vue.createApp({
 			setTimeout(() => {
 				contentPanel.style.opacity = "1";
 				// 直接顯示課程查詢頁面
-				showSectionById("School-timetable-Query");
+				router.push({ name: 'CourseQuery' });
 			}, 400); // 動畫進行到一半時
 			
 			// 動畫完成後清理
@@ -719,7 +467,7 @@ const app = Vue.createApp({
 			isCourseListLoading = true;
 			isCourseDataLoading.value = true; // 設置UI載入狀態
 			
-			apibackend.getCourseListFromYZUApi(`${querySelectQueryYear.value}`, `${querySelectQuerySmt.value}`).then((data) => {
+			window.electronAPI.backend.getCourseList(`${querySelectQueryYear.value}`, `${querySelectQuerySmt.value}`).then((data) => {
 				CourseList = data.course_list;
 				// 更新系所清單
 				if (data.dept_list && Array.isArray(data.dept_list)) {
@@ -786,7 +534,7 @@ const app = Vue.createApp({
 			
 			const logPrefix = storeInWindow ? "（登入流程）" : "";
 			
-			const promise = apibackend.getCourseListFromYZUApi(`${year}`, `${semester}`).then((data) => {
+			const promise = window.electronAPI.backend.getCourseList(`${year}`, `${semester}`).then((data) => {
 				// 根據選項決定存儲位置
 				if (storeInWindow) {
 					window.allCourseList = data.course_list;
@@ -861,9 +609,13 @@ const app = Vue.createApp({
 			}, 300);
 		}
 
+		function navigateTo(name) {
+			router.push({ name });
+		}
+
 		function showSection(id) {
-			// 放寬：訪客可切換到所有區段
-			showSectionById(id)
+			// 保留向後相容
+			navigateFromSectionId(id);
 			
 			// 當切換到首頁時，更新問候語（顯示學號或訪客）
 			if (id === 'Main') {
@@ -875,10 +627,9 @@ const app = Vue.createApp({
 				// 使用 setTimeout 確保頁面完全顯示後再載入課表
 				setTimeout(() => {
 					// 如果已經有課表資料，直接生成課表
-					if (window.apibackend && window.apibackend.course_schedule_data && 
-						window.apibackend.course_schedule_data.course_list && 
-						window.apibackend.course_schedule_data.course_list.length > 0) {
-						console.log("📊 課表資料已就緒，直接生成課表");
+					if (window.courseScheduleData && 
+						window.courseScheduleData.course_list && 
+						window.courseScheduleData.course_list.length > 0) {
 						window.generateScheduleTable();
 					} else {
 						// 檢查是否正在背景載入課表資料
@@ -893,9 +644,7 @@ const app = Vue.createApp({
 							if (scheduleError) scheduleError.style.display = 'none';
 						} else {
 							// 檢查是否有課表載入錯誤
-							const hasScheduleError = window.apibackend && 
-								window.apibackend.course_schedule_data === null && 
-								!window.isBackgroundLoadingSchedule;
+						const hasScheduleError = Store.courseScheduleData === null && !Store.isBackgroundLoadingSchedule;
 							
 							if (hasScheduleError) {
 								console.log("❌ 課表載入失敗，顯示錯誤狀態");
@@ -967,7 +716,7 @@ const app = Vue.createApp({
 			
 			try {
 				
-				const result = await apibackend.queryCourseByDept(
+				const result = await window.electronAPI.backend.queryCourseByDept(
 					querySelectSemester.value,
 					querySelectQueryDept.value,
 					querySelectGrade.value
@@ -1029,7 +778,7 @@ const app = Vue.createApp({
 			isCourseDataLoading.value = true;
 			try {
 				const ddlYM = `${querySelectQueryYear.value || year_now},${querySelectQuerySmt.value || smtr_now}  `;
-				const result = await apibackend.queryCourseByName(
+				const result = await window.electronAPI.backend.queryCourseByName(
 					ddlYM,
 					queryInputQueryCourseName.value.trim()
 				);
@@ -1079,7 +828,7 @@ const app = Vue.createApp({
 			
 			try {
 				
-				const result = await apibackend.queryCourseByTeacher(
+				const result = await window.electronAPI.backend.queryCourseByTeacher(
 					querySelectSemesterForTeacher.value,
 					queryInputQueryTeacherName.value.trim()
 				);
@@ -1130,7 +879,7 @@ const app = Vue.createApp({
 			isCourseDataLoading.value = true;
 			try {
 				const ctl216 = querySelectQueryDay.value + querySelectQueryPeriod.value;
-				const result = await apibackend.queryCourseByTime(
+				const result = await window.electronAPI.backend.queryCourseByTime(
 					querySelectSemesterForTime.value,
 					ctl216
 				);
@@ -1175,7 +924,7 @@ const app = Vue.createApp({
 					// 添加小延遲避免過於頻繁的請求
 					await new Promise(resolve => setTimeout(resolve, index * 100));
 					
-					const credit = await apibackend.getCourseCredit(
+					const credit = await window.electronAPI.backend.getCourseCredit(
 						course.year,
 						course.smtr,
 						course.cos_id,
@@ -1232,14 +981,10 @@ const app = Vue.createApp({
 			}
 		});
 
-		watch(StealCourseInterval, (newInterval, prevInterval) => {
-			settings["interval"] = parseInt(newInterval)
-			saveSettingFile()
-		})
-
-		watch(StealCourseStage, (newStage, prevStage) => {
-			settings["stage"] = newStage
-			saveSettingFile()
+		watch(StealCourseInterval, (newInterval) => {
+			settings['interval'] = parseInt(newInterval);
+			Store.settings = Object.assign({}, settings);
+			window.electronAPI.settings.write(settings).catch(() => {});
 		})
 
 		// 資料驗證函數（簡化版）
@@ -1273,9 +1018,6 @@ const app = Vue.createApp({
 			event.stopPropagation()
 			
 			try {
-				// 確保資料庫已初始化
-				await dbManager.initialize();
-				
 				// 準備課程資料（簡化版）
 				const courseData = {
 					cos_id: course.cos_id || '',
@@ -1303,38 +1045,21 @@ const app = Vue.createApp({
 					return;
 				}
 				
-				// 檢查是否已存在相同課程
-				const existingCourse = await dbManager.getQuery(
-					`SELECT * FROM tasks WHERE cos_id = ? AND cos_class = ?`, 
-					[courseData.cos_id, courseData.cos_class]
-				);
+				// 透過 IPC 檢查課程是否已存在
+				const existingCourse = await window.electronAPI.db.checkTaskExists(courseData.cos_id, courseData.cos_class);
 				
 				if (existingCourse) {
-					console.log('⚠️ 課程已存在:', existingCourse);
 					alert(`⚠️ 課程 ${courseData.cos_id}${courseData.cos_class} 已存在於選課清單中`);
 					return;
 				}
 				
-				// 插入新的選課任務
-				const result = await dbManager.executeQuery(
-					`INSERT INTO tasks(cos_id, cos_class, name, teacher_name, credit, dept_id, status)
-					 VALUES(?, ?, ?, ?, ?, ?, ?)`,
-					[courseData.cos_id, courseData.cos_class, courseData.name, 
-					 courseData.teacher_name, courseData.credit, courseData.dept_id, courseData.status]
-				);
+				// 透過 IPC 新增選課任務
+				const result = await window.electronAPI.db.addTask(courseData);
 				
-				// 寫入確認：查詢剛插入的資料
-				const insertedCourse = await dbManager.getQuery(
-					`SELECT * FROM tasks WHERE id = ?`,
-					[result.id]
-				);
-				
-				if (insertedCourse) {
-					console.log('✅ 課程成功寫入資料庫:', insertedCourse);
+				if (result) {
 					alert(`✅ 課程 ${courseData.cos_id}${courseData.cos_class} - ${courseData.name} 已加入選課清單！\n\n請前往「選課任務列表」查看，或使用「自動選課」功能。`);
 				} else {
-					console.error('❌ 寫入確認失敗：無法查詢到剛插入的資料');
-					alert('❌ 課程已加入但無法確認，請檢查選課任務列表');
+					alert('❌ 課程加入失敗，請檢查選課任務列表');
 				}
 				
 			} catch (error) {
@@ -1383,7 +1108,7 @@ const app = Vue.createApp({
 				cos_class: course.cos_class || 'A'
 			};
 			
-			ipcRenderer.send("openCourseDetail", courseDetailData);
+			window.electronAPI.openCourseDetail(courseDetailData);
 		}
 
 		function status(s) {
@@ -1405,15 +1130,12 @@ const app = Vue.createApp({
 			if (!confirmed) return;
 
 			try {
-				// 確保資料庫已初始化
-				await dbManager.initialize();
-				
-				// 刪除任務
-				await dbManager.executeQuery('DELETE FROM tasks WHERE id = ?', [id]);
+				// 透過 IPC 刪除任務
+				await window.electronAPI.db.deleteTask(id);
 				console.log('✅ 任務刪除成功:', id);
 
-				// 立即刷新列表（不等輪詢）
-				const allTasks = await dbManager.getQuery('SELECT * FROM tasks');
+				// 立即刷新列表
+				const allTasks = await window.electronAPI.db.getAllTasks();
 				tasks.value = allTasks || [];
 
 				if (typeof M !== 'undefined' && M && M.toast) {
@@ -1476,27 +1198,26 @@ const app = Vue.createApp({
 				} catch (e) { console.warn('處理登入失敗事件時發生錯誤', e); }
 			});
 
-			// 等待預熱完成後開始資料庫輪詢
-			function startDatabasePolling() {
-				setInterval(async () => {
+			// 從主程序讀取設定（非同步，不阻塞 UI）
+			window.electronAPI.settings.read().then(s => {
+				if (s) {
+					settings = s;
+					Store.settings = s;
+					StealCourseInterval.value = s.interval !== undefined ? s.interval : 2;
+					StealCourseStage.value = s.stage !== undefined ? s.stage : '1';
+				}
+			}).catch(() => {});
+
+			// 資料庫輪詢（直接啟動，無需等待預熱）
+			if (!window._dbPollingInterval) {
+				window._dbPollingInterval = setInterval(async () => {
 					try {
-						await dbManager.initialize();
-						const allTasks = await dbManager.getQuery('SELECT * FROM tasks');
+						const allTasks = await window.electronAPI.db.getAllTasks();
 						tasks.value = allTasks || [];
 					} catch (error) {
 						console.error('❌ 輪詢任務列表失敗:', error);
 					}
 				}, 5000);
-			}
-			
-			// 監聽預熱完成事件
-			window.addEventListener('prewarm-completed', startDatabasePolling);
-			
-			// 如果預熱已經完成，立即開始輪詢
-			if (window.prewarmPromise) {
-				window.prewarmPromise.then(startDatabasePolling);
-			} else {
-				startDatabasePolling();
 			}
 
 			document.addEventListener('DOMContentLoaded', function () {
@@ -1521,21 +1242,18 @@ const app = Vue.createApp({
 				}
 			}, true)
 
-			// 等待預熱完成後載入系所和學期選項
-			function loadCourseOptions() {
-				loadInitialCourseOptions();
-				setTimeout(() => updateMainHeader(), 50);
-			}
-			
-			// 監聽預熱完成事件
-			window.addEventListener('prewarm-completed', loadCourseOptions);
-			
-			// 如果預熱已經完成，立即載入選項
-			if (window.prewarmPromise) {
-				window.prewarmPromise.then(loadCourseOptions);
-			} else {
-				loadCourseOptions();
-			}
+			// 載入關於模態框
+			fetch('./components/about-modal.html')
+				.then(r => r.text())
+				.then(html => {
+					const container = document.getElementById('about-modal-container');
+					if (container) container.innerHTML = html;
+				})
+				.catch(() => {});
+
+			// 直接載入系所和學期選項（無需等待預熱）
+			loadInitialCourseOptions();
+			setTimeout(() => updateMainHeader(), 50);
 		})
 
 		// 新增：載入初始課程選項的函數（背景載入，不阻塞UI）
@@ -1552,7 +1270,7 @@ const app = Vue.createApp({
 			const year = querySelectQueryYear.value || new Date().getFullYear() - 1911;
 			const semester = querySelectQuerySmt.value || "1";
 			
-			apibackend.getCourseListFromYZUApi(`${year}`, `${semester}`).then((data) => {
+			window.electronAPI.backend.getCourseList(`${year}`, `${semester}`).then((data) => {
 				// 更新系所清單
 				if (data.dept_list && Array.isArray(data.dept_list)) {
 					dept_list.value = data.dept_list;
@@ -1592,6 +1310,11 @@ const app = Vue.createApp({
 			isLoading, loading_text, isCourseDataLoading,
 			dept_list,
 			semester_list_for_time,
+			navigatedTo: navigateTo,
+			navigatedToAlias: navigateTo,
+			navigated: navigateTo,
+			navigated2: navigateTo,
+			navigateTo,
 			showSection,
 			// School Timetable Query - New variables
 			addToSchedule, showCourseInfo, showCourseDetail,
@@ -1611,7 +1334,7 @@ const app = Vue.createApp({
 			// Task List 
 			tasks, status, deleteTask,
 			// Settings
-			StealCourseInterval, StealCourseStage,
+			StealCourseInterval,
 			// Course loading functions
 			isPersonalScheduleData, getCourseListForQuery, loadInitialCourseOptions, loadCourseCredits,
 			// Modal functions
@@ -1652,34 +1375,20 @@ window.refreshSchedule = async function() {
 	if (scheduleInfoInner) scheduleInfoInner.style.display = 'none';
 
 	try {
-		// 固定目前學年學期
-		const currentYear = "114";
-		const currentSemester = "1";
+		// 清除舊的課表資料快取
+		window.courseScheduleData = null;
 
-		// 清除舊的課表資料快取，確保強制重抓
-		if (window.apibackend) {
-			window.apibackend.course_schedule_data = null;
+		// 透過 IPC 重新載入課表
+		const scheduleResult = await window.electronAPI.puppeteer.getSchedule();
+		if (!scheduleResult || !scheduleResult.success) {
+			throw new Error(scheduleResult?.message || '課表載入失敗，請確認已登入');
 		}
-
-		// 檢查登入憑證
-		if (!window.apibackend || !window.apibackend.ALLDATA?.original_account || !window.apibackend.ALLDATA?.original_password) {
-			throw new Error('缺少登入憑證，請先登入後再重試');
-		}
-
-		// 重新登入
-		await window.apibackend.loginService(
-			window.apibackend.ALLDATA.original_account,
-			window.apibackend.ALLDATA.original_password
-		);
-
-		// Puppeteer 流程重新抓課表
-		await window.apibackend.getCourseSchedule(currentYear, currentSemester);
+		window.courseScheduleData = scheduleResult.data;
 
 		// 成功後更新畫面
 		generateScheduleTable();
 		scheduleLoading.style.display = 'none';
 		scheduleContent.style.display = 'block';
-		// 不再使用舊的 schedule-info 區塊
 	} catch (error) {
 		console.error('重新載入課表失敗:', error);
 		scheduleLoading.style.display = 'none';
@@ -1704,8 +1413,8 @@ window.generateScheduleTable = function() {
 	}
 	
 	// 檢查課表資料
-	if (window.apibackend && window.apibackend.course_schedule_data) {
-		const data = window.apibackend.course_schedule_data;
+	if (window.courseScheduleData) {
+		const data = window.courseScheduleData;
 		
 		// 更新標題與資訊區塊（合併顯示於副標題）
 		if (data.is_personal) {
@@ -1753,8 +1462,8 @@ window.generateScheduleTable = function() {
 	const scheduleGrid = Array(13).fill(null).map(() => Array(7).fill(null));
 	
 	// 檢查是否有個人課表資料並填入網格
-	if (window.apibackend && window.apibackend.course_schedule_data && window.apibackend.course_schedule_data.is_personal) {
-		const data = window.apibackend.course_schedule_data;
+	if (window.courseScheduleData && window.courseScheduleData.is_personal) {
+		const data = window.courseScheduleData;
 		
 		if (data.course_list && data.course_list.length > 0) {
 			const courses = data.course_list;
@@ -1880,14 +1589,9 @@ window.generateScheduleTable = function() {
 		existingTbody.appendChild(row);
 	});
 	
-	// 顯示課表內容
-	const scheduleLoading = document.getElementById('schedule-loading');
-	const scheduleContentElement = document.getElementById('schedule-content');
-	
-	if (scheduleLoading) scheduleLoading.style.display = 'none';
-	if (scheduleContentElement) scheduleContentElement.style.display = 'block';
-	
-	console.log("✅ 課表已生成並顯示");
+	// 更新 Store 狀態讓 SchedulePage v-show 正確顯示
+	Store.scheduleViewState = 'content';
+	console.log('課表已生成並顯示');;
 }
 
 // 建立課表資訊顯示元素的輔助函數
@@ -1919,7 +1623,26 @@ function createScheduleInfoElement() {
 	return infoDiv;
 }
 
-app.mount('#app')
+// 向後相容：showSectionById 和 navigateFromSectionId 對應 router
+function navigateFromSectionId(id) {
+	const nameMap = {
+		'Main': 'Main',
+		'Schedule': 'Schedule',
+		'School-timetable-Query': 'CourseQuery',
+		'Auto-Selection': 'AutoSelection',
+		'Settings': 'Settings',
+	};
+	const name = nameMap[id];
+	if (name) {
+		try {
+			const r = app.config.globalProperties.$router;
+			if (r) r.push({ name });
+		} catch (_) {}
+	}
+}
+
+app.use(router);
+app.mount('#app');
 
 // 讓 closeAboutModal 在全域可用
 window.closeAboutModal = function() {

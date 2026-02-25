@@ -43,12 +43,12 @@
 /* 系所下拉選單樣式調整 */
 #querySelectQueryDept option { white-space: pre; }
 
-/* 移除按鈕的 inline-flex 顯示，確保所有按鈕都使用 inline-block */
-/* 使用更具體的選擇器替代 !important */
+/* 保持 inline-flex 以確保 icon + text 同行對齊 */
 .wc-container .btn,
 .content-panel .btn,
-.btabs .btn { 
-    display: inline-block; 
+.btabs .btn {
+    display: inline-flex;
+    align-items: center;
 }
 
 #courses-list-data-table td.name-cell {

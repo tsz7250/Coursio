@@ -9,28 +9,6 @@
                     </div>
                 </div>
             </div>
-            <div class="col">
-                <h5>Settings</h5>
-                <div class="card">
-                    <div class="card-body">
-                        <div class="mb-3">
-                            <label for="StealCourseIntervalInput" class="form-label">檢查時間間隔({{
-                                StealCourseInterval }}秒/選課一次)</label>
-                            <input v-model="StealCourseInterval" type="range" class="form-range" min="2"
-                                max="60" step="1" id="StealCourseIntervalInput">
-
-                            <label for="StealCourseStageID" class="form-label">選擇選課階段</label>
-                            <select v-model="StealCourseStage" id="StealCourseStageID"
-                                class="form-select" aria-label="選課階段">
-                                <option value="" selected disabled>選擇選課階段</option>
-                                <option value="1">第一階段選課</option>
-                                <option value="2">第二階段選課</option>
-                                <option value="3">第三階段選課</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-            </div>
         </div>
     </div>
 </div> <!-- End of settings section ( 設定 ) -->

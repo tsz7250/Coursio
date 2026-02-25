@@ -192,7 +192,7 @@ class CourseBot:
 
 
 
-    def selectCourses(self, coursesList, delay = 5):
+    def selectCourses(self, coursesList, delay = 2.5):
         # 從環境變數讀取最大循環次數（0 或未設定視為無上限）
         try:
             max_attempts_env = int(os.environ.get('MAX_ATTEMPTS', '0'))
@@ -267,10 +267,14 @@ if __name__ == '__main__':
     Account = config['Default']['Account']
     Password = config['Default']['Password']
 
-# the courses you want to select, format: '`deptId`,`courseId``classId`'
-    coursesList = [
-        '　　機械工程學系學士班,ME105A'
-    ]
+    # 從 courses.json 讀取課程清單（由 Electron 主程序寫出）
+    import json as _json
+    _courses_json = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'courses.json')
+    if not os.path.exists(_courses_json):
+        print('找不到 courses.json，請先將課程加入選課清單')
+        exit(1)
+    with open(_courses_json, 'r', encoding='utf-8') as _f:
+        coursesList = _json.load(_f)
 
     # Time Parameter, sleep n seconds
     delay = 2.5

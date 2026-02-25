@@ -72,4 +72,14 @@ spec/fixtures/logo.png
 renderer/py/captcha.png
 
 # Query_Request 測試腳本產生的 HTML 檔案（開發/測試用）
-Query_Request/*.html
+Query_Request_test/*.html
+
+.github/
+.cursor/
+
+# Vite 建置輸出
+renderer/dist/
+
+# SCSS 編譯產物
+renderer/css/wannaclass.css
+renderer/css/wannaclass.css.map

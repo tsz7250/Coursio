@@ -1,139 +1,157 @@
-$background: white;
-
-
-// normal state
-$sidebar-item-normal-text-color: black;
-$sidebar-item-normal-background-color: white;
-
-// hover state
-$sidebar-item-hover-text-color: text-color("white");
-$sidebar-item-hover-background-color: theme-color("primary-light");
-$sidebar-item-hover-radius: 0;
-
-// active state
-$sidebar-item-active-text-color: text-color("white");
-$sidebar-item-active-background-color: theme-color("primary-dark");
-$sidebar-item-active-radius: 0;
-
+﻿// ==========================================================================
+// Sidebar — UI.pen Design (240px fixed, Cyan active state)
+// ==========================================================================
 
 .sidebar {
-    width: 100%;
-    height: 100vh;
+    width           : 240px;
+    flex            : 0 0 240px;
+    height          : 100vh;
+    overflow        : hidden;
+    display         : flex;
+    flex-direction  : column;
+    align-items     : flex-start;
+    justify-content : flex-start;
+    padding         : 24px 12px;
+    padding-bottom  : 2rem;
+    background-color: #FFFFFF;
+    border-right    : 1px solid #F1F5F9;
+    box-sizing      : border-box;
 
-    overflow: hidden;
+    .sidebar-header {
+        width         : 100%;
+        display       : flex;
+        align-items   : center;
+        gap           : 10px;
+        padding       : 4px 8px 16px;
+        margin-bottom : 8px;
 
-    flex: 0 0 20%;
+        img {
+            width        : 36px;
+            height       : 36px;
+            border-radius: 8px;
+            object-fit   : contain;
+        }
 
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: start;
-
-    padding-bottom: 2rem;
-
-    background-color: $background;
-
-
-    &.shrink {
-        flex: 0 0 5%;
-
-        .sidebar-item {
-            padding-left: 0px;
-            padding-right: 0px;
-            justify-content: center;
-            
-            &:hover {
-                border-radius: 0;
-                color: theme-color("primary-dark");
-            }
-            > img {
-                margin: 0;
-            }
-            > span {
-                display: none;
-            }
+        span {
+            font-family: 'Poppins', sans-serif;
+            font-size  : 15px;
+            font-weight: 600;
+            color      : #164E63;
         }
     }
 
+    // 新 Logo 色塊
+    .sidebar-logo-box {
+        width          : 36px;
+        height         : 36px;
+        border-radius  : 8px;
+        background     : linear-gradient(135deg, #0891B2 0%, #22D3EE 100%);
+        display        : flex;
+        align-items    : center;
+        justify-content: center;
+        flex-shrink    : 0;
+
+        .sidebar-logo-text {
+            color      : #FFFFFF;
+            font-family: 'Poppins', sans-serif;
+            font-size  : 16px;
+            font-weight: 700;
+        }
+    }
+
+    .sidebar-brand {
+        font-family: 'Poppins', sans-serif;
+        font-size  : 15px;
+        font-weight: 600;
+        color      : #164E63;
+    }
 
     .sidebar-funcitonal-items {
         width: 100%;
+        flex : 1;
     }
 
-
-
     &-item {
-        width: 100%;
-        padding-top: 20px;
-        padding-bottom: 20px;
+        width        : 100%;
+        height       : 44px;
+        padding      : 0 16px;
+        margin       : 2px 0;
+        border-radius: 8px;
+        display      : flex;
+        align-items  : center;
+        gap          : 12px;
+        color        : #475569;
+        cursor       : pointer;
+        transition   : all 0.2s ease;
+        font-family  : 'Open Sans', sans-serif;
+        font-size    : 14px;
+        font-weight  : 500;
+        box-sizing   : border-box;
 
-        padding-left: 2rem;
+        // Lucide SVG icons
+        svg, i[data-lucide] {
+            width      : 18px;
+            height     : 18px;
+            flex-shrink: 0;
+        }
 
-        display: flex;
+        // FontAwesome fallback
+        i.fas, i.fab, i.fa {
+            width     : 18px;
+            text-align: center;
+            font-size : 0.9rem;
+        }
 
-        color: $sidebar-item-normal-text-color;
-        background-color: sidebar-item-normal-background-color;
+        span {
+            font-weight: 500;
+        }
 
-        transition: all .3s cubic-bezier(0.445, 0.05, 0.55, 0.95);
-        
         &:hover {
-            color: $sidebar-item-hover-text-color;
-            background-color: $sidebar-item-hover-background-color;
-            fill: $sidebar-item-hover-text-color;
-
-            border-top-right-radius: $sidebar-item-hover-radius $sidebar-item-hover-radius;
-            border-bottom-right-radius: $sidebar-item-hover-radius $sidebar-item-hover-radius;
-
-            img {
-                //white
-                // caculate by https://codepen.io/sosuke/pen/Pjoqqp
-                filter: invert(100%) sepia(100%) saturate(0%) hue-rotate(288deg) brightness(102%) contrast(102%);
-            }
+            background-color: #F0FDFA;
+            color           : #0891B2;
         }
 
         &.active {
-            color: $sidebar-item-active-text-color;
-            background-color: $sidebar-item-active-background-color;
-            fill: $sidebar-item-active-text-color;
+            background-color: #ECFEFF;
+            color           : #0891B2;
+            font-weight     : 600;
+            position        : relative;
 
-            border-top-right-radius: $sidebar-item-active-radius $sidebar-item-active-radius;
-            border-bottom-right-radius: $sidebar-item-active-radius $sidebar-item-active-radius;
-
-            img {
-                //white
-                // caculate by https://codepen.io/sosuke/pen/Pjoqqp
-                filter: invert(100%) sepia(100%) saturate(0%) hue-rotate(288deg) brightness(102%) contrast(102%);
+            &::before {
+                content      : '';
+                position     : absolute;
+                left         : 0;
+                top          : 50%;
+                transform    : translateY(-50%);
+                width        : 4px;
+                height       : 28px;
+                border-radius: 2px;
+                background   : #0891B2;
             }
         }
 
-        img {
-            width: 20px;
-            margin-right: 1rem;
+        &.guest-disabled {
+            opacity       : 0.45;
+            cursor        : not-allowed;
+            pointer-events: none;
         }
 
+        img {
+            width     : 18px;
+            object-fit: contain;
+        }
     }
 
-
-
-    #author-sidebar-item {
-        // background-image: url("../assets/ion-settings-outline.svg");
+    #About-sidebar-item {
         margin-top: auto;
     }
-
-
-
 }
-
-
 
 .header {
-    flex: 0 0 10%;
+    flex   : 0 0 auto;
     padding: 10px 0px;
-
-    width: 100%;
-    height: 100%;
+    width  : 100%;
     display: flex;
     justify-content: center;
-    align-items: center;
+    align-items    : center;
 }
-

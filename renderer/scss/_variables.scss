@@ -10,40 +10,49 @@
 
 
 
-// 1. Colors
+// 1. Colors — UI.pen Design System (Cyan)
 // ==========================================================================
-$background-color: #F5F5FC;
-$primary-color: #5776ad !default;
-$primary-color-light: lighten($primary-color, 15%) !default;
-$primary-color-dark: darken($primary-color, 15%) !default;
+$background-color: #F8FFFE;
+$primary-color: #0891B2;
+$primary-color-light: #22D3EE;
+$primary-color-dark: #0E7490;
+$primary-color-bg: #ECFEFF;
+$primary-color-subtle: #CFFAFE;
+$primary-color-muted: #F0FDFA;
 
-$secondary-color: color("teal", "lighten-4") !default;
+$bg-card: #FFFFFF;
+$bg-hover: #F0FDFA;
+$bg-sidebar: #FFFFFF;
+$border-light: #F1F5F9;
+$border-default: #E2E8F0;
 
-$primary-text-color: white; 
-$secondary-text-color: Black;
+$primary-text-color: #FFFFFF;
+$secondary-text-color: #164E63;
 
 // 統一的主題色彩系統
 $theme-colors: (
   "primary": $primary-color,
   "primary-light": $primary-color-light,
   "primary-dark": $primary-color-dark,
-  "secondary": $secondary-color,
-  "success": #28a745,
-  "danger": #dc3545,
-  "warning": #ffc107,
-  "info": #17a2b8,
+  "primary-bg": $primary-color-bg,
+  "primary-muted": $primary-color-muted,
+  "success": #22C55E,
+  "success-dark": #16A34A,
+  "danger": #EF4444,
+  "warning": #F59E0B,
+  "info": $primary-color,
   "light": #f8f9fa,
   "dark": #343a40
 ) !default;
 
 // 文字顏色系統
 $text-colors: (
-  "primary": $primary-text-color,
-  "secondary": $secondary-text-color,
-  "muted": #6c757d,
-  "white": #ffffff,
+  "primary": #164E63,
+  "secondary": #475569,
+  "muted": #94A3B8,
+  "white": #FFFFFF,
   "black": #000000
-) !default; 
+) !default;
 
 
 // $primary-color: color("materialize-red", "lighten-2") !default;

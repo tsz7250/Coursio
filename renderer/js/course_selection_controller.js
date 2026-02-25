@@ -2,7 +2,6 @@
 (function() {
     'use strict';
     
-    const { ipcRenderer } = require('electron');
     // 使用全域的 PythonCourseBot 類別
     const PythonCourseBot = window.PythonCourseBot;
 
@@ -73,12 +72,12 @@ class CourseSelectionController {
             clearOutputBtn.addEventListener('click', () => this.clearOutput());
         }
 
-        // IPC 監聽
-        ipcRenderer.on('pythonBotOutput', (event, data) => {
+        // IPC 監聽（透過 contextBridge）
+        window.electronAPI.pythonBot.onOutput((data) => {
             this.appendOutput(data.type, data.message, data.timestamp);
         });
 
-        ipcRenderer.on('pythonBotStatus', (event, data) => {
+        window.electronAPI.pythonBot.onStatus((data) => {
             this.updateBotStatus(data);
         });
     }
@@ -218,17 +217,16 @@ class CourseSelectionController {
         
         if (tasks.length === 0) {
             tbody.innerHTML = `
-                <tr class="no-tasks">
-                    <td colspan="6" class="text-center">
-                        <div class="empty-state">
-                            <span class="empty-icon">📝</span>
+                <tr class="bot-task-empty-row">
+                    <td colspan="6">
+                        <div class="bot-task-empty">
                             <p>尚無待選課程</p>
-                            <small>請前往「課程查詢」頁面，點擊「加入選課清單」按鈕加入課程</small>
+                            <small>請前往「課程查詢」頁面加入課程</small>
                         </div>
                     </td>
                 </tr>
             `;
-            taskCount.textContent = '待選課程: 0 門';
+            taskCount.textContent = '0 門待選';
             return;
         }
 
@@ -275,31 +273,21 @@ class CourseSelectionController {
             }
         }, { once: true });
 
-        taskCount.textContent = `待選課程: ${tasks.length} 門`;
+        taskCount.textContent = `${tasks.length} 門待選`;
     }
 
     /**
      * 刪除指定任務
      */
     async deleteTask(id) {
-        const confirmed = confirm('確定要刪除此課程嗎？');
+        const confirmFn = window.customConfirm || ((msg) => Promise.resolve(confirm(msg)));
+        const confirmed = await confirmFn('確定要刪除此課程嗎？');
         if (!confirmed) return;
 
         try {
-            const sqlite3 = require('sqlite3').verbose();
-            const database = new sqlite3.Database('db.sqlite');
-
-            database.run('DELETE FROM tasks WHERE id = ?', [id], (err) => {
-                database.close();
-
-                if (err) {
-                    console.error('刪除任務失敗:', err);
-                    this.appendOutput('system', `❌ 刪除失敗: ${err.message}`);
-                } else {
-                    this.appendOutput('system', `🗑️ 已刪除任務 #${id}`);
-                    this.refreshTaskList();
-                }
-            });
+            await window.electronAPI.db.deleteTask(id);
+            this.appendOutput('system', `🗑️ 已刪除任務 #${id}`);
+            this.refreshTaskList();
         } catch (error) {
             console.error('刪除任務異常:', error);
             this.appendOutput('system', `❌ 刪除異常: ${error.message}`);
@@ -310,25 +298,14 @@ class CourseSelectionController {
      * 清除已完成的任務
      */
     async clearCompletedTasks() {
-        const confirmed = confirm('確定要清除所有已完成的選課任務嗎？');
+        const confirmFn = window.customConfirm || ((msg) => Promise.resolve(confirm(msg)));
+        const confirmed = await confirmFn('確定要清除所有已完成的選課任務嗎？');
         if (!confirmed) return;
 
         try {
-            const sqlite3 = require('sqlite3').verbose();
-            const database = new sqlite3.Database('db.sqlite');
-            
-            database.run('DELETE FROM tasks WHERE status != 0', (err) => {
-                database.close();
-                
-                if (err) {
-                    console.error("清除已完成任務失敗:", err);
-                    this.appendOutput('system', `❌ 清除失敗: ${err.message}`);
-                } else {
-                    this.appendOutput('system', '✅ 已清除所有已完成的任務');
-                    this.refreshTaskList(); // 重新載入列表
-                }
-            });
-            
+            await window.electronAPI.db.clearCompleted();
+            this.appendOutput('system', '✅ 已清除所有已完成的任務');
+            this.refreshTaskList();
         } catch (error) {
             console.error("清除已完成任務失敗:", error);
             this.appendOutput('system', `❌ 清除失敗: ${error.message}`);
@@ -451,16 +428,26 @@ class CourseSelectionController {
         const statusItem = document.getElementById(statusId);
         if (!statusItem) return;
 
+        // 新 pill 設計
+        const dot        = statusItem.querySelector('.env-pill-dot');
+        const statusSpan = statusItem.querySelector('.env-pill-status');
+
+        const dotClasses  = { loading: 'env-pill-dot-pending', success: 'env-pill-dot-ok', warning: 'env-pill-dot-warn', error: 'env-pill-dot-error' };
+        const pillClasses = { success: 'env-pill-ok', warning: 'env-pill-warn', error: 'env-pill-error' };
+
+        if (dot) {
+            dot.className = `env-pill-dot ${dotClasses[type] || 'env-pill-dot-pending'}`;
+        }
+        if (statusSpan) statusSpan.textContent = message;
+
+        // 更新 pill container 顏色
+        ['env-pill-ok', 'env-pill-warn', 'env-pill-error'].forEach(c => statusItem.classList.remove(c));
+        if (pillClasses[type]) statusItem.classList.add(pillClasses[type]);
+
+        // 舊設計向下相容
         const icon = statusItem.querySelector('.status-icon');
         const text = statusItem.querySelector('.status-text');
-
-        const icons = {
-            loading: '⏳',
-            success: '✅',
-            warning: '⚠️',
-            error: '❌'
-        };
-
+        const icons = { loading: '⏳', success: '✅', warning: '⚠️', error: '❌' };
         if (icon) icon.textContent = icons[type] || '⏳';
         if (text) text.textContent = message;
     }

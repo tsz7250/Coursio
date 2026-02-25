@@ -4,7 +4,7 @@
     } else {
       root.SimpleScrollbar = factory(window, document)
     }
-  })(this, function(w, d) {
+  })(typeof window !== 'undefined' ? window : this, function(w, d) {
     var raf = w.requestAnimationFrame || w.setImmediate || function(c) { return setTimeout(c, 0); };
   
     function initEl(el) {
