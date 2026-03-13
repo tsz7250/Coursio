@@ -3,15 +3,16 @@
 
 <head>
     <meta charset="UTF-8">
-    <!-- C-06: Content Security Policy — 已移除 unsafe-eval（Vue SFC 由 Vite 預編譯） -->
+    <!-- H-07: Content Security Policy — 移除 unsafe-inline（所有樣式應改為外聯或 scoped），加 base-uri none -->
     <meta http-equiv="Content-Security-Policy"
           content="default-src 'self';
                    script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com;
-                   style-src  'self' https://cdn.jsdelivr.net https://fonts.googleapis.com 'unsafe-inline';
+                   style-src  'self' https://cdn.jsdelivr.net https://fonts.googleapis.com;
                    img-src    'self' data: blob:;
                    font-src   'self' https://fonts.gstatic.com;
                    connect-src 'self' https://*.yzu.edu.tw https://cdn.jsdelivr.net;
-                   object-src 'none';">
+                   object-src 'none';
+                   base-uri   'none';">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Coursio</title>
 
@@ -33,7 +34,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
 
     <!-- Vite 入口（type=module — Vue SFC 已預編譯，不需要 unsafe-eval） -->
-    <script type="module" src="./main.js"></script>
+    <script type="module" src="./src/main.js"></script>
 </body>
 
 </html>

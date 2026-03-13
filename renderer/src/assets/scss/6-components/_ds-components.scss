@@ -1,0 +1,1165 @@
+// =============================================================================
+// Coursio Design System Components
+// Based on UI.pen design specifications
+// =============================================================================
+
+// CSS Custom Properties (CSS Variables for runtime usage in inline styles)
+:root {
+  --color-primary:        #0891B2;
+  --color-primary-dark:   #0E7490;
+  --color-primary-light:  #22D3EE;
+  --color-primary-bg:     #ECFEFF;
+  --color-success:        #22C55E;
+  --color-success-dark:   #16A34A;
+  --color-success-bg:     #DCFCE7;
+  --color-warning:        #F59E0B;
+  --color-warning-bg:     #FEF3C7;
+  --color-danger:         #EF4444;
+  --color-danger-dark:    #DC2626;
+  --color-danger-bg:      #FEF2F2;
+  --color-info:           #6366F1;
+  --color-info-bg:        #EEF2FF;
+  --color-surface:        #FFFFFF;
+  --color-border:         #E2E8F0;
+  --color-border-light:   #F1F5F9;
+  --color-bg:             #F8FFFE;
+  --color-bg-card:        #FFFFFF;
+  --color-bg-page:        #F8FFFE;
+  --color-text-primary:   #164E63;
+  --color-text-secondary: #475569;
+  --color-text-muted:     #94A3B8;
+  --font-sans:            'Poppins', 'Open Sans', system-ui, sans-serif;
+  --radius-sm:            6px;
+  --radius-md:            8px;
+  --radius-lg:            12px;
+  --radius-xl:            16px;
+  --radius-full:          9999px;
+}
+
+// =============================================================================
+// 1. PAGE SHELL — TopBar + ScrollContent
+// =============================================================================
+
+.inner-section {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  flex: 1 1 0%;
+}
+
+.top-bar {
+  height: 60px;
+  min-height: 60px;
+  background: #FFFFFF;
+  border-bottom: 1px solid #F1F5F9;
+  padding: 0 32px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+  z-index: 10;
+}
+
+.top-bar-title {
+  font-family: 'Poppins', sans-serif;
+  font-size: 18px;
+  font-weight: 600;
+  color: #164E63;
+  letter-spacing: -0.01em;
+}
+
+.top-bar-title-lg {
+  font-size: 20px;
+}
+
+.top-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.user-chip {
+  height: 36px;
+  background: #ECFEFF;
+  border-radius: 20px;
+  padding: 0 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'Open Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: #0891B2;
+  cursor: pointer;
+  position: relative;
+  user-select: none;
+
+  svg, i[data-lucide] {
+    width: 16px;
+    height: 16px;
+    color: #0891B2;
+    flex-shrink: 0;
+  }
+
+  &:hover {
+    background: #CFFAFE;
+  }
+}
+
+.user-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  min-width: 140px;
+  overflow: hidden;
+  z-index: 9999;
+
+  .user-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #334155;
+    cursor: pointer;
+    white-space: nowrap;
+
+    svg, i[data-lucide] {
+      width: 14px;
+      height: 14px;
+      color: #64748B;
+      flex-shrink: 0;
+    }
+
+    &:hover {
+      background: #F8FAFC;
+    }
+
+    &.user-menu-item-danger {
+      color: #EF4444;
+
+      svg, i[data-lucide] {
+        color: #EF4444;
+      }
+
+      &:hover {
+        background: #FEF2F2;
+      }
+    }
+  }
+}
+
+.scroll-content {
+  flex: 1 1 0%;
+  overflow-y: auto;
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+
+  &::-webkit-scrollbar { width: 6px; }
+  &::-webkit-scrollbar-track { background: transparent; }
+  &::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 3px; }
+  &::-webkit-scrollbar-thumb:hover { background: #94A3B8; }
+}
+
+// Schedule / CourseQuery: padding 28px 32px; gap 20px
+.scroll-content-wide {
+  padding: 28px 32px;
+  gap: 20px;
+}
+
+// Settings / About: padding 20px; gap 16px
+.scroll-content-tight {
+  padding: 20px;
+  gap: 16px;
+}
+
+// AutoSelection Bot: padding 20px; gap 6px
+.scroll-content-compact {
+  padding: 20px;
+  gap: 6px;
+}
+
+.section-title {
+  font-family: 'Poppins', sans-serif;
+  font-size: 18px;
+  font-weight: 600;
+  color: #164E63;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+// =============================================================================
+// 2. BUTTONS
+// =============================================================================
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 20px;
+  border-radius: 8px;
+  font-family: 'Poppins', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
+  white-space: nowrap;
+  text-decoration: none;
+  line-height: 1;
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+
+  svg, i[data-lucide] {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    display: inline;  // override Tailwind preflight display: block
+  }
+}
+
+// Green primary (dashboard greeting card)
+.btn-primary {
+  background: #22C55E;
+  color: #FFFFFF;
+  &:hover { background: #16A34A; }
+}
+
+// Cyan filled
+.btn-cyan {
+  background: #0891B2;
+  color: #FFFFFF;
+  &:hover { background: #0E7490; }
+}
+
+// Outline cyan
+.btn-outline {
+  background: transparent;
+  color: #0891B2;
+  border: 2px solid #0891B2;
+  &:hover { background: #ECFEFF; }
+}
+
+// Danger
+.btn-danger {
+  background: transparent;
+  color: #EF4444;
+  border: 1px solid #EF4444;
+  height: 36px;
+  padding: 0 16px;
+  border-radius: 8px;
+  font-family: 'Poppins', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  &:hover { background: #FEF2F2; }
+}
+
+// Small size modifier
+.btn-sm {
+  height: 32px;
+  padding: 0 12px;
+  font-size: 12px;
+}
+
+// Green success fill
+.btn-success {
+  background: #22C55E;
+  color: #FFFFFF;
+  &:hover { background: #16A34A; }
+}
+
+// Ghost (light border)
+.btn-ghost {
+  background: transparent;
+  color: #475569;
+  border: 1px solid #E2E8F0;
+  height: 36px;
+  padding: 0 16px;
+  &:hover { background: #F8FAFC; border-color: #CBD5E1; }
+}
+
+// Disabled / needs-login button used in CourseQueryPage
+.login-disabled-btn {
+  background: #F1F5F9;
+  color: #94A3B8;
+  border: 1px solid #E2E8F0;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+// =============================================================================
+// 3. BADGES
+// =============================================================================
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 12px;
+  font-family: 'Open Sans', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.badge-primary {
+  background: #ECFEFF;
+  color: #0891B2;
+}
+
+.badge-success {
+  background: #DCFCE7;
+  color: #166534;
+}
+
+.badge-warning {
+  background: #FEF3C7;
+  color: #92400E;
+}
+
+.badge-danger {
+  background: #FEF2F2;
+  color: #DC2626;
+}
+
+.badge-info {
+  background: #EEF2FF;
+  color: #4338CA;
+}
+
+// =============================================================================
+// 4. GREETING CARD (Dashboard)
+// =============================================================================
+
+.greeting-card {
+  background: linear-gradient(90deg, #0891B2 0%, #22D3EE 100%);
+  border-radius: 16px;
+  padding: 32px 40px;
+  min-height: 140px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  flex-shrink: 0;
+
+  .greeting-text {
+    flex: 1;
+    h3 {
+      font-family: 'Poppins', sans-serif;
+      font-size: 22px;
+      font-weight: 700;
+      color: #FFFFFF;
+      margin: 0 0 8px;
+      letter-spacing: -0.01em;
+    }
+    p {
+      font-family: 'Open Sans', sans-serif;
+      font-size: 14px;
+      color: rgba(255, 255, 255, 0.85);
+      margin: 0;
+    }
+  }
+}
+
+// =============================================================================
+// 5. QUICK ACTIONS (Dashboard) — 4-column grid
+// =============================================================================
+
+.quick-actions {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+
+  @media (max-width: 900px) {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.qa-card {
+  background: #FFFFFF;
+  border: 1px solid #F1F5F9;
+  border-radius: 12px;
+  padding: 20px;
+  height: 120px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: box-shadow 0.15s, border-color 0.15s, transform 0.1s;
+
+  &:hover {
+    border-color: #ECFEFF;
+    box-shadow: 0 4px 20px rgba(8, 145, 178, 0.12);
+    transform: translateY(-2px);
+  }
+
+  &.qa-disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+}
+
+.qa-icon {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  &.qa-icon-primary { color: #0891B2; }
+  &.qa-icon-success { color: #22C55E; }
+  &.qa-icon-info    { color: #6366F1; }
+  &.qa-icon-warning { color: #F59E0B; }
+}
+
+.qa-title {
+  font-family: 'Poppins', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: #164E63;
+  margin-top: 4px;
+}
+
+.qa-desc {
+  font-family: 'Open Sans', sans-serif;
+  font-size: 12px;
+  color: #94A3B8;
+}
+
+// =============================================================================
+// 6. RECENT COURSES CARDS (Dashboard)
+// =============================================================================
+
+.recent-courses {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+
+  @media (max-width: 900px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.rc-card {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.rc-top {
+  height: 6px;
+}
+
+.rc-body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rc-name {
+  font-family: 'Poppins', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: #164E63;
+}
+
+.rc-detail {
+  font-family: 'Open Sans', sans-serif;
+  font-size: 12px;
+  color: #94A3B8;
+}
+
+// =============================================================================
+// 7. SCHEDULE PAGE
+// =============================================================================
+
+.sched-tool-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-shrink: 0;
+}
+
+.sched-tool-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sched-tool-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sched-semester-label {
+  font-family: 'Open Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: #475569;
+}
+
+.sched-time-col {
+  min-width: 80px;
+  width: 80px;
+}
+
+.schedule-table-container {
+  background: #FFFFFF;
+  border-radius: 12px;
+  border: 1px solid #E2E8F0;
+  overflow: hidden;
+}
+
+.schedule-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'Open Sans', sans-serif;
+  font-size: 13px;
+
+  thead tr {
+    background: #ECFEFF;
+  }
+
+  th {
+    height: 44px;
+    padding: 0 12px;
+    text-align: center;
+    font-weight: 600;
+    color: #0891B2;
+    font-size: 13px;
+    border-bottom: 1px solid #B2EBF2;
+  }
+
+  td {
+    padding: 8px 12px;
+    text-align: center;
+    border-bottom: 1px solid #F1F5F9;
+    color: #475569;
+    vertical-align: top;
+  }
+
+  // 課程格子內容 span
+  .sched-cn { display: block; font-weight: 600; color: #0E7490; font-size: 12px; }
+  .sched-cc { display: block; color: #64748B; font-size: 11px; }
+  .sched-cr { display: block; color: #94A3B8; font-size: 11px; }
+
+  tbody tr:last-child td {
+    border-bottom: none;
+  }
+}
+
+.schedule-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center; /* 讓內容垂直置中 */
+  min-height: 400px; /* 給予基本高度確保置中效果明顯 */
+  gap: 16px;
+  padding: 48px;
+  color: #94A3B8;
+}
+
+.loading-spinner {
+  width: 44px; /* 稍微放大使其更明顯舒適 */
+  height: 44px;
+  border: 4px solid #E2E8F0;
+  border-top-color: #0891B2;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.schedule-error {
+  display: flex;
+  justify-content: center;
+  padding: 48px;
+}
+
+.error-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+  color: #94A3B8;
+}
+
+// =============================================================================
+// 8. COURSE QUERY — Tabs + Search Panel
+// =============================================================================
+
+.query-tab-bar {
+  display: flex;
+  gap: 0;
+  border-bottom: none;
+  flex-shrink: 0;
+}
+
+.query-tab {
+  height: 40px;
+  padding: 0 20px;
+  background: #F8FAFB;
+  border: 1px solid #E2E8F0;
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+  margin-right: 4px;
+  font-family: 'Poppins', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.15s;
+
+  &:hover {
+    color: #0891B2;
+    background: #ECFEFF;
+  }
+
+  &.active {
+    background: #FFFFFF;
+    border-color: #0891B2;
+    color: #0891B2;
+    font-weight: 600;
+    position: relative;
+    &::after {
+      content: '';
+      position: absolute;
+      bottom: -1px;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: #FFFFFF;
+    }
+  }
+}
+
+.query-search-panel {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 0 12px 12px 12px;
+  padding: 20px;
+}
+
+// =============================================================================
+// 9. FORM COMPONENTS (used in CourseQueryPage + SettingsPage)
+// =============================================================================
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+
+  &.narrow { max-width: 180px; }
+  &.medium { max-width: 360px; }
+}
+
+.form-label {
+  font-family: 'Open Sans', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+  white-space: nowrap;
+}
+
+.form-control,
+.form-select {
+  height: 38px;
+  padding: 0 12px;
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  font-family: 'Open Sans', sans-serif;
+  font-size: 13px;
+  color: #164E63;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  width: 100%;
+  box-sizing: border-box;
+
+  &:focus {
+    border-color: #0891B2;
+    box-shadow: 0 0 0 3px rgba(8, 145, 178, 0.12);
+  }
+
+  &:disabled {
+    background: #F8FAFC;
+    color: #94A3B8;
+    cursor: not-allowed;
+  }
+}
+
+.form-range {
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  background: #E2E8F0;
+  border-radius: 3px;
+  outline: none;
+  cursor: pointer;
+
+  &::-webkit-slider-thumb {
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #0891B2;
+    cursor: pointer;
+  }
+
+  &:focus { outline: none; }
+}
+
+.query-actions {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+// =============================================================================
+// 10. COURSE QUERY — Results Table
+// =============================================================================
+
+.query-results-container {
+  background: #FFFFFF;
+  border-radius: 12px;
+  border: 1px solid #E2E8F0;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.query-results-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid #F1F5F9;
+
+  h5 {
+    font-family: 'Poppins', sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+    color: #164E63;
+    margin: 0;
+  }
+}
+
+.query-results-table-wrapper {
+  overflow-x: auto;
+}
+
+.query-results-table,
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'Open Sans', sans-serif;
+  font-size: 13px;
+
+  thead tr {
+    background: #ECFEFF;
+  }
+
+  th {
+    height: 44px;
+    padding: 0 16px;
+    text-align: left;
+    font-weight: 600;
+    color: #0891B2;
+    font-size: 13px;
+    border-bottom: 1px solid #B2EBF2;
+    white-space: nowrap;
+  }
+
+  td {
+    padding: 12px 16px;
+    border-bottom: 1px solid #F1F5F9;
+    color: #475569;
+    vertical-align: middle;
+  }
+
+  tbody tr:last-child td { border-bottom: none; }
+
+  tbody tr:hover { background: #F8FFFE; }
+}
+
+.table-striped {
+  tbody tr:nth-child(even) { background: #F8FFFE; }
+}
+
+// =============================================================================
+// 11. SETTINGS PAGE
+// =============================================================================
+
+.settings-card {
+  background: #FFFFFF;
+  border-radius: 12px;
+  border: 1px solid #E2E8F0;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+
+  &.danger-zone {
+    border-color: #EF4444;
+    .settings-card-title { color: #DC2626; }
+  }
+}
+
+.settings-card-title {
+  font-family: 'Poppins', sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+  color: #164E63;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 0 12px 0 !important;
+  border-bottom: 1px solid #F1F5F9;
+
+  // Lucide SVG 渲染後的 svg 元素，以及尚未轉換的 i[data-lucide] fallback
+  svg, i[data-lucide] { display: block; flex-shrink: 0; }
+}
+
+.setting-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+  padding: 8px 0;
+
+  & + .setting-row {
+    border-top: 1px solid #F1F5F9;
+  }
+}
+
+.setting-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.setting-row-control {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 200px;
+  flex-shrink: 0;
+}
+
+.setting-label-title {
+  font-family: 'Poppins', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: #164E63;
+}
+
+.setting-label-desc {
+  font-family: 'Open Sans', sans-serif;
+  font-size: 12px;
+  color: #94A3B8;
+}
+
+// =============================================================================
+// 12. FLEX UTILITIES (minimal set for CourseQueryPage inline flex layouts)
+// =============================================================================
+
+.flex         { display: flex; }
+.flex-wrap    { flex-wrap: wrap; }
+.items-end    { align-items: flex-end; }
+.items-center { align-items: center; }
+.gap-x-4      { column-gap: 16px; }
+.gap-y-4      { row-gap: 16px; }
+.gap-4        { gap: 16px; }
+.w-full       { width: 100%; }
+.w-1\/2       { width: 50%; }
+.w-1\/4       { width: 25%; }
+@media (min-width: 768px) {
+  .md\:w-1\/4 { width: 25%; }
+  .md\:w-1\/2 { width: 50%; }
+  .md\:w-1\/4 { width: 25%; }
+}
+
+// =============================================================================
+// 13. ABOUT PAGE
+// =============================================================================
+
+// Brand Card — 90° gradient banner
+.about-brand-card {
+  background   : linear-gradient(90deg, #0891B2 0%, #22D3EE 100%);
+  border-radius: 16px;
+  padding      : 40px 48px;
+  display      : flex;
+  flex-direction: column;
+  align-items  : center;
+  gap          : 16px;
+}
+
+.about-brand-logo {
+  width          : 72px;
+  height         : 72px;
+  border-radius  : 18px;
+  background     : #FFFFFF;
+  display        : flex;
+  align-items    : center;
+  justify-content: center;
+  flex-shrink    : 0;
+
+  span {
+    font-family: 'Poppins', sans-serif;
+    font-size  : 32px;
+    font-weight: 700;
+    color      : #FFFFFF;
+  }
+}
+
+.about-brand-name {
+  font-family: 'Poppins', sans-serif;
+  font-size  : 28px;
+  font-weight: 700;
+  color      : #FFFFFF;
+  margin     : 0;
+}
+
+.about-brand-subtitle {
+  font-family: 'Open Sans', sans-serif;
+  font-size  : 16px;
+  color      : #E0F7FA;
+  margin     : 0;
+}
+
+.about-version-badge {
+  height         : 28px;
+  line-height    : 28px;
+  padding        : 0 16px;
+  border-radius  : 14px;
+  background     : rgba(255, 255, 255, 0.2);
+  font-family    : 'Open Sans', sans-serif;
+  font-size      : 12px;
+  font-weight    : 600;
+  color          : #FFFFFF;
+}
+
+// Feature Grid — 5-column responsive
+.about-feature-grid {
+  display              : grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap                  : 16px;
+
+  @media (max-width: 1200px) {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  @media (max-width: 900px) {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  @media (max-width: 600px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.about-feature-card {
+  background   : #FFFFFF;
+  border       : 1px solid #E2E8F0;
+  border-radius: 12px;
+  padding      : 20px;
+  display      : flex;
+  flex-direction: column;
+  align-items  : flex-start !important;
+  text-align   : left !important;
+  gap          : 12px;
+}
+
+// icon box + title 水平排列（與「開發資訊」的 .about-dev-header 一致）
+.about-feature-header {
+  display    : flex;
+  flex-direction: column;
+  align-items: flex-start !important;
+  gap        : 12px;
+  width      : 100% !important;
+}
+
+.about-icon-box {
+  width          : 44px;
+  height         : 44px;
+  border-radius  : 8px;
+  display        : flex;
+  align-items    : center;
+  justify-content: center;
+  flex-shrink    : 0;
+
+  &.about-icon-box-primary { background: #ECFEFF; }
+  &.about-icon-box-warning { background: #FEF3C7; }
+  &.about-icon-box-success { background: #DCFCE7; }
+  &.about-icon-box-info    { background: #E0F2FE; }
+}
+
+.about-feature-title {
+  font-family: 'Poppins', sans-serif;
+  font-size  : 15px;
+  font-weight: 600;
+  color      : #164E63;
+  margin     : 0;
+  width      : 100% !important;
+  text-align : left !important;
+  padding    : 0 !important; // Override .inner-section h4 padding
+}
+
+.about-feature-desc {
+  font-family: 'Open Sans', sans-serif;
+  font-size  : 12px;
+  color      : #94A3B8;
+  margin     : 0;
+  line-height: 1.5;
+  width      : 100% !important;
+  text-align : left !important;
+}
+
+// Developer Card
+.about-dev-card {
+  background   : #FFFFFF;
+  border       : 1px solid #E2E8F0;
+  border-radius: 12px;
+  padding      : 24px;
+  display      : flex;
+  flex-direction: column;
+  gap          : 16px;
+}
+
+.about-dev-header {
+  display    : flex;
+  align-items: center;
+  gap        : 10px;
+}
+
+.about-dev-title {
+  font-family: 'Poppins', sans-serif;
+  font-size  : 16px;
+  font-weight: 600;
+  color      : #164E63;
+}
+
+.about-dev-info-row {
+  display: flex;
+  gap    : 24px;
+}
+
+.about-dev-col {
+  flex   : 1;
+  display: flex;
+  flex-direction: column;
+  gap    : 12px;
+}
+
+.about-dev-item {
+  display    : flex;
+  align-items: center;
+  gap        : 8px;
+}
+
+.about-dev-label {
+  font-family: 'Open Sans', sans-serif;
+  font-size  : 12px;
+  font-weight: 600;
+  color      : #475569;
+  min-width  : 60px;
+}
+
+.about-dev-value {
+  font-family: 'Open Sans', sans-serif;
+  font-size  : 13px;
+  font-weight: 500;
+  color      : #164E63;
+}
+
+// Links Row
+.about-links-row {
+  display: flex;
+  gap    : 16px;
+}
+
+.about-link-btn {
+  height         : 44px;
+  padding        : 0 20px;
+  background     : #FFFFFF;
+  border         : 1px solid #E2E8F0;
+  border-radius  : 8px;
+  display        : flex;
+  align-items    : center;
+  gap            : 10px;
+  text-decoration: none;
+  font-family    : 'Open Sans', sans-serif;
+  font-size      : 14px;
+  font-weight    : 500;
+  color          : #164E63;
+  cursor         : pointer;
+  transition     : border-color 0.15s, background 0.15s;
+
+  &:hover {
+    border-color: #0891B2;
+    background  : #F8FFFE;
+  }
+}
+
+// Footer
+.about-footer {
+  display        : flex;
+  justify-content: center;
+  padding-top    : 16px;
+
+  span {
+    font-family: 'Open Sans', sans-serif;
+    font-size  : 13px;
+    color      : #94A3B8;
+  }
+}
+
+// =============================================================================
+// GLOBAL TOAST
+// =============================================================================
+#wc-toast {
+  position: fixed;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%) translateY(16px);
+  background: #0F172A;
+  color: #F8FAFC;
+  font-family: 'Open Sans', sans-serif;
+  font-size: 14px;
+  padding: 10px 24px;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0,0,0,.25);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .25s, transform .25s;
+  z-index: 9999;
+
+  &.wc-toast-show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}

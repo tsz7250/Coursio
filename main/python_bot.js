@@ -1,0 +1,293 @@
+const path = require('path');
+const fs = require('fs');
+const { spawn } = require('child_process');
+const configManager = require('./config_manager');
+
+class PythonCourseBot {
+    constructor() {
+        this.pythonPath = null;
+        this.isInitialized = false;
+        this.pythonChecked = false;
+        this.isRunning = false;
+        this.currentProcess = null;
+        this.stdoutBuffer = '';
+
+        // Python 檔案路徑（相對於專案根目錄）
+        const pythonDir = path.join(__dirname, '..', 'python');
+        this.botScriptPath = path.join(pythonDir, 'yzuCourseBot.py');
+        this.checkPackagesScriptPath = path.join(pythonDir, 'check_packages.py'); // M-09
+        this.modelPath = path.join(pythonDir, 'model.h5');
+        this.requirementsPath = path.join(pythonDir, 'requirements.txt');
+
+        this.dbProvider = null;
+    }
+
+    setDbProvider(provider) {
+        this.dbProvider = provider;
+    }
+
+    _mainWindow = null;
+    setMainWindow(win) { this._mainWindow = win; }
+
+    _send(channel, data) {
+        if (this._mainWindow && !this._mainWindow.isDestroyed()) {
+            this._mainWindow.webContents.send(channel, data);
+        }
+    }
+
+    async initialize() {
+        if (this.isInitialized) return { success: true, message: 'Python 環境已初始化' };
+        try {
+            await this.checkPythonInstallation();
+            const [filesResult, packagesResult] = await Promise.allSettled([
+                this.checkRequiredFiles(),
+                this.checkPythonPackages()
+            ]);
+            if (filesResult.status === 'rejected') throw filesResult.reason;
+            if (packagesResult.status === 'rejected') throw packagesResult.reason;
+            this.isInitialized = true;
+            return { success: true, message: 'Python 環境就緒' };
+        } catch (error) {
+            return { success: false, message: error.message };
+        }
+    }
+
+    async checkPythonInstallation() {
+        if (this.pythonChecked) return;
+        try {
+            const version = await this.runCommand('python', ['--version'], { timeout: 5000 });
+            if (version.includes('Python 3.')) {
+                this.pythonPath = 'python';
+                this.pythonChecked = true;
+                return;
+            }
+        } catch { /* ignore */ }
+        throw new Error('找不到 Python 3.x 安裝。請安裝 Python 3.12+ 並確保加入 PATH');
+    }
+
+    async checkRequiredFiles() {
+        const files = [
+            { path: this.botScriptPath, name: 'yzuCourseBot.py' },
+            { path: this.modelPath, name: '驗證碼識別模型 model.h5' },
+            { path: this.requirementsPath, name: 'requirements.txt' }
+        ];
+        await Promise.all(files.map(f =>
+            new Promise((resolve, reject) => {
+                fs.access(f.path, fs.constants.F_OK, err =>
+                    err ? reject(new Error(`缺少必要檔案: ${f.name} (${f.path})`)) : resolve());
+            })
+        ));
+    }
+
+    async checkPythonPackages() {
+        if (!this.pythonPath) throw new Error('Python 路徑未設定');
+        // 快取檢查
+        try {
+            const s = await configManager.readSettings();
+            const c = s.pythonPackagesChecked;
+            if (c && c.pythonPath === this.pythonPath && (Date.now() - (c.timestamp || 0)) < 86400000) return;
+        } catch (e) {
+            console.error('checkPythonPackages 讀取設定錯誤:', e);
+        }
+
+        // M-09: 腳本已外部化，改用腳本路徑直接執行
+        try {
+            const result = await this.runCommand(this.pythonPath, [this.checkPackagesScriptPath], { timeout: 15000 });
+            if (result.includes('SUCCESS')) {
+                try {
+                    let s = await configManager.readSettings();
+                    s.pythonPackagesChecked = { pythonPath: this.pythonPath, timestamp: Date.now() };
+                    await configManager.writeSettings(s);
+                } catch (e) {
+                    console.error('checkPythonPackages 寫入設定錯誤:', e);
+                }
+            } else {
+                await this.installPythonPackages();
+            }
+        } catch {
+            await this.installPythonPackages();
+        }
+    }
+
+    async installPythonPackages() {
+        if (!this.pythonPath) throw new Error('Python 路徑未設定');
+        await this.runCommand(this.pythonPath, ['-m', 'pip', 'install', '-r', this.requirementsPath, '--user'], { timeout: 300000 });
+    }
+
+    async loadCoursesFromDatabase() {
+        return new Promise(resolve => {
+            if (!this.dbProvider) {
+                resolve({ success: false, message: '資料庫提供者未設置' }); return;
+            }
+            const database = this.dbProvider();
+            database.all('SELECT * FROM tasks WHERE status = 0 ORDER BY id', [], (err, rows) => {
+                if (err) { resolve({ success: false, message: err.message }); return; }
+                if (!rows || rows.length === 0) {
+                    resolve({ success: false, message: '沒有找到待選課程' }); return;
+                }
+                const courses = rows.map(r => ({
+                    id: r.id, deptId: r.dept_id, courseId: r.cos_id,
+                    classId: r.cos_class, name: r.name,
+                    teacher_name: r.teacher_name, credit: r.credit,
+                    status: r.status, formatted: `${r.dept_id},${r.cos_id}${r.cos_class}`
+                }));
+                resolve({ success: true, courses });
+            });
+        });
+    }
+
+    async setupCoursesListFromDatabase() {
+        try {
+            const result = await this.loadCoursesFromDatabase();
+            if (!result.success) return result;
+            const coursesJsonPath = path.join(path.dirname(this.botScriptPath), 'courses.json');
+            const formatted = result.courses.map(c => c.formatted);
+            await fs.promises.writeFile(coursesJsonPath, JSON.stringify(formatted, null, 2), 'utf8');
+            return { success: true, coursesCount: result.courses.length, courses: result.courses };
+        } catch (e) {
+            console.error('setupCoursesListFromDatabase 發生錯誤:', e);
+            return { success: false, message: e.message };
+        }
+    }
+
+    async updateDelaySettings(delay) {
+        try {
+            let content = await fs.promises.readFile(this.botScriptPath, 'utf8');
+            const pat = /delay\s*=\s*[\d.]+/;
+            const rep = `delay = ${delay}`;
+            content = pat.test(content) ? content.replace(pat, rep) : content;
+            await fs.promises.writeFile(this.botScriptPath, content, 'utf8');
+        } catch (e) {
+            console.error('updateDelaySettings 發生錯誤:', e);
+        }
+    }
+
+    async startCourseSelection(options = {}) {
+        if (this.isRunning) return { success: false, message: '選課機器人已在執行中' };
+        const { delay = 2.5, maxAttempts = 100 } = options;
+        try {
+            const coursesResult = await this.setupCoursesListFromDatabase();
+            if (!coursesResult.success) return { success: false, message: coursesResult.message };
+            if (coursesResult.coursesCount === 0) return { success: false, message: '沒有待選課程' };
+            await this.updateDelaySettings(delay);
+
+            // 從 config.ini 讀取帳密作為環境變數注入 Python（唯一憑證來源）
+            const accounts = await configManager.readAccounts();
+            if (!accounts.account || !accounts.password) {
+                return { success: false, message: '尚未設定 Portal 帳號密碼，請至帳號設定頁面填入後再啟動機器人' };
+            }
+
+            this.currentProcess = spawn(this.pythonPath, ['-u', this.botScriptPath], {
+                cwd: path.dirname(this.botScriptPath),
+                stdio: ['pipe', 'pipe', 'pipe'],
+                env: {
+                    ...process.env,
+                    PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1', PYTHONUNBUFFERED: '1',
+                    MAX_ATTEMPTS: String(Number.isFinite(maxAttempts) ? maxAttempts : 0),
+                    PORTAL_ACCOUNT: accounts.account,
+                    PORTAL_PASSWORD: accounts.password
+                }
+            });
+            this.isRunning = true;
+            this.stdoutBuffer = '';
+            this._send('pythonBotStatus', { status: 'starting', message: '機器人已啟動，登入中...' });
+
+            const detectStatusFromText = (text) => {
+                const normalized = String(text || '').trim();
+                if (!normalized) return;
+
+                if (/Login\s*Successful|登入成功/i.test(normalized)) {
+                    this._send('pythonBotStatus', { status: 'logged_in', message: '登入成功' });
+                    return;
+                }
+
+                if (/Login\s*Failed|登入過程發生錯誤|重試|選課系統尚未開放/i.test(normalized)) {
+                    this._send('pythonBotStatus', { status: 'login_retry', message: normalized });
+                    return;
+                }
+
+                if (/加選訊息：|已選過/i.test(normalized)) {
+                    this._send('pythonBotStatus', { status: 'course_selected', message: normalized });
+                }
+            };
+
+            this.currentProcess.stdout.on('data', (data) => {
+                const output = data.toString('utf8');
+                this._send('pythonBotOutput', { type: 'stdout', message: output, timestamp: new Date().toISOString() });
+
+                // 避免 stdout 分段導致關鍵字被切斷，改為逐行判斷狀態
+                this.stdoutBuffer += output;
+                const lines = this.stdoutBuffer.split(/\r?\n/);
+                this.stdoutBuffer = lines.pop() || '';
+                lines.forEach((line) => detectStatusFromText(line));
+
+                if (output.includes('加選訊息：')) {
+                    const m = output.match(/(\w+\s+\w+)\s+加選訊息：(.+)/);
+                    if (m) this._send('pythonBotStatus', { status: 'course_selected', course: m[1], message: m[2] });
+                }
+            });
+
+            this.currentProcess.stderr.on('data', (data) => {
+                this._send('pythonBotOutput', { type: 'stderr', message: data.toString('utf8'), timestamp: new Date().toISOString() });
+            });
+
+            this.currentProcess.on('close', (code) => {
+                if (this.stdoutBuffer) {
+                    detectStatusFromText(this.stdoutBuffer);
+                    this.stdoutBuffer = '';
+                }
+                this.isRunning = false;
+                this.currentProcess = null;
+                this._send('pythonBotStatus', { status: 'stopped', message: `程序結束 (退出碼: ${code})`, exitCode: code });
+            });
+
+            return { success: true, message: '自動選課機器人已啟動', pid: this.currentProcess.pid };
+        } catch (e) {
+            this.isRunning = false; this.currentProcess = null;
+            return { success: false, message: e.message };
+        }
+    }
+
+    async stopCourseSelection() {
+        if (!this.isRunning || !this.currentProcess) return { success: true, message: '選課機器人未在執行中' };
+        try {
+            this.currentProcess.kill('SIGTERM');
+            setTimeout(() => { if (this.currentProcess && !this.currentProcess.killed) this.currentProcess.kill('SIGKILL'); }, 3000);
+            this.isRunning = false;
+            return { success: true, message: '選課機器人已停止' };
+        } catch (e) {
+            return { success: false, message: e.message };
+        }
+    }
+
+    getStatus() {
+        return {
+            isRunning: this.isRunning,
+            pythonPath: this.pythonPath,
+            pid: this.currentProcess ? this.currentProcess.pid : null,
+            hasModel: fs.existsSync(this.modelPath)
+        };
+    }
+
+    resetInitialization() {
+        this.isInitialized = false;
+        this.pythonChecked = false;
+        this.pythonPath = null;
+    }
+
+    runCommand(command, args, options = {}) {
+        return new Promise((resolve, reject) => {
+            const { timeout = 30000 } = options;
+            const proc = spawn(command, args, { stdio: ['pipe', 'pipe', 'pipe'] });
+            let stdout = '', stderr = '';
+            proc.stdout.on('data', d => { stdout += d.toString('utf8'); });
+            proc.stderr.on('data', d => { stderr += d.toString('utf8'); });
+            const timer = setTimeout(() => { proc.kill(); reject(new Error('命令執行超時')); }, timeout);
+            proc.on('close', code => { clearTimeout(timer); code === 0 ? resolve(stdout) : reject(new Error(stderr || `退出碼: ${code}`)); });
+            proc.on('error', e => { clearTimeout(timer); reject(e); });
+        });
+    }
+}
+
+// 匯出為 Singleton
+module.exports = new PythonCourseBot();

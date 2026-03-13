@@ -1,0 +1,30 @@
+@charset "UTF-8";
+
+// 1. Settings (Variables)
+@import "1-settings/color-variables";
+@import "1-settings/variables";
+
+// 2. Tools (Mixins) - Optional
+// @import "2-tools/mixins";
+
+// 3. Generic (Reset/Base/Vendor)
+@import "3-generic/vendor/materializecss/tapTarget";
+@import "3-generic/vendor/materializecss/modal";
+@import "3-generic/normalize";
+@import "3-generic/typography";
+
+// 4. Elements (Base HTML)
+@import "4-elements/global";
+
+// 6. Components (Shared UI)
+@import "6-components/ds-components";
+@import "6-components/tabs";
+@import "6-components/simple-scrollbar";
+@import "6-components/modal";
+@import "6-components/hover";
+
+// All Page-specific styles relocated to Vue components (Scoped Styles)
+// - AboutPage.vue
+// - GradesPage.vue 
+// - SchedulePage.vue
+// - App.vue (Login & Sidebar)

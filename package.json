@@ -1,15 +1,21 @@
 {
-  "name": "Coursio",
+  "name": "coursio",
   "version": "1.0.0",
   "description": "Get class from yzu course api.",
-  "main": "app.js",
+  "main": "main/app.js",
   "scripts": {
     "start": "npm run build:renderer && chcp 65001 >nul 2>&1 & electron .",
     "dev": "chcp 65001 >nul 2>&1 & vite build --outDir renderer/dist && electron .",
     "dev:vite": "vite --config vite.config.js",
     "build": "node build.js",
     "build:renderer": "vite build --config vite.config.js",
-    "build:win": "vite build --config vite.config.js && electron-builder --win"
+    "build:win": "vite build --config vite.config.js && electron-builder --win",
+    "lint": "eslint renderer/src/ main/ shared/ --ext .js,.vue,.mjs",
+    "lint:fix": "eslint renderer/src/ main/ shared/ --ext .js,.vue,.mjs --fix",
+    "test": "npm run smoke",
+    "typecheck": "node scripts/typecheck.js",
+    "audit": "npm audit --omit=dev",
+    "smoke": "node scripts/smoke-check.js"
   },
   "keywords": [
     "electron"
@@ -21,14 +27,19 @@
   "author": {
     "name": "tsz7250"
   },
-  "license": "ISC",
+  "license": "GPL-3.0-or-later",
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@vitejs/plugin-vue": "^6.0.4",
     "electron": "^40.6.1",
     "electron-builder": "^26.8.1",
     "electron-rebuild": "^3.2.9",
+    "eslint": "^10.0.3",
+    "eslint-plugin-vue": "^10.8.0",
     "sass": "^1.97.2",
-    "vite": "^7.3.1"
+    "vite": "^7.3.1",
+    "typescript": "^5.9.2",
+    "vue-eslint-parser": "^10.4.0"
   },
   "dependencies": {
     "axios": "^1.13.5",
@@ -38,6 +49,7 @@
     "lucide": "^0.575.0",
     "moment": "^2.30.1",
     "node-rsa": "^1.1.1",
+    "puppeteer": "^24.39.0",
     "sqlite3": "^5.1.7",
     "tough-cookie": "^6.0.0",
     "vue": "^3.5.26",

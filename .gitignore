@@ -8,12 +8,12 @@ config/settings.json
 settings.json
 
 # Python yzuCourseBot 相關檔案 (包含個人資訊)
-py/accounts.ini
-renderer/py/accounts.ini
-py/captcha.png
-py/__pycache__/
-py/*.pyc
-py/*.log
+python/accounts.ini
+python/captcha.png
+python/__pycache__/
+python/*.pyc
+python/*.log
+
 
 .DS_Store
 .env
@@ -70,7 +70,7 @@ ts-gen
 patches/mtime-cache.json
 
 spec/fixtures/logo.png
-renderer/py/captcha.png
+python/captcha.png
 
 # Query_Request 測試腳本產生的 HTML 檔案（開發/測試用）
 Query_Request_test/*.html

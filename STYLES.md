@@ -9,30 +9,30 @@ This project uses a modern frontend architecture powered by **Vite**, **Vue 3**,
 
 ## File Structure (SCSS)
 
-All primary styles are located in `renderer/scss/` and are bundled by Vite.
+All primary styles are located in `renderer/scss/` and follow the **ITCSS (Inverted Triangle CSS)** architecture to manage specificity and scope.
 
 ```
 renderer/scss/
-├── coursio.scss             # Main entry (imports all modules)
-├── _variables.scss          # Global SCSS variables
-├── _color-variables.scss    # Color system and theme variables
-├── _ds-components.scss      # Core Design System components (Buttons, Inputs, etc.)
-├── _normalize.scss          # CSS reset and normalization
-├── _typography.scss         # Font styles and text formatting
-├── _global.scss            # Global base styles
-├── _login-page.scss        # Login page specific styles
-├── _content-page.scss      # Content page specific styles
-├── _sidebar.scss           # Sidebar navigation styles
-├── _schedule.scss          # Schedule table and time-table styles
-├── _tabs.scss              # Tab component styles
-├── _modal.scss             # Modal component styles
-├── _about-modal.scss       # About dialog specific styles
-├── _components.scss        # General UI components
-├── _hover.scss             # Interactive hover effects
-├── _simple-scrollbar.scss  # Custom scrollbar styles
-└── materializecss/         # Materialize component overrides
-    ├── _modal.scss
-    └── _tapTarget.scss
+├── coursio.scss             # Main entry (imports all layers in order)
+├── 1-settings/              # Variables and feature toggles
+│   ├── _color-variables.scss
+│   └── _variables.scss
+├── 2-tools/                 # Mixins and functions
+├── 3-generic/               # Reset and normalization
+│   ├── _normalize.scss
+│   ├── _typography.scss
+│   └── vendor/              # Third-party vendor styles
+│       └── materializecss/
+├── 4-elements/              # Global base HTML styles
+│   └── _global.scss
+├── 5-objects/               # Unstyled layout structures
+├── 6-components/            # Shared components and Design System
+│   ├── _ds-components.scss  # Core UI components (Buttons, Inputs, Cards, Toasts)
+│   ├── _tabs.scss
+│   ├── _modal.scss
+│   ├── _simple-scrollbar.scss
+│   └── _hover.scss
+└── 7-utilities/             # Helper classes (last layer)
 ```
 
 ## Styling Technologies
@@ -40,55 +40,34 @@ renderer/scss/
 ### 1. Tailwind CSS v4
 The project uses Tailwind CSS for utility-first styling. The configuration and theme are defined in `renderer/css/tailwind.css`.
 - **Theme Variables**: Custom colors like `primary`, `success`, `danger`, and `warning` are available as Tailwind classes (e.g., `text-primary`, `bg-success`).
-- **Integration**: Imported in `renderer/main.js`.
+- **Standard**: Prefer Tailwind for internal spacing, layout, and rapid prototyping within components.
 
 ### 2. SCSS Design System
-The `_ds-components.scss` file contains high-level, reusable component styles that follow a consistent design language. This is where most complex UI elements are defined.
+The `6-components/_ds-components.scss` file contains high-level, reusable components (Buttons, Badges, Cards) that follow the project's design language.
 
-### 3. Lucide Icons
-Icons are imported selectively to minimize bundle size. Usage can be found in `renderer/main.js`.
-
-## Build Process
-
-The styling build process is fully integrated into Vite. You no longer need separate watch scripts for CSS.
-
-### Development
-```bash
-npm run dev         # Starts development environment with HMR
-```
-
-### Production Build
-```bash
-npm run build:renderer   # Compiles and minifies all assets via Vite
-```
+### 3. Vue Scoped Styles (PRIMARY)
+For page-specific or component-specific styles, **ALWAYS** use `<style scoped lang="scss">` within the `.vue` file.
+- **Why**: This prevents global style leakage and specificity conflicts (the "need for !important" problem).
+- **Organization**: Move styles from global SCSS files into component scopes as you refactor.
 
 ## Development Guidelines
 
 ### Adding New Styles
-1. **Utility-first**: Prefer Tailwind CSS classes for layout, spacing, and simple styling.
-2. **Components**: For complex, reusable components, create a new SCSS file (e.g., `_my-component.scss`).
-3. **Registration**: Import new SCSS files in `renderer/scss/coursio.scss`.
-4. **Icons**: Add new Lucide icons to the import list in `renderer/main.js` if they are not already available.
+1. **Component Scoping**: If the style is only for one page/component, use `<style scoped>` in the `.vue` file.
+2. **Shared Components**: If the style is a reusable UI element, add it to `renderer/scss/6-components/`.
+3. **ITCSS Layering**: Ensure new global files are imported in `coursio.scss` within the correct ITCSS layer.
+4. **No !important**: Avoid `!important`. If you need it, your specificity is likely too high or you are fighting a global style that should be scoped.
 
 ### BEM & Naming
-When writing SCSS, follow the BEM (Block Element Modifier) methodology for clarity and to prevent nesting issues.
+When writing SCSS (even inside scoped styles), follow the BEM (Block Element Modifier) methodology.
 
 ```scss
-.wc-card {
-  @apply shadow-sm rounded-lg; // Mix with Tailwind utilities
-  
-  &__header {
-    margin-bottom: $spacing-md;
-  }
-  
-  &--featured {
-    border-color: var(--color-primary);
+/* Scoped style inside a Vue component */
+.about-feature {
+  &__card {
+    display: flex;
+    &--highlighted { border-color: var(--color-primary); }
   }
 }
 ```
 
-## Migration Notes
-The project has moved from a legacy standalone SCSS build to a unified Vite pipeline. Key changes:
-- `tabs.css`, `simple-scrollbar.css`, and `MHModal.css` are now integrated as SCSS modules.
-- Tailwind CSS is now the primary tool for layout and rapid prototyping.
-- Vue components (`.vue` files) can use `<style scoped lang="scss">` for component-specific isolation.

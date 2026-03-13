@@ -36,7 +36,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, 'renderer'),
+      '@': path.resolve(__dirname, 'renderer', 'src'),
     },
   },
   // 開發 server 設定（用於 Electron loadURL）

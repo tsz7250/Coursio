@@ -60,12 +60,17 @@
 
    設定選課任務後，系統將模擬使用者行為進行全自動化搶課，大幅節省手動點擊的時間與壓力。
 
-5. **系統設定**
+5. **成績查詢**
+   <img src="./assets/demo/grades.png" alt="grades" height=300>
+
+   快速查詢每學期的成績。
+
+6. **系統設定**
    <img src="./assets/demo/settings.png" alt="settings" height=300>
 
    調整重試頻率、登入階段以及其他個性化偏好，讓軟體更符合您的使用習慣。
 
-6. **關於系統**
+7. **關於系統**
    <img src="./assets/demo/about.png" alt="about" height=300>
 
    查看版本資訊、開發團隊以及相關授權文件。
