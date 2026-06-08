@@ -1,15 +1,15 @@
 /**
- * python_course_bot.js — 薄層 IPC 代理
+ * yzuCourseBot.js — 薄層 IPC 代理
  *
  * 所有繁重的 Python 管理邏輯已移至主程序 (main_ipc.js)。
- * Renderer 透過 window.electronAPI.pythonBot.* 呼叫 IPC 以存取所有功能。
+ * Renderer 透過 window.electronAPI.yzuCourseBot.* 呼叫 IPC 以存取所有功能。
  * 此檔案的作用是維持與 course_selection_controller.js 的 API 相容性。
  */
 /**
  * Python yzuCourseBot IPC 代理
- * 將所有方法轉發至主程序透過 window.electronAPI.pythonBot.*
+ * 將所有方法轉發至主程序透過 window.electronAPI.yzuCourseBot.*
  */
-export class PythonCourseBot {
+export class YzuCourseBot {
     constructor() {
         // pythonPath 由 initialize() 的回傳值更新，供 UI 顯示使用
         this.pythonPath = null;
@@ -25,7 +25,7 @@ export class PythonCourseBot {
 
         // 訂閱狀態更新以保持本地快取同步
         try {
-            window.electronAPI.pythonBot.onStatus((data) => {
+            window.electronAPI.yzuCourseBot.onStatus((data) => {
                 if (data && typeof data === 'object') {
                     this._cachedStatus = Object.assign(this._cachedStatus, data);
                 }
@@ -41,7 +41,7 @@ export class PythonCourseBot {
             return { success: true, message: 'Python 環境已初始化' };
         }
         try {
-            const result = await window.electronAPI.pythonBot.initialize();
+            const result = await window.electronAPI.yzuCourseBot.initialize();
             if (result && result.success) {
                 this.isInitialized = true;
                 this.pythonPath = result.pythonPath || 'python';
@@ -62,7 +62,7 @@ export class PythonCourseBot {
         this.pythonPath = null;
         this._cachedStatus.hasPythonPath = false;
         try {
-            await window.electronAPI.pythonBot.resetInit();
+            await window.electronAPI.yzuCourseBot.resetInit();
         } catch { /* 忽略 */ }
     }
 
@@ -93,7 +93,7 @@ export class PythonCourseBot {
      */
     async loadCoursesFromDatabase() {
         try {
-            return await window.electronAPI.pythonBot.loadCourses();
+            return await window.electronAPI.yzuCourseBot.loadCourses();
         } catch (error) {
             return { success: false, message: error.message };
         }
@@ -104,7 +104,7 @@ export class PythonCourseBot {
      */
     async startCourseSelection(options) {
         try {
-            const result = await window.electronAPI.pythonBot.start(options);
+            const result = await window.electronAPI.yzuCourseBot.start(options);
             if (result && result.success) {
                 this._cachedStatus.isRunning = true;
             }
@@ -119,7 +119,7 @@ export class PythonCourseBot {
      */
     async stopCourseSelection() {
         try {
-            const result = await window.electronAPI.pythonBot.stop();
+            const result = await window.electronAPI.yzuCourseBot.stop();
             if (result) {
                 this._cachedStatus.isRunning = false;
             }
@@ -129,5 +129,3 @@ export class PythonCourseBot {
         }
     }
 }
-
-

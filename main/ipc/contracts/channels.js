@@ -35,15 +35,15 @@ const CHANNELS = {
         WRITE_ACCOUNTS: 'config:writeAccounts',
         DELETE_ACCOUNTS: 'config:deleteAccounts'
     },
-    PYTHON_BOT: {
-        INITIALIZE: 'pythonBot:initialize',
-        START: 'pythonBot:start',
-        STOP: 'pythonBot:stop',
-        GET_STATUS: 'pythonBot:getStatus',
-        LOAD_COURSES: 'pythonBot:loadCourses',
-        RESET_INIT: 'pythonBot:resetInit',
-        OUTPUT_EVENT: 'pythonBotOutput',
-        STATUS_EVENT: 'pythonBotStatus'
+    YZU_COURSE_BOT: {
+        INITIALIZE: 'yzuCourseBot:initialize',
+        START: 'yzuCourseBot:start',
+        STOP: 'yzuCourseBot:stop',
+        GET_STATUS: 'yzuCourseBot:getStatus',
+        LOAD_COURSES: 'yzuCourseBot:loadCourses',
+        RESET_INIT: 'yzuCourseBot:resetInit',
+        OUTPUT_EVENT: 'yzuCourseBotOutput',
+        STATUS_EVENT: 'yzuCourseBotStatus'
     },
     SHELL: {
         OPEN_EXTERNAL: 'shell:openExternal'

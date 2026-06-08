@@ -45,15 +45,15 @@ const FALLBACK_CHANNELS = {
         WRITE_ACCOUNTS: 'config:writeAccounts',
         DELETE_ACCOUNTS: 'config:deleteAccounts'
     },
-    PYTHON_BOT: {
-        INITIALIZE: 'pythonBot:initialize',
-        START: 'pythonBot:start',
-        STOP: 'pythonBot:stop',
-        GET_STATUS: 'pythonBot:getStatus',
-        LOAD_COURSES: 'pythonBot:loadCourses',
-        RESET_INIT: 'pythonBot:resetInit',
-        OUTPUT_EVENT: 'pythonBotOutput',
-        STATUS_EVENT: 'pythonBotStatus'
+    YZU_COURSE_BOT: {
+        INITIALIZE: 'yzuCourseBot:initialize',
+        START: 'yzuCourseBot:start',
+        STOP: 'yzuCourseBot:stop',
+        GET_STATUS: 'yzuCourseBot:getStatus',
+        LOAD_COURSES: 'yzuCourseBot:loadCourses',
+        RESET_INIT: 'yzuCourseBot:resetInit',
+        OUTPUT_EVENT: 'yzuCourseBotOutput',
+        STATUS_EVENT: 'yzuCourseBotStatus'
     },
     SHELL: {
         OPEN_EXTERNAL: 'shell:openExternal'
@@ -131,23 +131,23 @@ contextBridge.exposeInMainWorld('electronAPI', {
         deleteAccounts: () => ipcRenderer.invoke(CHANNELS.CONFIG.DELETE_ACCOUNTS)
     },
 
-    // ─── Python Bot ───────────────────────────────────────────────
-    pythonBot: {
-        initialize: () => ipcRenderer.invoke(CHANNELS.PYTHON_BOT.INITIALIZE),
-        start: (options) => ipcRenderer.invoke(CHANNELS.PYTHON_BOT.START, options),
-        stop: () => ipcRenderer.invoke(CHANNELS.PYTHON_BOT.STOP),
-        getStatus: () => ipcRenderer.invoke(CHANNELS.PYTHON_BOT.GET_STATUS),
-        loadCourses: () => ipcRenderer.invoke(CHANNELS.PYTHON_BOT.LOAD_COURSES),
-        resetInit: () => ipcRenderer.invoke(CHANNELS.PYTHON_BOT.RESET_INIT),
+    // ─── Yzu Course Bot ───────────────────────────────────────────
+    yzuCourseBot: {
+        initialize: () => ipcRenderer.invoke(CHANNELS.YZU_COURSE_BOT.INITIALIZE),
+        start: (options) => ipcRenderer.invoke(CHANNELS.YZU_COURSE_BOT.START, options),
+        stop: () => ipcRenderer.invoke(CHANNELS.YZU_COURSE_BOT.STOP),
+        getStatus: () => ipcRenderer.invoke(CHANNELS.YZU_COURSE_BOT.GET_STATUS),
+        loadCourses: () => ipcRenderer.invoke(CHANNELS.YZU_COURSE_BOT.LOAD_COURSES),
+        resetInit: () => ipcRenderer.invoke(CHANNELS.YZU_COURSE_BOT.RESET_INIT),
         onOutput: (callback) => {
             const handler = (_event, data) => callback(data);
-            ipcRenderer.on(CHANNELS.PYTHON_BOT.OUTPUT_EVENT, handler);
-            return () => ipcRenderer.removeListener(CHANNELS.PYTHON_BOT.OUTPUT_EVENT, handler);
+            ipcRenderer.on(CHANNELS.YZU_COURSE_BOT.OUTPUT_EVENT, handler);
+            return () => ipcRenderer.removeListener(CHANNELS.YZU_COURSE_BOT.OUTPUT_EVENT, handler);
         },
         onStatus: (callback) => {
             const handler = (_event, data) => callback(data);
-            ipcRenderer.on(CHANNELS.PYTHON_BOT.STATUS_EVENT, handler);
-            return () => ipcRenderer.removeListener(CHANNELS.PYTHON_BOT.STATUS_EVENT, handler);
+            ipcRenderer.on(CHANNELS.YZU_COURSE_BOT.STATUS_EVENT, handler);
+            return () => ipcRenderer.removeListener(CHANNELS.YZU_COURSE_BOT.STATUS_EVENT, handler);
         }
     },
 

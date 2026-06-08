@@ -4,11 +4,11 @@ import { ref, onBeforeUnmount } from 'vue';
  * 機器人控制 Composable
  * 負責任務列表管理、機器人啟停、IPC 事件綁定。
  *
- * @param {object} pythonBot - PythonCourseBot 實例
+ * @param {object} yzuCourseBot - YzuCourseBot 實例
  * @param {function} appendLog - 日誌輸出函式 (from useBotOutputLog)
  * @param {object} envReadyRef - envReady ref (from useEnvironmentCheck)
  */
-export function useBotControl(pythonBot, appendLog, envReadyRef) {
+export function useBotControl(yzuCourseBot, appendLog, envReadyRef) {
     const taskList = ref([]);
     const selectionDelay = ref(2.5);
     const maxAttempts = ref(0);
@@ -17,7 +17,7 @@ export function useBotControl(pythonBot, appendLog, envReadyRef) {
 
     async function loadTaskList() {
         try {
-            const result = await pythonBot.loadCoursesFromDatabase();
+            const result = await yzuCourseBot.loadCoursesFromDatabase();
             if (result.success) {
                 taskList.value = result.courses || [];
             }
@@ -29,7 +29,7 @@ export function useBotControl(pythonBot, appendLog, envReadyRef) {
     async function startBot() {
         if (!envReadyRef.value) return;
         try {
-            const result = await pythonBot.startCourseSelection({
+            const result = await yzuCourseBot.startCourseSelection({
                 delay: selectionDelay.value,
                 maxAttempts: maxAttempts.value
             });
@@ -47,7 +47,7 @@ export function useBotControl(pythonBot, appendLog, envReadyRef) {
 
     async function stopBot() {
         try {
-            const result = await pythonBot.stopCourseSelection();
+            const result = await yzuCourseBot.stopCourseSelection();
             if (result.success) {
                 appendLog('system', '⏹️ 選課機器人已停止');
                 isRunning.value = false;
@@ -81,11 +81,11 @@ export function useBotControl(pythonBot, appendLog, envReadyRef) {
     }
 
     // IPC 監聽 — 綁定後在 unmount 時自動解綁
-    const unbindOutput = window.electronAPI.pythonBot.onOutput((data) => {
+    const unbindOutput = window.electronAPI.yzuCourseBot.onOutput((data) => {
         appendLog(data.type || 'stdout', data.message);
     });
 
-    const unbindStatus = window.electronAPI.pythonBot.onStatus((data) => {
+    const unbindStatus = window.electronAPI.yzuCourseBot.onStatus((data) => {
         if (data.status === 'starting') botStatusSub.value = data.message || '登入中...';
         if (data.status === 'login_retry') botStatusSub.value = '登入重試中...';
         if (data.status === 'logged_in') botStatusSub.value = '執行中: ' + data.message;
@@ -101,7 +101,7 @@ export function useBotControl(pythonBot, appendLog, envReadyRef) {
     const loggedInPattern = /Login\s*Successful|登入成功/i;
     const courseLoopPattern = /加選訊息：|已選過/i;
 
-    const unbindOutputStatusFallback = window.electronAPI.pythonBot.onOutput((data) => {
+    const unbindOutputStatusFallback = window.electronAPI.yzuCourseBot.onOutput((data) => {
         const message = String(data?.message || '');
         if (loggedInPattern.test(message)) {
             botStatusSub.value = '執行中: 登入成功';

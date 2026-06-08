@@ -4,10 +4,10 @@ import { ref, reactive } from 'vue';
  * 環境狀態檢查 Composable
  * 負責 Python/套件/模型/帳號的就緒狀態 pills 更新。
  *
- * @param {object} pythonBot - PythonCourseBot 實例
+ * @param {object} yzuCourseBot - YzuCourseBot 實例
  * @param {function} appendLog - 日誌輸出函式 (from useBotOutputLog)
  */
-export function useEnvironmentCheck(pythonBot, appendLog) {
+export function useEnvironmentCheck(yzuCourseBot, appendLog) {
     const envReady = ref(false);
     const envStatuses = reactive({
         python:   { label: 'Python',  statusText: '檢查中...', dotClass: 'env-pill-dot-pending', pillClass: '' },
@@ -18,7 +18,7 @@ export function useEnvironmentCheck(pythonBot, appendLog) {
 
     async function checkEnvironment(force = false) {
         if (force) {
-            pythonBot.resetInitialization();
+            yzuCourseBot.resetInitialization();
             envReady.value = false;
         }
 
@@ -29,9 +29,9 @@ export function useEnvironmentCheck(pythonBot, appendLog) {
         });
 
         try {
-            const result = await pythonBot.initialize();
+            const result = await yzuCourseBot.initialize();
             if (result.success) {
-                envStatuses.python.statusText = `可用: ${pythonBot.pythonPath}`;
+                envStatuses.python.statusText = `可用: ${yzuCourseBot.pythonPath}`;
                 envStatuses.python.dotClass = 'env-pill-dot-ok';
                 envStatuses.python.pillClass = 'env-pill-ok';
 

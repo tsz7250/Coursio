@@ -14,7 +14,7 @@
     <div class="scroll-content scroll-content-compact">
       <div id="auto-selection-inner-container" class="course-selection-section">
         <div class="section-header">
-          <h3><i data-lucide="bot"></i> 自動選課機器人 (Python yzuCourseBot)</h3>
+          <h3><i data-lucide="bot"></i> 自動選課機器人 (yzuCourseBot)</h3>
           <p class="section-description">
             使用 AI 驗證碼識別技術的專業選課機器人，支援自動登入和智能選課
           </p>
@@ -184,7 +184,7 @@
 import { onMounted, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import { Store } from '../store.js';
-import { PythonCourseBot } from '@shared/services/python_course_bot.js';
+import { YzuCourseBot } from '@shared/services/yzuCourseBot.js';
 import { useLogout } from '@/composables/useLogout.js';
 import AppTopBar from '@/components/layout/AppTopBar.vue';
 import { useBotOutputLog } from '@/composables/useAutoSelection/useBotOutputLog.js';
@@ -194,7 +194,7 @@ import { useBotControl } from '@/composables/useAutoSelection/useBotControl.js';
 
 const router = useRouter();
 const StoreRef = Store;
-const pythonBot = new PythonCourseBot();
+const pythonBot = new YzuCourseBot();
 
 // --- Composables ---
 const { logs, autoScroll, outputContainer, appendLog, clearOutput } = useBotOutputLog();

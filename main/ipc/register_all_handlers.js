@@ -1,7 +1,7 @@
 const { registerSettingsAndConfigHandlers } = require('./register_settings_config_handlers');
 const { registerDbHandlers } = require('./register_db_handlers');
 const { registerBackendHandlers } = require('./register_backend_handlers');
-const { registerPythonHandlers } = require('./register_python_handlers');
+const { registerYzuCourseBotHandlers } = require('./register_yzuCourseBot_handlers');
 const { registerShellAndDialogHandlers } = require('./register_shell_dialog_handlers');
 
 function registerAllHandlers({
@@ -12,7 +12,7 @@ function registerAllHandlers({
     logger,
     getDb,
     getBackend,
-    pythonBot,
+    yzuCourseBot,
     shell,
     dialog,
     getMainWindow,
@@ -21,7 +21,7 @@ function registerAllHandlers({
     registerSettingsAndConfigHandlers(ipcMain, configManager, app, validateCustomConfigPath, logger);
     registerDbHandlers(ipcMain, getDb);
     registerBackendHandlers(ipcMain, getBackend);
-    registerPythonHandlers(ipcMain, pythonBot);
+    registerYzuCourseBotHandlers(ipcMain, yzuCourseBot);
     registerShellAndDialogHandlers(
         ipcMain,
         shell,

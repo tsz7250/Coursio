@@ -4,11 +4,11 @@ import { ref } from 'vue';
  * Portal 帳號設定 Composable
  * 負責學號/密碼輸入與帳號儲存邏輯。
  *
- * @param {object} pythonBot - PythonCourseBot 實例
+ * @param {object} yzuCourseBot - YzuCourseBot 實例
  * @param {function} appendLog - 日誌輸出函式 (from useBotOutputLog)
  * @param {object} envStatuses - 環境狀態物件 (from useEnvironmentCheck)
  */
-export function usePortalAccount(pythonBot, appendLog, envStatuses) {
+export function usePortalAccount(yzuCourseBot, appendLog, envStatuses) {
     const portalAccount = ref('');
     const portalPassword = ref('');
     const accountSetHint = ref('');
@@ -19,7 +19,7 @@ export function usePortalAccount(pythonBot, appendLog, envStatuses) {
             return;
         }
         try {
-            const result = await pythonBot.setupAccount(portalAccount.value, portalPassword.value);
+            const result = await yzuCourseBot.setupAccount(portalAccount.value, portalPassword.value);
             if (result.success) {
                 envStatuses.account.statusText = '已設定';
                 envStatuses.account.dotClass = 'env-pill-dot-ok';

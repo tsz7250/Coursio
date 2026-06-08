@@ -16,6 +16,16 @@ builder.build({
         "win": {
             "icon": path.resolve(__dirname, 'icon-512x512.png'),
         },
+        "extraResources": [
+            {
+                "from": "resources/yzuCourseBot",
+                "to": "yzuCourseBot",
+                "filter": [
+                    "**/*",
+                    "!__pycache__"
+                ]
+            }
+        ],
         "buildDependenciesFromSource": false,
         "nodeGypRebuild": false,
         "npmRebuild": false

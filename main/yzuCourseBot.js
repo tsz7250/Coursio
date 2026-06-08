@@ -3,7 +3,7 @@ const fs = require('fs');
 const { spawn } = require('child_process');
 const configManager = require('./config_manager');
 
-class PythonCourseBot {
+class YzuCourseBot {
     constructor() {
         this.pythonPath = null;
         this.isInitialized = false;
@@ -12,8 +12,11 @@ class PythonCourseBot {
         this.currentProcess = null;
         this.stdoutBuffer = '';
 
-        // Python 檔案路徑（相對於專案根目錄）
-        const pythonDir = path.join(__dirname, '..', 'python');
+        // Python 檔案路徑（相對於專案根目錄，打包後移至 extraResources 中）
+        const { app } = require('electron');
+        const pythonDir = app.isPackaged
+            ? path.join(process.resourcesPath, 'yzuCourseBot')
+            : path.join(__dirname, '..', 'resources', 'yzuCourseBot');
         this.botScriptPath = path.join(pythonDir, 'yzuCourseBot.py');
         this.checkPackagesScriptPath = path.join(pythonDir, 'check_packages.py'); // M-09
         this.modelPath = path.join(pythonDir, 'model.h5');
@@ -190,30 +193,30 @@ class PythonCourseBot {
             });
             this.isRunning = true;
             this.stdoutBuffer = '';
-            this._send('pythonBotStatus', { status: 'starting', message: '機器人已啟動，登入中...' });
+            this._send('yzuCourseBotStatus', { status: 'starting', message: '機器人已啟動，登入中...' });
 
             const detectStatusFromText = (text) => {
                 const normalized = String(text || '').trim();
                 if (!normalized) return;
 
                 if (/Login\s*Successful|登入成功/i.test(normalized)) {
-                    this._send('pythonBotStatus', { status: 'logged_in', message: '登入成功' });
+                    this._send('yzuCourseBotStatus', { status: 'logged_in', message: '登入成功' });
                     return;
                 }
 
                 if (/Login\s*Failed|登入過程發生錯誤|重試|選課系統尚未開放/i.test(normalized)) {
-                    this._send('pythonBotStatus', { status: 'login_retry', message: normalized });
+                    this._send('yzuCourseBotStatus', { status: 'login_retry', message: normalized });
                     return;
                 }
 
                 if (/加選訊息：|已選過/i.test(normalized)) {
-                    this._send('pythonBotStatus', { status: 'course_selected', message: normalized });
+                    this._send('yzuCourseBotStatus', { status: 'course_selected', message: normalized });
                 }
             };
 
             this.currentProcess.stdout.on('data', (data) => {
                 const output = data.toString('utf8');
-                this._send('pythonBotOutput', { type: 'stdout', message: output, timestamp: new Date().toISOString() });
+                this._send('yzuCourseBotOutput', { type: 'stdout', message: output, timestamp: new Date().toISOString() });
 
                 // 避免 stdout 分段導致關鍵字被切斷，改為逐行判斷狀態
                 this.stdoutBuffer += output;
@@ -223,12 +226,12 @@ class PythonCourseBot {
 
                 if (output.includes('加選訊息：')) {
                     const m = output.match(/(\w+\s+\w+)\s+加選訊息：(.+)/);
-                    if (m) this._send('pythonBotStatus', { status: 'course_selected', course: m[1], message: m[2] });
+                    if (m) this._send('yzuCourseBotStatus', { status: 'course_selected', course: m[1], message: m[2] });
                 }
             });
 
             this.currentProcess.stderr.on('data', (data) => {
-                this._send('pythonBotOutput', { type: 'stderr', message: data.toString('utf8'), timestamp: new Date().toISOString() });
+                this._send('yzuCourseBotOutput', { type: 'stderr', message: data.toString('utf8'), timestamp: new Date().toISOString() });
             });
 
             this.currentProcess.on('close', (code) => {
@@ -238,7 +241,7 @@ class PythonCourseBot {
                 }
                 this.isRunning = false;
                 this.currentProcess = null;
-                this._send('pythonBotStatus', { status: 'stopped', message: `程序結束 (退出碼: ${code})`, exitCode: code });
+                this._send('yzuCourseBotStatus', { status: 'stopped', message: `程序結束 (退出碼: ${code})`, exitCode: code });
             });
 
             return { success: true, message: '自動選課機器人已啟動', pid: this.currentProcess.pid };
@@ -290,4 +293,4 @@ class PythonCourseBot {
 }
 
 // 匯出為 Singleton
-module.exports = new PythonCourseBot();
+module.exports = new YzuCourseBot();

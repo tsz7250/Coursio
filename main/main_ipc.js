@@ -14,7 +14,7 @@ const fs = require('fs');
 
 const { getBackend } = require('./backend_provider');
 const configManager = require('./config_manager');
-const pythonBot = require('./python_bot');
+const yzuCourseBot = require('./yzuCourseBot');
 const { createLogger } = require('./logger');
 const { validateCustomConfigPath, sanitizeOpenDialogOptions } = require('./ipc/security_utils');
 const { registerAllHandlers } = require('./ipc/register_all_handlers');
@@ -63,8 +63,8 @@ function init(win) {
     mainWindow = win;
     configManager.init();
     backendInstance = getBackend();
-    pythonBot.setMainWindow(win);
-    pythonBot.setDbProvider(() => getDb());
+    yzuCourseBot.setMainWindow(win);
+    yzuCourseBot.setDbProvider(() => getDb());
 
     // 初始化資料庫
     const database = getDb();
@@ -77,6 +77,8 @@ function init(win) {
         )`);
         // M-11: 防止重複加選同一門課程
         database.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_tasks_unique ON tasks(cos_id, cos_class)`);
+        database.run(`ALTER TABLE tasks ADD COLUMN time TEXT`, (err) => { /* 忽略欄位已存在的錯誤 */ });
+        database.run(`ALTER TABLE tasks ADD COLUMN room TEXT`, (err) => { /* 忽略欄位已存在的錯誤 */ });
     });
 
     registerAllHandlers({
@@ -87,7 +89,7 @@ function init(win) {
         logger,
         getDb,
         getBackend: () => backendInstance,
-        pythonBot,
+        yzuCourseBot,
         shell,
         dialog,
         getMainWindow: () => mainWindow,
