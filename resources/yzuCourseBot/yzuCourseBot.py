@@ -33,12 +33,13 @@ class CourseBot:
         self.coursesDB = {}
 
         # for keras - 直接載入模型但不編譯
+        model_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'model.h5')
         try:
-            self.model = load_model('model.h5')
+            self.model = load_model(model_path)
         except ValueError as e:
             if 'lr' in str(e):
                 # 直接載入模型但跳過編譯
-                self.model = load_model('model.h5', compile=False)
+                self.model = load_model(model_path, compile=False)
                 # 手動重新編譯
                 self.model.compile(
                     optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
@@ -297,7 +298,7 @@ if __name__ == '__main__':
 
     # 從 courses.json 讀取課程清單（由 Electron 主程序寫出）
     import json as _json
-    _courses_json = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'courses.json')
+    _courses_json = os.environ.get('COURSES_JSON_PATH') or os.path.join(os.path.dirname(os.path.abspath(__file__)), 'courses.json')
     if not os.path.exists(_courses_json):
         print('找不到 courses.json，請先將課程加入選課清單')
         exit(1)

@@ -5,7 +5,7 @@
   "main": "main/app.js",
   "scripts": {
     "start": "npm run build:renderer && chcp 65001 >nul 2>&1 & electron .",
-    "dev": "chcp 65001 >nul 2>&1 & vite build --outDir renderer/dist && electron .",
+    "dev": "chcp 65001 >nul 2>&1 & vite build --config vite.config.js && electron .",
     "dev:vite": "vite --config vite.config.js",
     "build": "node build.js",
     "build:renderer": "vite build --config vite.config.js",

@@ -143,7 +143,8 @@ class YzuCourseBot {
         try {
             const result = await this.loadCoursesFromDatabase();
             if (!result.success) return result;
-            const coursesJsonPath = path.join(path.dirname(this.botScriptPath), 'courses.json');
+            const { app } = require('electron');
+            const coursesJsonPath = path.join(app.getPath('userData'), 'courses.json');
             const formatted = result.courses.map(c => c.formatted);
             await fs.promises.writeFile(coursesJsonPath, JSON.stringify(formatted, null, 2), 'utf8');
             return { success: true, coursesCount: result.courses.length, courses: result.courses };
@@ -180,15 +181,19 @@ class YzuCourseBot {
                 return { success: false, message: '尚未設定 Portal 帳號密碼，請至帳號設定頁面填入後再啟動機器人' };
             }
 
+            const { app } = require('electron');
+            const coursesJsonPath = path.join(app.getPath('userData'), 'courses.json');
+
             this.currentProcess = spawn(this.pythonPath, ['-u', this.botScriptPath], {
-                cwd: path.dirname(this.botScriptPath),
+                cwd: app.getPath('temp'),
                 stdio: ['pipe', 'pipe', 'pipe'],
                 env: {
                     ...process.env,
                     PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1', PYTHONUNBUFFERED: '1',
                     MAX_ATTEMPTS: String(Number.isFinite(maxAttempts) ? maxAttempts : 0),
                     PORTAL_ACCOUNT: accounts.account,
-                    PORTAL_PASSWORD: accounts.password
+                    PORTAL_PASSWORD: accounts.password,
+                    COURSES_JSON_PATH: coursesJsonPath
                 }
             });
             this.isRunning = true;

@@ -32,12 +32,19 @@ function getSqlite3() {
 
 function getDb() {
     if (!db) {
-        const dbPath = path.join(__dirname, '..', 'db.sqlite');
+        const dbPath = app.isPackaged
+            ? path.join(app.getPath('userData'), 'db.sqlite')
+            : path.join(__dirname, '..', 'db.sqlite');
         const dbInitPath = path.join(__dirname, '..', 'db.sqlite.init');
 
         // 如果 db.sqlite 不存在但 init 範本存在，則進行複製
         if (!fs.existsSync(dbPath) && fs.existsSync(dbInitPath)) {
             try {
+                // 確保 userData 目錄存在
+                const dir = path.dirname(dbPath);
+                if (!fs.existsSync(dir)) {
+                    fs.mkdirSync(dir, { recursive: true });
+                }
                 fs.copyFileSync(dbInitPath, dbPath);
                 logger.info('已從範本初始化 db.sqlite');
             } catch (err) {
