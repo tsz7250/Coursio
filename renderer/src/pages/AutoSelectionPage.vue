@@ -184,7 +184,7 @@
 import { onMounted, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import { Store } from '../store.js';
-import { PythonCourseBot } from '../services/python_course_bot.js';
+import { PythonCourseBot } from '@shared/services/python_course_bot.js';
 import { useLogout } from '@/composables/useLogout.js';
 import AppTopBar from '@/components/layout/AppTopBar.vue';
 import { useBotOutputLog } from '@/composables/useAutoSelection/useBotOutputLog.js';
