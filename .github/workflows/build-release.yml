@@ -1,9 +1,10 @@
 name: Build and Release
 on:
   push:
-    branches: [ main, fix-CICD ]
+    branches: [ main ]
+    tags: [ 'v*.*.*' ]
   pull_request:
-    branches: [ main, fix-CICD ]
+    branches: [ main ]
 
 jobs:
   build:
@@ -14,17 +15,13 @@ jobs:
         include:
           - os: windows-latest
             artifact_name: Coursio-Windows
-            artifact_path: build/win/*.exe
+            artifact_path: build/win/*.zip
           - os: macos-26
             artifact_name: Coursio-macOS-AppleSilicon
-            artifact_path: |
-              build/mac/*.dmg
-              build/mac/*.zip
+            artifact_path: build/mac/*.zip
           - os: macos-26-intel
             artifact_name: Coursio-macOS-Intel
-            artifact_path: |
-              build/mac/*.dmg
-              build/mac/*.zip
+            artifact_path: build/mac/*.zip
 
     steps:
       - name: Checkout
@@ -62,3 +59,56 @@ jobs:
         with:
           name: ${{ matrix.artifact_name }}
           path: ${{ matrix.artifact_path }}
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: List downloaded files
+        run: |
+          find artifacts -type f
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/Coursio-Windows/*.zip
+            artifacts/Coursio-macOS-AppleSilicon/*.zip
+            artifacts/Coursio-macOS-Intel/*.zip
+          body: |
+            ## Coursio ${{ github.ref_name }}
+            
+            此發布版本包含了各平台的主程式壓縮檔。
+            
+            ### 📥 下載說明
+            
+            | 平台 | 下載檔案 | 適用機型 |
+            |------|----------|------|
+            | **Windows** | `Coursio-*.zip` | 所有 Windows 電腦 |
+            | **macOS (Apple Silicon)** | `*.zip` | M1/M2/M3/M4 晶片的 Mac |
+            | **macOS (Intel)** | `*.zip` | Intel 晶片 Mac |
+            
+            ---
+            
+            ### 🪟 Windows 使用方式
+            1. 下載並解壓縮 ZIP 檔案。
+            2. 雙擊執行資料夾中的 `Coursio.exe` 主程式。
+            
+            ### 🍎 macOS 使用方式
+            1. 下載對應版本的 ZIP 檔案。
+            2. 解壓縮後將 `Coursio.app` 拖曳至 Applications（應用程式）資料夾，或直接雙擊執行。
+            
+            > ⚠️ **macOS 安全提示**：由於此應用程式未經 Apple 簽署，首次開啟時 macOS 會顯示安全警告。
+            > 請使用「右鍵 → 打開」的方式來繞過此限制。
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

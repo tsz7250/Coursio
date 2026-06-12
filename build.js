@@ -7,8 +7,8 @@ builder.build({
 
     projectDir: path.resolve(__dirname),  // 專案路徑 
 
-    win: isMac ? undefined : ['nsis', 'portable'],  // nsis . portable
-    mac: isMac ? ['dmg', 'zip'] : undefined,
+    win: isMac ? undefined : ['zip'],  // zip
+    mac: isMac ? ['zip'] : undefined,
     config: {
         "appId": "com.tsz7250.coursio",
         "productName": "Coursio", // 應用程式名稱 ( 顯示在應用程式與功能 )
@@ -21,7 +21,7 @@ builder.build({
         },
         "mac": {
             "icon": path.resolve(__dirname, 'icon-512x512.png'),
-            "target": ["dmg", "zip"]
+            "target": ["zip"]
         },
         "extraResources": [
             {
