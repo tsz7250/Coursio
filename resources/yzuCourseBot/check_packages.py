@@ -5,7 +5,7 @@ M-09: 套件存在性檢查腳本
 import sys
 import importlib
 
-pkgs = ['tensorflow', 'cv2', 'numpy', 'requests', 'bs4', 'configparser']
+pkgs = ['onnxruntime', 'cv2', 'numpy', 'requests', 'bs4']
 
 missing = []
 for p in pkgs:

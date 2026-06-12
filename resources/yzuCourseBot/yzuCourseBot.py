@@ -1,9 +1,3 @@
-'''
-    Date  : 2019/09
-    Author: Doem
-    E-mail: aa0917954358@gmail.com
-'''
-
 import os
 import sys
 import cv2
@@ -11,20 +5,11 @@ import time
 import requests
 import numpy as np
 from bs4 import BeautifulSoup
+import onnxruntime as ort
 
 # 設定輸出編碼為 UTF-8
 sys.stdout.reconfigure(encoding='utf-8')
 sys.stderr.reconfigure(encoding='utf-8')
-
-# 設定 TensorFlow 環境變數來抑制警告
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # 只顯示錯誤訊息
-os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'  # 關閉 oneDNN 優化警告
-
-from keras.models import load_model
-import tensorflow as tf
-
-# 設定 TensorFlow 日誌級別
-tf.get_logger().setLevel('ERROR')
 
 class CourseBot:
     def __init__(self, account, password):
@@ -32,22 +17,9 @@ class CourseBot:
         self.password = password
         self.coursesDB = {}
 
-        # for keras - 直接載入模型但不編譯
-        model_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'model.h5')
-        try:
-            self.model = load_model(model_path)
-        except ValueError as e:
-            if 'lr' in str(e):
-                # 直接載入模型但跳過編譯
-                self.model = load_model(model_path, compile=False)
-                # 手動重新編譯
-                self.model.compile(
-                    optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
-                    loss='categorical_crossentropy',
-                    metrics=['accuracy']
-                )
-            else:
-                raise e
+        # for ONNX - 使用絕對路徑載入模型
+        model_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'model.onnx')
+        self.model = ort.InferenceSession(model_path)
         
         self.n_classes = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ'
 
@@ -74,7 +46,11 @@ class CourseBot:
         self.selectPayLoad = {}
 
     def predict(self, img):
-        prediction = self.model.predict(np.array([img]))
+        input_name = self.model.get_inputs()[0].name
+        output_names = [o.name for o in self.model.get_outputs()]
+        
+        # 執行預測
+        prediction = self.model.run(output_names, {input_name: np.array([img], dtype=np.float32)})
 
         predicStr = ""
         for pred in prediction:
@@ -93,15 +69,13 @@ class CourseBot:
             return "ERROR"
         
         captchaImg = captchaImg / 255.0
-        
-        result = self.predict(captchaImg)
-        return result
+        return self.predict(captchaImg)
 
     def _safe_select_val(self, parser, selector, attr='value'):
-        """安全取得 BeautifulSoup 選擇器結果值，找不到時拋出清晰錯誤"""
+        """安全獲取 BeautifulSoup 選擇器元素的值，若不存在則拋出清晰錯誤"""
         els = parser.select(selector)
         if not els:
-            raise ValueError('找不到頁面元素: {}'.format(selector))
+            raise ValueError('找不到網頁元素: {}'.format(selector))
         return els[0].get(attr, '')
 
     # login into system and get session
@@ -136,7 +110,7 @@ class CourseBot:
                 self.loginPayLoad['__EVENTVALIDATION'] = self._safe_select_val(parser, "#__EVENTVALIDATION")
                 opts = parser.select("#DPL_SelCosType option")
                 if len(opts) < 2:
-                    self.log('無法取得選課類型選項，重試...')
+                    self.log('取得選課類別失敗，重試...')
                     continue
                 self.loginPayLoad['DPL_SelCosType'] = opts[1]['value']
                 self.loginPayLoad['Txt_CheckCode'] = captcha
@@ -160,7 +134,6 @@ class CourseBot:
         raise RuntimeError('達到最大登入嘗試次數 ({})，請確認帳密及網路連線後重試'.format(max_login_attempts))
 
     def getCourseDB(self, depts):
-
         for dept in depts:
             try:
                 # use BeautifulSoup to parse html
@@ -208,8 +181,6 @@ class CourseBot:
                 self.log('Get {} Data Completed!'.format(dept))
             except Exception as e:
                 self.log('載入部門 {} 課程資料失敗: {}'.format(dept, str(e)))
-
-
 
     def selectCourses(self, coursesList, delay = 2.5):
         # 從環境變數讀取最大循環次數（0 或未設定視為無上限）
@@ -289,7 +260,7 @@ class CourseBot:
         print(time.strftime("[%Y-%m-%d %H:%M:%S]", time.localtime()), msg)
 
 if __name__ == '__main__':
-    # 從環境變數取得帳密（由 Electron 主程序注入，不再使用 accounts.ini）
+    # 從環境變數取得帳密（由 Electron 主程序注入）
     Account = os.environ.get('PORTAL_ACCOUNT', '').strip()
     Password = os.environ.get('PORTAL_PASSWORD', '').strip()
     if not Account or not Password:

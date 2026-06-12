@@ -19,7 +19,7 @@ class YzuCourseBot {
             : path.join(__dirname, '..', 'resources', 'yzuCourseBot');
         this.botScriptPath = path.join(pythonDir, 'yzuCourseBot.py');
         this.checkPackagesScriptPath = path.join(pythonDir, 'check_packages.py'); // M-09
-        this.modelPath = path.join(pythonDir, 'model.h5');
+        this.modelPath = path.join(pythonDir, 'model.onnx');
         this.requirementsPath = path.join(pythonDir, 'requirements.txt');
 
         this.dbProvider = null;
@@ -71,7 +71,7 @@ class YzuCourseBot {
     async checkRequiredFiles() {
         const files = [
             { path: this.botScriptPath, name: 'yzuCourseBot.py' },
-            { path: this.modelPath, name: '驗證碼識別模型 model.h5' },
+            { path: this.modelPath, name: '驗證碼識別模型 model.onnx' },
             { path: this.requirementsPath, name: 'requirements.txt' }
         ];
         await Promise.all(files.map(f =>
