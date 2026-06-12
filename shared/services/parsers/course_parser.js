@@ -140,16 +140,68 @@ class CourseParser {
             if (table1.length) {
                 const courses = [];
                 const rows = table1.find("tr").toArray();
-                
+                if (rows.length === 0) {
+                    return { success: false, courses: [], message: "未找到課程資料" };
+                }
+
+                // 解析表頭以對應欄位索引
+                const headerCells = $(rows[0]).find("td").toArray();
+                const colIndexes = {
+                    cos_id: -1,
+                    dept_level: -1,
+                    cos_name: -1,
+                    type: -1,
+                    time_room: -1,
+                    teacher: -1,
+                    reg_num: -1, // 選課人數
+                    max_num: -1  // 人數上限
+                };
+
+                headerCells.forEach((cell, idx) => {
+                    const text = $(cell).text().trim();
+                    const title = $(cell).attr('title') || '';
+
+                    if (title.includes("Course ID") || text.includes("課號")) {
+                        colIndexes.cos_id = idx;
+                    } else if (title.includes("Department") || text.includes("開課系級")) {
+                        colIndexes.dept_level = idx;
+                    } else if (title.includes("Course Name") || text.includes("課程名稱")) {
+                        colIndexes.cos_name = idx;
+                    } else if (text.includes("選別")) {
+                        colIndexes.type = idx;
+                    } else if (title.includes("Timetable") || text.includes("時間,教室")) {
+                        colIndexes.time_room = idx;
+                    } else if (title.includes("Instructor") || text.includes("授課教師")) {
+                        colIndexes.teacher = idx;
+                    } else if ((text.includes("選課人數") || text.includes("已選")) && (text.includes("上限") || text.includes("限額"))) {
+                        colIndexes.reg_num = idx;
+                        colIndexes.max_num = idx;
+                    } else if (text.includes("選課人數") || text.includes("已選")) {
+                        colIndexes.reg_num = idx;
+                    } else if (text.includes("上限") || text.includes("限額")) {
+                        colIndexes.max_num = idx;
+                    }
+                });
+
+                // 萬一表頭解析失敗，提供原本 7 欄的 fallback
+                if (colIndexes.cos_id === -1) {
+                    colIndexes.cos_id = 1;
+                    colIndexes.dept_level = 2;
+                    colIndexes.cos_name = 3;
+                    colIndexes.type = 4;
+                    colIndexes.time_room = 5;
+                    colIndexes.teacher = 6;
+                }
+
                 // 從第2行開始，每2行為一組
                 for (let i = 1; i < rows.length; i += 2) { 
                     const row = $(rows[i]);
                     const cells = row.find("td");
                     
-                    if (cells.length >= 7) { 
+                    if (cells.length > Math.max(colIndexes.cos_id, colIndexes.dept_level, colIndexes.cos_name, colIndexes.type, colIndexes.time_room, colIndexes.teacher)) { 
                         // 從課號班別欄位提取課程ID和班級
-                        const courseIdCell = $(cells[1]).find("a").text().trim() || $(cells[1]).text().trim();
-                        const courseIdMatch = courseIdCell.match(/^(\w+)\s+([A-Z])$/);
+                        const courseIdCell = $(cells[colIndexes.cos_id]).find("a").text().trim() || $(cells[colIndexes.cos_id]).text().trim();
+                        const courseIdMatch = courseIdCell.match(/^(\w+)\s+([A-Z0-9]+)$/);
                         
                         let cos_id = courseIdCell;
                         let cos_class = "";
@@ -159,7 +211,7 @@ class CourseParser {
                         }
                         
                         // 從課程名稱欄位提取完整文字，保留換行格式
-                        const courseNameHtml = $(cells[3]).html() || "";
+                        const courseNameHtml = $(cells[colIndexes.cos_name]).html() || "";
                         const cos_name = courseNameHtml
                             .replace(/<br\s*\/?>/gi, '\n')  
                             .replace(/<[^>]*>/g, '')        
@@ -168,23 +220,43 @@ class CourseParser {
                             .replace(/\s+\n/g, '\n');       
                         
                         // 從授課教師欄位提取教師姓名
-                        const rawTeacherText = $(cells[6]).find("a").text().trim() || $(cells[6]).text().trim();
+                        const rawTeacherText = $(cells[colIndexes.teacher]).find("a").text().trim() || $(cells[colIndexes.teacher]).text().trim();
                         const teacherText = ScheduleParser.processTeacherName(rawTeacherText);
                         
+                        // 提取人數資訊 (若有)
+                        let reg_num = "";
+                        let max_num = "";
+                        
+                        if (colIndexes.reg_num !== -1 && colIndexes.max_num !== -1 && colIndexes.reg_num === colIndexes.max_num) {
+                            const combinedText = $(cells[colIndexes.reg_num]).text().trim();
+                            const parts = combinedText.split('/');
+                            if (parts.length === 2) {
+                                reg_num = parts[0].trim();
+                                max_num = parts[1].trim();
+                            } else {
+                                reg_num = combinedText;
+                            }
+                        } else {
+                            reg_num = colIndexes.reg_num !== -1 ? $(cells[colIndexes.reg_num]).text().trim() : "";
+                            max_num = colIndexes.max_num !== -1 ? $(cells[colIndexes.max_num]).text().trim() : "";
+                        }
+
                         courses.push({
                             cos_id: cos_id.trim(),
                             cos_class: cos_class.trim(),
                             cos_name: cos_name,
-                            type: $(cells[4]).text().trim(), 
-                            time_room: $(cells[5]).html()
+                            type: colIndexes.type !== -1 ? $(cells[colIndexes.type]).text().trim() : "", 
+                            time_room: colIndexes.time_room !== -1 ? $(cells[colIndexes.time_room]).html()
                                 .replace(/<br\s*\/?>/gi, '\n')  
                                 .replace(/<[^>]*>/g, '')        
                                 .replace(/^\s+|\s+$/g, '')      
                                 .replace(/\n\s+/g, '\n')        
-                                .replace(/\s+\n/g, '\n'),       
+                                .replace(/\s+\n/g, '\n') : "",       
                             teacher: teacherText, 
                             credits: "", 
-                            dept_level: $(cells[2]).text().replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim() 
+                            dept_level: colIndexes.dept_level !== -1 ? $(cells[colIndexes.dept_level]).text().replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim() : "",
+                            reg_num: reg_num,
+                            max_num: max_num
                         });
                     }
                 }

@@ -95,11 +95,11 @@ const scheduleGrid = computed(() => {
         timeInfo.forEach((timeSlot) => {
           if (timeSlot && timeSlot.length >= 3) {
             try {
-              const day = parseInt(timeSlot.charAt(0));
-              const periods = timeSlot.substring(1);
-              for (let i = 0; i < periods.length; i++) {
-                const period = parseInt(periods.charAt(i));
-                if (period >= 1 && period <= 13 && day >= 1 && day <= 7) {
+              const day = parseInt(timeSlot.charAt(0), 10);
+              const periodsStr = timeSlot.substring(1);
+              for (let i = 0; i < periodsStr.length; i += 2) {
+                const period = parseInt(periodsStr.substring(i, i + 2), 10);
+                if (!isNaN(period) && period >= 1 && period <= 13 && day >= 1 && day <= 7) {
                   insertCourseToGrid(grid, period - 1, day - 1, course);
                 }
               }

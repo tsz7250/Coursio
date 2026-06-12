@@ -4,22 +4,22 @@ import App from '@/App.vue';
 import router from '@/router.js';
 import { Store } from '@/store.js';
 
-// Lucide icons — 只 import 專案實際使用的 28 個圖示（tree-shake 優化）
+// Lucide icons — 只 import 專案實際使用的圖示（tree-shake 優化）
 import {
   createIcons,
-  Bell, User, House, Calendar, Search, Settings, Bot, Info,
+  Bell, User, House, Calendar, CalendarRange, Search, Settings, Bot, Info,
   ShieldCheck, Zap, Cpu, ExternalLink, Github, Globe, Linkedin,
   X, Activity, AlertCircle, AlertTriangle, Bug, Code, LogOut,
   ListChecks, PlayCircle, RefreshCw, RotateCcw, Trash2,
-  Terminal, SlidersHorizontal, BarChart2, ChevronDown, Lock,
+  Terminal, SlidersHorizontal, BarChart2, ChevronDown, ChevronLeft, ChevronRight, Lock,
   Save, Key, FolderOpen, Award
 } from 'lucide';
 const lucideIcons = {
-  Bell, User, House, Calendar, Search, Settings, Bot, Info,
+  Bell, User, House, Calendar, CalendarRange, Search, Settings, Bot, Info,
   ShieldCheck, Zap, Cpu, ExternalLink, Github, Globe, Linkedin,
   X, Activity, AlertCircle, AlertTriangle, Bug, Code, LogOut,
   ListChecks, PlayCircle, RefreshCw, RotateCcw, Trash2,
-  Terminal, SlidersHorizontal, BarChart2, ChevronDown, Lock,
+  Terminal, SlidersHorizontal, BarChart2, ChevronDown, ChevronLeft, ChevronRight, Lock,
   Save, Key, FolderOpen, Award
 };
 // 包裝 createIcons，自動注入 icons 物件，修復「Please provide an icons object」錯誤

@@ -154,18 +154,6 @@ class YzuCourseBot {
         }
     }
 
-    async updateDelaySettings(delay) {
-        try {
-            let content = await fs.promises.readFile(this.botScriptPath, 'utf8');
-            const pat = /delay\s*=\s*[\d.]+/;
-            const rep = `delay = ${delay}`;
-            content = pat.test(content) ? content.replace(pat, rep) : content;
-            await fs.promises.writeFile(this.botScriptPath, content, 'utf8');
-        } catch (e) {
-            console.error('updateDelaySettings 發生錯誤:', e);
-        }
-    }
-
     async startCourseSelection(options = {}) {
         if (this.isRunning) return { success: false, message: '選課機器人已在執行中' };
         const { delay = 2.5, maxAttempts = 100 } = options;
@@ -173,7 +161,6 @@ class YzuCourseBot {
             const coursesResult = await this.setupCoursesListFromDatabase();
             if (!coursesResult.success) return { success: false, message: coursesResult.message };
             if (coursesResult.coursesCount === 0) return { success: false, message: '沒有待選課程' };
-            await this.updateDelaySettings(delay);
 
             // 從 config.ini 讀取帳密作為環境變數注入 Python（唯一憑證來源）
             const accounts = await configManager.readAccounts();
@@ -193,7 +180,8 @@ class YzuCourseBot {
                     MAX_ATTEMPTS: String(Number.isFinite(maxAttempts) ? maxAttempts : 0),
                     PORTAL_ACCOUNT: accounts.account,
                     PORTAL_PASSWORD: accounts.password,
-                    COURSES_JSON_PATH: coursesJsonPath
+                    COURSES_JSON_PATH: coursesJsonPath,
+                    DELAY_INTERVAL: String(delay)
                 }
             });
             this.isRunning = true;
@@ -283,6 +271,23 @@ class YzuCourseBot {
         this.pythonPath = null;
     }
 
+    async recognizeCaptcha(imagePath) {
+        if (!this.pythonPath) {
+            await this.checkPythonInstallation();
+        }
+        const ocrScriptPath = path.join(path.dirname(this.botScriptPath), 'predict_captcha.py');
+        try {
+            const stdout = await this.runCommand(this.pythonPath, [ocrScriptPath, imagePath], { timeout: 15000 });
+            const match = stdout.match(/RESULT:(.+)/);
+            if (match) {
+                return { success: true, result: match[1].trim() };
+            }
+            return { success: false, message: '無法解析辨識結果', stdout };
+        } catch (error) {
+            return { success: false, message: error.message };
+        }
+    }
+
     runCommand(command, args, options = {}) {
         return new Promise((resolve, reject) => {
             const { timeout = 30000 } = options;
@@ -291,7 +296,14 @@ class YzuCourseBot {
             proc.stdout.on('data', d => { stdout += d.toString('utf8'); });
             proc.stderr.on('data', d => { stderr += d.toString('utf8'); });
             const timer = setTimeout(() => { proc.kill(); reject(new Error('命令執行超時')); }, timeout);
-            proc.on('close', code => { clearTimeout(timer); code === 0 ? resolve(stdout) : reject(new Error(stderr || `退出碼: ${code}`)); });
+            proc.on('close', code => {
+                clearTimeout(timer);
+                if (code === 0) {
+                    resolve(stdout);
+                } else {
+                    reject(new Error(`退出碼: ${code}\nstdout: ${stdout}\nstderr: ${stderr}`));
+                }
+            });
             proc.on('error', e => { clearTimeout(timer); reject(e); });
         });
     }

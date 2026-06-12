@@ -21,7 +21,10 @@ class HttpClient {
         this._cookieStore = {};
     }
 
-    _updateCookiesFromResponse(res) {
+    _updateCookiesFromResponse(res, urlString) {
+        if (urlString && urlString.includes('Cos_Plan.aspx')) {
+            return;
+        }
         const setCookie = res.headers['set-cookie'];
         if (!setCookie || !Array.isArray(setCookie)) return;
         const now = Date.now();
@@ -56,9 +59,14 @@ class HttpClient {
         const now = Date.now();
         const pairs = [];
         for (const [name, entry] of Object.entries(this._cookieStore || {})) {
-            // M-07: 跳過已過期的 Cookie
-            if (entry.expiresAt !== null && entry.expiresAt <= now) continue;
-            pairs.push(`${name}=${entry.value}`);
+            if (entry && typeof entry === 'object') {
+                // M-07: 跳過已過期的 Cookie
+                if (entry.expiresAt !== null && entry.expiresAt <= now) continue;
+                pairs.push(`${name}=${entry.value}`);
+            } else {
+                // Fallback 相容舊版或手動直接寫入字串的值 (例如 CheckCode)
+                pairs.push(`${name}=${entry}`);
+            }
         }
         return pairs.join('; ');
     }
@@ -96,7 +104,11 @@ class HttpClient {
         return this._withRetry(() => this._doGet(urlString, headers, redirectCount));
     }
 
-    _doGet(urlString, headers = {}, redirectCount = 0) {
+    getBinary(urlString, headers = {}) {
+        return this._withRetry(() => this._doGetBinary(urlString, headers));
+    }
+
+    _doGetBinary(urlString, headers = {}) {
         return new Promise((resolve, reject) => {
             try {
                 const url = new URL(urlString);
@@ -104,8 +116,10 @@ class HttpClient {
                 const mod = isHttps ? https : http;
                 
                 const mergedHeaders = Object.assign({}, headers || {});
-                const cookieHeader = this._getCookieHeader();
-                if (cookieHeader) mergedHeaders['Cookie'] = cookieHeader;
+                if (mergedHeaders['Cookie'] === undefined && mergedHeaders['cookie'] === undefined) {
+                    const cookieHeader = this._getCookieHeader();
+                    if (cookieHeader) mergedHeaders['Cookie'] = cookieHeader;
+                }
 
                 const req = mod.request({
                     protocol: url.protocol,
@@ -117,7 +131,47 @@ class HttpClient {
                     rejectUnauthorized: !(url.hostname === 'yzu.edu.tw' || url.hostname.endsWith('.yzu.edu.tw')),
                 }, (res) => {
                     const status = res.statusCode || 0;
-                    this._updateCookiesFromResponse(res);
+                    this._updateCookiesFromResponse(res, urlString);
+
+                    const chunks = [];
+                    res.on('data', (chunk) => chunks.push(Buffer.from(chunk)));
+                    res.on('end', () => {
+                        const buffer = Buffer.concat(chunks);
+                        resolve({ statusCode: status, headers: res.headers, body: buffer });
+                    });
+                });
+                req.on('error', reject);
+                req.end();
+            } catch (e) {
+                reject(e);
+            }
+        });
+    }
+
+    _doGet(urlString, headers = {}, redirectCount = 0) {
+        return new Promise((resolve, reject) => {
+            try {
+                const url = new URL(urlString);
+                const isHttps = url.protocol === 'https:';
+                const mod = isHttps ? https : http;
+                
+                const mergedHeaders = Object.assign({}, headers || {});
+                if (mergedHeaders['Cookie'] === undefined && mergedHeaders['cookie'] === undefined) {
+                    const cookieHeader = this._getCookieHeader();
+                    if (cookieHeader) mergedHeaders['Cookie'] = cookieHeader;
+                }
+
+                const req = mod.request({
+                    protocol: url.protocol,
+                    hostname: url.hostname,
+                    port: url.port || (isHttps ? 443 : 80),
+                    path: url.pathname + (url.search || ''),
+                    method: 'GET',
+                    headers: mergedHeaders,
+                    rejectUnauthorized: !(url.hostname === 'yzu.edu.tw' || url.hostname.endsWith('.yzu.edu.tw')),
+                }, (res) => {
+                    const status = res.statusCode || 0;
+                    this._updateCookiesFromResponse(res, urlString);
 
                     if (status >= 300 && status < 400 && res.headers.location) {
                         if (redirectCount >= 5) return reject(new Error('Too many redirects'));
@@ -159,8 +213,10 @@ class HttpClient {
                     'Content-Length': Buffer.byteLength(body),
                 }, headers || {});
 
-                const cookieHeader = this._getCookieHeader();
-                if (cookieHeader) mergedHeaders['Cookie'] = cookieHeader;
+                if (mergedHeaders['Cookie'] === undefined && mergedHeaders['cookie'] === undefined) {
+                    const cookieHeader = this._getCookieHeader();
+                    if (cookieHeader) mergedHeaders['Cookie'] = cookieHeader;
+                }
 
                 const req = mod.request({
                     protocol: url.protocol,
@@ -172,7 +228,7 @@ class HttpClient {
                     rejectUnauthorized: !(url.hostname === 'yzu.edu.tw' || url.hostname.endsWith('.yzu.edu.tw')),
                 }, (res) => {
                     const status = res.statusCode || 0;
-                    this._updateCookiesFromResponse(res);
+                    this._updateCookiesFromResponse(res, urlString);
 
                     if (status >= 300 && status < 400 && res.headers.location) {
                         if (redirectCount >= 5) return reject(new Error('Too many redirects'));

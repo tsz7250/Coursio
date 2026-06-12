@@ -232,6 +232,7 @@ onMounted(() => {
       }
     }
     await checkEnvironment();
+    await loadTaskList();
     if (window.lucide) window.lucide.createIcons();
   });
 });

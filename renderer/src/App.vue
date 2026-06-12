@@ -81,6 +81,11 @@
             <i data-lucide="calendar"></i>
             <span>我的課表</span>
           </div>
+          <div @click="navigateTo('PreSchedule')" id="PreSchedule-sidebar-item" class="sidebar-item point-it"
+            :class="!isLoggedIn ? 'guest-disabled' : ''">
+            <i data-lucide="calendar-range"></i>
+            <span>預排課表</span>
+          </div>
           <div @click="navigateTo('CourseQuery')" id="School-timetable-Query-sidebar-item"
             class="sidebar-item point-it">
             <i data-lucide="search"></i>

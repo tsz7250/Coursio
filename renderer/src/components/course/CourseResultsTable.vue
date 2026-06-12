@@ -18,7 +18,7 @@
     <div class="w-full">
       <table id="courses-list-data-table" class="query-results-table">
         <colgroup>
-          <col><col><col><col><col><col><col><col>
+          <col><col><col><col><col><col><col><col><col>
         </colgroup>
         <thead>
           <tr>
@@ -28,6 +28,7 @@
             <th>選別</th>
             <th>時間,教室</th>
             <th>授課教師</th>
+            <th>選課人數 / 上限</th>
             <th>學分數</th>
             <th>加入選課名單</th>
           </tr>
@@ -41,14 +42,20 @@
             <td class="type-cell">{{ course.type || course.cos_type_name || '' }}</td>
             <td class="time-room-cell">{{ course.time_room || '' }}</td>
             <td class="teacher-cell u-pre-line">{{ course.teacher_name || course.teacher || '' }}</td>
+            <td class="people-cell">
+              <span v-if="course.reg_num !== undefined && course.reg_num !== '' && course.max_num !== undefined && course.max_num !== ''">
+                {{ course.reg_num }} / {{ course.max_num }}
+              </span>
+              <span v-else>-</span>
+            </td>
             <td class="credit-cell">
               <span v-if="course.credit_loading" class="credit-loading">載入中...</span>
               <span v-else-if="course.credit" class="credit-value">{{ course.credit }}</span>
               <span v-else class="credit-unknown">-</span>
             </td>
             <td>
-              <span v-if="isLoggedIn" @click.capture.self="addToSchedule($event, course)"
-                class="btn btn-cyan btn-sm hvr-bounce-to-right point-it">加入</span>
+              <span v-if="isLoggedIn" @click="addToSchedule($event, course)"
+                class="btn btn-cyan btn-sm btn-join-interactive point-it">加入</span>
               <span v-else class="btn disabled login-disabled-btn btn-sm">需登入</span>
             </td>
           </tr>
@@ -61,8 +68,9 @@
 <script setup>
 import { computed } from 'vue';
 import { Store } from '../../store.js';
+import { requestQueue } from '../../utils/requestQueue.js';
 
-const props = defineProps({
+defineProps({
   courses: { type: Array, required: true },
   isLoggedIn: { type: Boolean, default: false },
   queryYear: { type: String, default: '' },
@@ -85,18 +93,251 @@ function validateCourseData(courseData) {
   return { isValid: errors.length === 0, errors };
 }
 
+// ── 時間與教室精確提取、序列化與比對 ──
+function parseTimeRoomToPairs(timeRoom) {
+  if (!timeRoom || timeRoom.trim() === '') return [];
+  const lines = timeRoom.split('\n').map(l => l.trim()).filter(l => l !== '');
+  const pairs = [];
+  
+  lines.forEach(line => {
+    if (line.includes(',')) {
+      const parts = line.split(',');
+      const t = parts[0].trim();
+      const r = parts[1] ? parts[1].trim() : '';
+      if (t) pairs.push({ time: t, room: r });
+    } else {
+      if (line) pairs.push({ time: line, room: '' });
+    }
+  });
+  return pairs;
+}
+
+function serializePairs(pairs) {
+  return pairs.map(p => `${p.time}:${p.room}`).join(';');
+}
+
+function escapeHtml(str) {
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function formatFriendlyTime(timeStr) {
+  if (!timeStr || timeStr === '無課程資料' || timeStr === '時間待確認') {
+    return '時間待確認';
+  }
+  const dayNames = {
+    '1': '週一', '2': '週二', '3': '週三', '4': '週四', '5': '週五', '6': '週六', '7': '週日'
+  };
+  const segments = timeStr.split(/[;,]/);
+  const groups = {};
+  
+  segments.forEach(seg => {
+    const trimmed = seg.trim();
+    if (!trimmed) return;
+    let timeCode = trimmed;
+    let room = '';
+    if (trimmed.includes(':')) {
+      const parts = trimmed.split(':');
+      timeCode = parts[0].trim();
+      room = parts[1] ? parts[1].trim() : '';
+    }
+    
+    if (timeCode.length >= 3) {
+      const day = timeCode.charAt(0);
+      const periodStr = timeCode.substring(1);
+      const period = parseInt(periodStr, 10);
+      if (!isNaN(period)) {
+        const key = `${day}_${room}`;
+        if (!groups[key]) {
+          groups[key] = {
+            day: dayNames[day] || `週${day}`,
+            room: room,
+            periods: []
+          };
+        }
+        groups[key].periods.push(period);
+      }
+    } else {
+      const key = `other_${room}`;
+      if (!groups[key]) {
+        groups[key] = {
+          day: '',
+          room: room,
+          periods: [timeCode]
+        };
+      } else {
+        groups[key].periods.push(timeCode);
+      }
+    }
+  });
+  
+  const result = [];
+  for (const group of Object.values(groups)) {
+    const sortedPeriods = group.periods.sort((a, b) => {
+      if (typeof a === 'number' && typeof b === 'number') return a - b;
+      return String(a).localeCompare(String(b));
+    });
+    
+    const formattedPeriods = sortedPeriods.map(p => {
+      if (typeof p === 'number') {
+        return p < 10 ? `0${p}` : `${p}`;
+      }
+      return p;
+    }).join(', ');
+    
+    let str = '';
+    if (group.day) {
+      str += `${group.day} 第 ${formattedPeriods} 節`;
+    } else {
+      str += formattedPeriods;
+    }
+    if (group.room) {
+      str += ` (${group.room})`;
+    }
+    result.push(str);
+  }
+  
+  return result.join('、');
+}
+
+function getConflictMessageHtml(newCourseName, conflictingCourses) {
+  let listItemsHtml = '';
+  conflictingCourses.forEach(c => {
+    const timeFormatted = formatFriendlyTime(c.time);
+    listItemsHtml += `
+      <div class="conflict-item">
+        <div class="conflict-item-title">【已排入】${escapeHtml(c.name)}</div>
+        <div class="conflict-item-time">⏰ 時間：${escapeHtml(timeFormatted)}</div>
+      </div>
+    `;
+  });
+
+  return `
+    <div class="conflict-container">
+      <div class="conflict-warning-header">
+        <span>⚠️ 時間衝突警告</span>
+      </div>
+      <div>
+        欲加入的課程<strong>「${escapeHtml(newCourseName)}」</strong>與預排課表中的課程存在時間重疊：
+      </div>
+      <div class="conflict-list">
+        ${listItemsHtml}
+      </div>
+      <div class="conflict-prompt">
+        確定要移出上述衝突的課程，並將新課程加入預排課表嗎？
+      </div>
+    </div>
+  `;
+}
+
+function getPeriodsSet(timeStr) {
+  const periods = new Set();
+  if (!timeStr || timeStr === '無課程資料' || timeStr === '時間待確認') {
+    return periods;
+  }
+  
+  const timeCodes = [];
+  const segments = timeStr.split(/[;,]/);
+  segments.forEach(seg => {
+    const trimmed = seg.trim();
+    if (trimmed) {
+      if (trimmed.includes(':')) {
+        const parts = trimmed.split(':');
+        const t = parts[0] ? parts[0].trim() : '';
+        if (t) timeCodes.push(t);
+      } else {
+        timeCodes.push(trimmed);
+      }
+    }
+  });
+  
+  timeCodes.forEach(code => {
+    if (code.length >= 3) {
+      const day = code.charAt(0);
+      const periodsStr = code.substring(1);
+      const period = parseInt(periodsStr, 10);
+      if (!isNaN(period) && period >= 1 && period <= 13) {
+        periods.add(`${day}-${period}`);
+      }
+    }
+  });
+  return periods;
+}
+
+function hasConflict(timeStr1, timeStr2) {
+  const set1 = getPeriodsSet(timeStr1);
+  const set2 = getPeriodsSet(timeStr2);
+  for (const p of set1) {
+    if (set2.has(p)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 async function addToSchedule(event, course) {
-  event.preventDefault();
-  event.stopPropagation();
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+  if (!course) {
+    alert('錯誤：未傳入課程資料！');
+    return;
+  }
   try {
+    let courseToUse = { ...course };
+    if (course.isFromTimeQuery) {
+      if (typeof M !== 'undefined' && M.toast) {
+        M.toast({ html: '🔍 正在取得課程完整時間教室資料...', displayLength: 2000 });
+      }
+      try {
+        const ddl_ym = `${course.year},${course.smtr}`;
+        const res = await requestQueue.enqueue(
+          () => window.electronAPI.backend.getFullCourseInfo(
+            ddl_ym,
+            course.name || course.cos_name || '',
+            course.cos_id,
+            course.cos_class || 'A'
+          ),
+          'high'
+        );
+        if (res && res.success && res.course) {
+          courseToUse.time_room = res.course.time_room;
+          if (typeof M !== 'undefined' && M.toast) {
+            M.toast({ html: '✅ 成功取得完整課程時間！', displayLength: 2000 });
+          }
+        } else {
+          console.warn('無法取得完整時間資料:', res?.message);
+          if (typeof M !== 'undefined' && M.toast) {
+            M.toast({ html: '⚠️ 無法取得完整課程時間，將使用目前時間加入', displayLength: 3000 });
+          }
+        }
+      } catch (err) {
+        console.error('補完完整課程時間失敗:', err);
+      }
+    }
+
+    const pairs = parseTimeRoomToPairs(courseToUse.time_room);
+    const parsedTime = serializePairs(pairs);
+    
+    const uniqueRooms = new Set();
+    pairs.forEach(p => { if (p.room) uniqueRooms.add(p.room); });
+    const parsedRoom = Array.from(uniqueRooms).join(', ');
+
     const courseData = {
-      cos_id: course.cos_id || '',
-      cos_class: course.cos_class || 'A',
-      name: course.name || course.cos_name || '',
-      teacher_name: course.teacher_name || course.teacher || '',
-      credit: course.credit || course.credits || 0,
-      dept_id: course.dept_id || '',
-      status: 0
+      cos_id: courseToUse.cos_id || '',
+      cos_class: courseToUse.cos_class || 'A',
+      name: courseToUse.name || courseToUse.cos_name || '',
+      teacher_name: courseToUse.teacher_name || courseToUse.teacher || '',
+      credit: courseToUse.credit || courseToUse.credits || 0,
+      dept_id: courseToUse.dept_id || '',
+      status: 0,
+      time: parsedTime,
+      room: parsedRoom
     };
     const deptSelectElement = document.querySelector('#querySelectQueryDept');
     if (!courseData.dept_id && deptSelectElement && deptSelectElement.value)
@@ -114,9 +355,62 @@ async function addToSchedule(event, course) {
       if (typeof M !== 'undefined' && M.toast) M.toast({ html: `課程 ${courseData.cos_id}${courseData.cos_class} 已存在於選課清單中`, displayLength: 3000 });
       return;
     }
+
+    // 檢查預排課表時間衝突
+    const allTasks = await window.electronAPI.db.getAllTasks();
+    const conflictingCourses = [];
+    for (const task of allTasks) {
+      if (task.time && hasConflict(parsedTime, task.time)) {
+        conflictingCourses.push(task);
+      }
+    }
+
+    let confirmed = false;
+    try {
+      const confirmFn = window.customConfirm || ((msg) => Promise.resolve(window.confirm(msg)));
+      if (conflictingCourses.length > 0) {
+        const msgHtml = getConflictMessageHtml(courseData.name, conflictingCourses);
+        confirmed = await confirmFn(msgHtml, '時間衝突警告');
+      } else {
+        confirmed = await confirmFn(
+          `確定要將「${courseData.name}」加入預排課表嗎？`,
+          '加入課程確認'
+        );
+      }
+    } catch (confirmError) {
+      alert('確認視窗執行出錯: ' + (confirmError?.message || confirmError));
+      return;
+    }
+
+    if (!confirmed) {
+      return;
+    }
+
+    // 若確認覆蓋，則完全移除衝突的舊課程
+    if (conflictingCourses.length > 0) {
+      for (const confCourse of conflictingCourses) {
+        await window.electronAPI.db.deleteTask(confCourse.id);
+      }
+    }
+
     const result = await window.electronAPI.db.addTask(courseData);
+    
+    // 更新全域狀態以利其他頁面即時反應
+    try {
+      const updatedTasks = await window.electronAPI.db.getAllTasks();
+      Store.tasks = updatedTasks || [];
+    } catch (dbErr) {
+      console.warn('同步更新全域任務列表失敗:', dbErr);
+    }
+
     if (result && result.id) {
-      if (typeof M !== 'undefined' && M.toast) M.toast({ html: `已加入 ${courseData.cos_id}${courseData.cos_class} - ${courseData.name}`, displayLength: 3000 });
+      let toastMsg = `已加入 ${courseData.cos_id}${courseData.cos_class} - ${courseData.name}`;
+      if (conflictingCourses.length > 0) {
+        toastMsg += `（已替換 ${conflictingCourses.length} 門衝突課程）`;
+      }
+      if (typeof M !== 'undefined' && M.toast) {
+        M.toast({ html: toastMsg, displayLength: 3000 });
+      }
     } else {
       if (typeof M !== 'undefined' && M.toast) M.toast({ html: '課程已加入但無法確認，請檢查選課任務列表', displayLength: 3000 });
     }
@@ -130,8 +424,8 @@ function showCourseDetail(event, course) {
   event.preventDefault();
   event.stopPropagation();
   emit('show-detail', {
-    year: props.queryYear,
-    smtr: props.querySmtr,
+    year: course.year,
+    smtr: course.smtr,
     cos_id: course.cos_id,
     cos_class: course.cos_class || 'A'
   });
@@ -170,14 +464,15 @@ function showCourseDetail(event, course) {
 
 /* 欄位寬度控制 */
 #courses-list-data-table {
-  colgroup col:nth-child(1) { width: 110px; }
-  colgroup col:nth-child(2) { width: 180px; }
+  colgroup col:nth-child(1) { width: 100px; }
+  colgroup col:nth-child(2) { width: 160px; }
   colgroup col:nth-child(3) { width: auto; }
-  colgroup col:nth-child(4) { width: 80px; }
-  colgroup col:nth-child(5) { width: 220px; }
-  colgroup col:nth-child(6) { width: 100px; }
-  colgroup col:nth-child(7) { width: 80px; }
-  colgroup col:nth-child(8) { width: 120px; }
+  colgroup col:nth-child(4) { width: 70px; }
+  colgroup col:nth-child(5) { width: 180px; }
+  colgroup col:nth-child(6) { width: 90px; }
+  colgroup col:nth-child(7) { width: 110px; }
+  colgroup col:nth-child(8) { width: 60px; }
+  colgroup col:nth-child(9) { width: 110px; }
 
   td.name-cell {
     font-weight: 600;
@@ -198,6 +493,12 @@ function showCourseDetail(event, course) {
   }
 
   td.teacher-cell { font-size: 13px; }
+
+  td.people-cell {
+    text-align: center;
+    font-size: 13px;
+    color: #475569;
+  }
 
   td.credit-cell {
     text-align: center;
@@ -243,4 +544,21 @@ function showCourseDetail(event, course) {
   .close { position: absolute; top: 16px; right: 16px; cursor: pointer; color: #94A3B8; }
 }
 #MHmodal { display: none; }
+
+/* 加入按鈕的精緻微互動效果 */
+.btn-join-interactive {
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease, background-color 0.2s ease;
+  position: relative;
+  overflow: hidden;
+  
+  &:hover {
+    transform: translateY(-2px) scale(1.03);
+    box-shadow: 0 4px 12px rgba(8, 145, 178, 0.25);
+  }
+
+  &:active {
+    transform: translateY(1px) scale(0.97);
+    box-shadow: 0 2px 4px rgba(8, 145, 178, 0.15);
+  }
+}
 </style>

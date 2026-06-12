@@ -104,9 +104,34 @@ app.on('activate', () => {
 })
 
 // IPC 開啟課程詳細頁面（在 Electron 新視窗中）
-ipcMain.on("openCourseDetail", (event, data) => {
+ipcMain.on("openCourseDetail", async (event, data) => {
     const { year, smtr, cos_id, cos_class } = data;
     const url = `https://portalfun.yzu.edu.tw/cosSelect/Cos_Plan.aspx?y=${encodeURIComponent(year)}&s=${encodeURIComponent(smtr)}&id=${encodeURIComponent(cos_id)}&c=${encodeURIComponent(cos_class)}`;
+
+    // 將背景/HttpClient 的 Cookie 同步至 Electron 的 defaultSession，以防加載時發生 ERR_TOO_MANY_REDIRECTS 與資料欄位空白問題
+    try {
+        const { getBackend } = require('./backend_provider');
+        const backend = getBackend();
+        const { session } = require('electron');
+        const cookieStore = backend.httpClient._cookieStore || {};
+        
+        for (const [name, entry] of Object.entries(cookieStore)) {
+            if (entry && typeof entry === 'object') {
+                const domain = name === 'ASP.NET_SessionId' || name.startsWith('TS') ? '.portalfun.yzu.edu.tw' : 'portalfun.yzu.edu.tw';
+                await session.defaultSession.cookies.set({
+                    url: 'https://portalfun.yzu.edu.tw',
+                    name: name,
+                    value: entry.value,
+                    domain: domain,
+                    path: '/'
+                }).catch(err => {
+                    console.warn(`[Electron Session] 設定 Cookie ${name} 失敗:`, err.message);
+                });
+            }
+        }
+    } catch (err) {
+        console.error("[Electron Session] 同步 Cookie 失敗:", err.message);
+    }
 
     let courseDetailWindow = new BrowserWindow({
         width: 1000,
@@ -121,6 +146,26 @@ ipcMain.on("openCourseDetail", (event, data) => {
             webSecurity: true
         }
     });
+
+    // 監聽詳細頁面載入失敗與憑證錯誤，方便調試
+    courseDetailWindow.webContents.on('did-fail-load', (ev, errorCode, errorDescription, validatedURL) => {
+        console.error(`課程詳細頁面載入失敗: ${errorCode} - ${errorDescription}, URL: ${validatedURL}`);
+    });
+
+    courseDetailWindow.webContents.on('certificate-error', (ev, certificateUrl, error, certificate, callback) => {
+        console.warn(`課程詳細頁面證書錯誤: ${error} for ${certificateUrl}`);
+        if (certificateUrl.includes('yzu.edu.tw')) {
+            ev.preventDefault();
+            callback(true); // 信任學校網站的憑證
+        } else {
+            callback(false);
+        }
+    });
+
+    // 僅在開發環境開啟 DevTools
+    if (!app.isPackaged) {
+        courseDetailWindow.webContents.openDevTools();
+    }
 
     courseDetailWindow.loadURL(url);
 

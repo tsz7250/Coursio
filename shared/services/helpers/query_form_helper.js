@@ -64,7 +64,7 @@ function parseHiddenFieldsComplete(html) {
 }
 
 function assertNotRedirectLoop(response) {
-    if (response.status >= 300 && response.status < 400) {
+    if (response.statusCode >= 300 && response.statusCode < 400) {
         const location = response.headers.location || '';
         if (location.includes('cosSelect/Index.aspx?D=G') || location.includes('cosSelect/index.aspx?D=G')) {
             throw new Error('伺服器重導回查詢首頁，通常是缺少 CheckCode 或隱藏欄位不正確造成。');

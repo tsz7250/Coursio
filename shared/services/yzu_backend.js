@@ -1,9 +1,3 @@
-
-const { default: Axios } = require("axios");
-
-
-const https = require('https');
-
 // 引入重構後的分層模組
 const HttpClient = require('./core/http_client');
 const PuppeteerService = require('./core/puppeteer_service');
@@ -20,24 +14,6 @@ let browserlessRoot = null; // 單例根瀏覽器管理器
 let browserlessLoaded = false;
 let puppeteerModule = null;
 
-// H-11: 僅對 yzu.edu.tw 域名停用 TLS 驗證（該校使用自簽憑證）
-// 不再全域覆蓋 Axios.defaults.httpsAgent，改用 request interceptor
-var isNodeEnv = typeof process !== 'undefined' && process.versions && process.versions.node && typeof window === 'undefined';
-if (isNodeEnv) {
-    const _yzuHttpsAgent = new https.Agent({ rejectUnauthorized: false, keepAlive: true, timeout: 30000 });
-    Axios.interceptors.request.use((config) => {
-        try {
-            const hostname = new URL(config.url || '').hostname;
-            if (hostname === 'yzu.edu.tw' || hostname.endsWith('.yzu.edu.tw')) {
-                config.httpsAgent = _yzuHttpsAgent;
-            }
-        } catch { /* 忽略無效 URL */ }
-        return config;
-    });
-}
-
-Axios.defaults.timeout = 30000;
-Axios.defaults.maxRedirects = 3; // 減少重定向次數，避免重定向循環
 
  
 
@@ -378,6 +354,7 @@ class BackendService {
     async queryCourseByName(ddl_ym, cos_name) { return this.courseQueryService.queryCourseByName(ddl_ym, cos_name); }
     async queryCourseByTeacher(ddl_ym, teacher_name) { return this.courseQueryService.queryCourseByTeacher(ddl_ym, teacher_name); }
     async queryCourseByTime(ddl_ym, ctl216) { return this.courseQueryService.queryCourseByTime(ddl_ym, ctl216); }
+    async getFullCourseInfo(ddl_ym, cos_name, cos_id, cos_class) { return this.courseQueryService.getFullCourseInfo(ddl_ym, cos_name, cos_id, cos_class); }
 
     // ==================== 成績查詢委派 (實作移至 GradesService) ====================
     async puppeteerGetGrades(page, type = 'semester', year, smtr) { return this.gradesService.puppeteerGetGrades(page, type, year, smtr); }

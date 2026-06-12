@@ -2,8 +2,9 @@ import { ref, computed, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { Store, year_now, filterSemesterListForTime } from '../store.js';
 import { useLogout } from './useLogout.js';
+import { requestQueue } from '../utils/requestQueue.js';
 
-const CREDIT_BATCH_SIZE = 3;
+
 
 export function useCourseQuery() {
     // ── 查詢類型 ──
@@ -44,16 +45,35 @@ export function useCourseQuery() {
 
     // ── 分頁 ──
     const currentPage = ref(1);
-    const PAGE_SIZE = 50;
+    const pageSize = ref(20);
 
-    const totalPages = computed(() => Math.ceil((queryResultForList.value?.length || 0) / PAGE_SIZE));
+    const totalPages = computed(() => Math.ceil((queryResultForList.value?.length || 0) / pageSize.value));
     const paginatedCourses = computed(() => {
         const all = queryResultForList.value || [];
-        const start = (currentPage.value - 1) * PAGE_SIZE;
-        return all.slice(start, start + PAGE_SIZE);
+        const start = (currentPage.value - 1) * pageSize.value;
+        return all.slice(start, start + pageSize.value);
     });
 
     function resetPage() { currentPage.value = 1; }
+
+    watch(pageSize, (newSize, oldSize) => {
+        if (oldSize && newSize > oldSize) {
+            const firstItemIndex = (currentPage.value - 1) * oldSize;
+            currentPage.value = Math.floor(firstItemIndex / newSize) + 1;
+        } else {
+            resetPage();
+        }
+    });
+
+    // 監聽當前分頁以按需載入學分數
+    watch(paginatedCourses, (newVal) => {
+        if (newVal && newVal.length > 0) {
+            const toLoad = newVal.filter(c => c.credit_loading && c.credit === 0 && !c.credit_fetching);
+            if (toLoad.length > 0) {
+                loadCourseCredits(toLoad);
+            }
+        }
+    }, { immediate: true, deep: true });
 
     const router = useRouter();
     function goToSettings() { router.push({ name: 'Settings' }); Store.showUserMenu = false; }
@@ -79,7 +99,7 @@ export function useCourseQuery() {
     }
 
     // ── 課程結果映射輔助 ──
-    function mapCourseResult(course, yearStr, smtrStr, deptFallback) {
+    function mapCourseResult(course, yearStr, smtrStr, deptFallback, isFromTimeQuery = false) {
         return {
             cos_id: course.cos_id,
             cos_class: course.cos_class,
@@ -94,44 +114,55 @@ export function useCourseQuery() {
             credits: course.credits,
             credit: 0,
             credit_loading: true,
+            credit_fetching: false,
             year: yearStr,
-            smtr: smtrStr
+            smtr: smtrStr,
+            isFromTimeQuery,
+            reg_num: course.reg_num,
+            max_num: course.max_num
         };
     }
 
-    // ── 異步載入學分數（batch-3 並發，保護服務端流量）──
-    async function loadCourseCredits(courses) {
+    // ── 異步載入學分數（使用優先佇列，保護服務端流量）──
+    function loadCourseCredits(courses) {
         if (!courses || courses.length === 0) return;
-        for (let i = 0; i < courses.length; i += CREDIT_BATCH_SIZE) {
-            const batch = courses.slice(i, i + CREDIT_BATCH_SIZE);
-            await Promise.allSettled(batch.map(async (course) => {
-                try {
-                    const credit = await window.electronAPI.backend.getCourseCredit(
+        courses.forEach(async (course) => {
+            if (course.credit_fetching) return;
+            course.credit_fetching = true;
+            try {
+                const credit = await requestQueue.enqueue(
+                    () => window.electronAPI.backend.getCourseCredit(
                         course.year, course.smtr, course.cos_id, course.cos_class
-                    );
-                    course.credit = credit;
-                    course.credit_loading = false;
-                } catch (error) {
-                    console.error(`載入課程 ${course.cos_id} 學分數失敗:`, error);
-                    course.credit = 0;
-                    course.credit_loading = false;
+                    ),
+                    'low'
+                );
+                course.credit = credit;
+                course.credit_loading = false;
+            } catch (error) {
+                if (error && error.message === 'Queue cleared') {
+                    return;
                 }
-            }));
-        }
+                console.error(`載入課程 ${course.cos_id} 學分數失敗:`, error);
+                course.credit = 0;
+                course.credit_loading = false;
+            } finally {
+                course.credit_fetching = false;
+            }
+        });
     }
 
     // ── 統一查詢執行函式，消除 4 個 performXxxQuery 的重複樣板 ──
-    async function _executeQuery({ fields, apiCallFn, semesterRef, deptStr = '', errorLabel, postFilter }) {
+    async function _executeQuery({ fields, apiCallFn, semesterRef, deptStr = '', errorLabel, postFilter, isFromTimeQuery = false }) {
         if (!validateFormFields(fields)) return;
         Store.isCourseDataLoading = true;
+        requestQueue.clearLowQueue();
         try {
-            const result = await apiCallFn();
+            const result = await requestQueue.enqueue(apiCallFn, 'high');
             if (result.success) {
                 const [year, smtr] = semesterRef.value.split(',').map(s => s.trim());
                 let courses = result.courses;
                 if (postFilter) courses = postFilter(courses);
-                Store.queryResultForList = courses.map(c => mapCourseResult(c, year, smtr, deptStr));
-                loadCourseCredits(Store.queryResultForList);
+                Store.queryResultForList = courses.map(c => mapCourseResult(c, year, smtr, deptStr, isFromTimeQuery));
                 resetPage();
             } else {
                 Store.queryResultForList = [];
@@ -208,7 +239,8 @@ export function useCourseQuery() {
                 querySelectQueryDay.value + querySelectQueryPeriod.value
             ),
             semesterRef: querySelectSemesterForTime,
-            errorLabel: '時間查詢'
+            errorLabel: '時間查詢',
+            isFromTimeQuery: true
         });
     }
 
@@ -218,7 +250,6 @@ export function useCourseQuery() {
 
     // ── Watcher：切換查詢類型時重置所有欄位 ──
     watch(queryType, () => {
-        Store.queryResultForList = [];
         querySelectSemester.value = '';
         querySelectQueryDept.value = '';
         querySelectGrade.value = '';
@@ -293,6 +324,7 @@ export function useCourseQuery() {
         deptList,
         semesterList,
         currentPage,
+        pageSize,
         totalPages,
         paginatedCourses,
         formErrors,

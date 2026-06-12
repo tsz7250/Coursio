@@ -8,9 +8,23 @@ if (!existsSync(tsconfigPath)) {
   process.exit(0);
 }
 
-const cmd = process.platform === 'win32'
-  ? 'npm exec -- tsc --noEmit --pretty false'
-  : 'npm exec -- tsc --noEmit --pretty false';
+console.log('Running ESLint...');
+const lintResult = spawnSync('npm run lint', {
+  stdio: 'inherit',
+  shell: true
+});
+
+if (lintResult.error) {
+  console.error('LINT_FAIL:', lintResult.error.message);
+  process.exit(1);
+}
+if (lintResult.status !== 0) {
+  console.error('LINT_FAIL: ESLint 檢查未通過');
+  process.exit(lintResult.status || 1);
+}
+
+console.log('Running TypeScript syntax check...');
+const cmd = 'npm exec -- tsc --noEmit --pretty false';
 
 const result = spawnSync(cmd, {
   stdio: 'inherit',
@@ -26,3 +40,4 @@ if (result.status !== 0) {
 }
 
 console.log('TYPECHECK_OK');
+

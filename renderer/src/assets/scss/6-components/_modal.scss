@@ -200,3 +200,161 @@ $modal-content-z-index: $z-index-modal;
   background-color: #ff9800 !important;
   color: #fff !important;
 }
+
+/* 自訂確認彈窗樣式 */
+.custom-confirm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeInOverlay 0.15s ease;
+}
+
+@keyframes fadeInOverlay {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.custom-confirm-dialog {
+  background: #FFFFFF;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+  padding: 24px 28px;
+  min-width: 300px;
+  max-width: 420px;
+  width: 90%;
+  animation: slideInDialog 0.18s ease;
+}
+
+@keyframes slideInDialog {
+  from {
+    transform: translateY(-12px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.custom-confirm-title {
+  font-family: "Poppins", sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+  color: #164E63;
+  margin: 0 0 8px;
+}
+
+.custom-confirm-message {
+  font-family: "Open Sans", sans-serif;
+  font-size: 14px;
+  color: #475569;
+  margin-bottom: 20px;
+  line-height: 1.5;
+}
+
+.custom-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+
+  .btn {
+    height: 36px;
+    padding: 0 16px;
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: 8px;
+    transition: all 0.15s ease;
+  }
+
+  .custom-confirm-cancel {
+    background: transparent !important;
+    color: #64748B !important;
+    border: 1px solid #CBD5E1 !important;
+
+    &:hover {
+      background: #F8FAFC !important;
+      border-color: #94A3B8 !important;
+      color: #334155 !important;
+    }
+  }
+
+  .custom-confirm-ok {
+    background: #EF4444 !important;
+    color: #FFFFFF !important;
+    border: 1px solid #EF4444 !important;
+
+    &:hover {
+      background: #DC2626 !important;
+      border-color: #DC2626 !important;
+      color: #FFFFFF !important;
+    }
+  }
+}
+
+/* 衝突彈窗專用樣式 */
+.conflict-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.conflict-warning-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #E11D48; // rose-600
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.conflict-list {
+  background: #FFF1F2; // rose-50
+  border: 1px solid #FFE4E6; // rose-100
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin: 4px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.conflict-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-bottom: 1px dashed #FDA4AF; // rose-300
+  padding-bottom: 8px;
+
+  &:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+  }
+}
+
+.conflict-item-title {
+  font-weight: 600;
+  color: #9F1239; // rose-800
+  font-size: 13.5px;
+}
+
+.conflict-item-time {
+  font-size: 12px;
+  color: #E11D48; // rose-600
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.conflict-prompt {
+  font-weight: 500;
+  color: #334155; // slate-700
+  margin-top: 4px;
+}

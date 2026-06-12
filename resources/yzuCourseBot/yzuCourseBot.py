@@ -306,7 +306,10 @@ if __name__ == '__main__':
         coursesList = _json.load(_f)
 
     # Time Parameter, sleep n seconds
-    delay = 2.5
+    try:
+        delay = float(os.environ.get('DELAY_INTERVAL', '2.5'))
+    except Exception:
+        delay = 2.5
     
     depts = set([i.split(',')[0] for i in coursesList])
     

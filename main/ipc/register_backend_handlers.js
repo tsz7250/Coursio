@@ -45,6 +45,17 @@ function registerBackendHandlers(ipcMain, getBackendInstance) {
         const { year, smtr, cos_id, cos_class } = ensureObject(payload);
         return getBackendInstance().getCourseCredit(year, smtr, cos_id, cos_class);
     });
+
+    ipcMain.handle(CHANNELS.BACKEND.GET_FULL_COURSE_INFO, async (e, payload) => {
+        if (!validateIpcSender(e)) throw new Error('未授權的 IPC sender');
+        const { ddl_ym, cos_name, cos_id, cos_class } = ensureObject(payload);
+        return getBackendInstance().getFullCourseInfo(
+            ensureString(ddl_ym, 'ddl_ym'),
+            ensureString(cos_name, 'cos_name'),
+            ensureString(cos_id, 'cos_id'),
+            ensureString(cos_class, 'cos_class')
+        );
+    });
 }
 
 module.exports = { registerBackendHandlers };

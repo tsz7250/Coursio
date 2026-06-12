@@ -293,6 +293,9 @@ function init(win) {
     ipcMain.handle(CHANNELS.PUPPETEER.CLEANUP, async (event) => {
         if (!validateIpcSender(event)) throw new Error('未授權的 IPC sender');
         await cleanupSession();
+        if (backendInstance && backendInstance.courseQueryService && typeof backendInstance.courseQueryService.cleanupBrowser === 'function') {
+            await backendInstance.courseQueryService.cleanupBrowser().catch(() => {});
+        }
         return { success: true };
     });
 
@@ -307,6 +310,14 @@ async function prewarm() {
     try {
         logger.info('Main Process 開始預熱 Browserless');
         await backendInstance.prewarmBrowser();
+        
+        if (backendInstance.courseQueryService && typeof backendInstance.courseQueryService.prewarmBrowser === 'function') {
+            logger.info('Main Process 開始預熱 CourseQueryService 瀏覽器');
+            await backendInstance.courseQueryService.prewarmBrowser().catch(e => {
+                logger.warn('預熱 CourseQueryService 失敗', { error: e.message });
+            });
+        }
+        
         logger.info('Main Process 預熱完成');
     } catch (e) {
         logger.warn('Main Process 預熱失敗（不影響正常登入）', { error: e.message });

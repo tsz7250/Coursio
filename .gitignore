@@ -75,7 +75,6 @@ python/captcha.png
 # Query_Request 測試腳本產生的 HTML 檔案（開發/測試用）
 Query_Request_test/*.html
 
-.github/
 .cursor/
 
 # Vite 建置輸出

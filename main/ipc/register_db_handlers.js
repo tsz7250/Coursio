@@ -6,8 +6,8 @@ function registerDbHandlers(ipcMain, getDb) {
         if (!validateIpcSender(e)) throw new Error('未授權的 IPC sender');
         return new Promise((resolve, reject) => {
             getDb().run(
-                'INSERT INTO tasks (cos_id, cos_class, name, teacher_name, credit, dept_id, status) VALUES (?,?,?,?,?,?,?)',
-                [task.cos_id, task.cos_class, task.name, task.teacher_name, task.credit, task.dept_id, task.status || 0],
+                'INSERT INTO tasks (cos_id, cos_class, name, teacher_name, credit, dept_id, status, time, room) VALUES (?,?,?,?,?,?,?,?,?)',
+                [task.cos_id, task.cos_class, task.name, task.teacher_name, task.credit, task.dept_id, task.status || 0, task.time || '', task.room || ''],
                 function (err) { err ? reject(err.message) : resolve({ id: this.lastID }); }
             );
         });

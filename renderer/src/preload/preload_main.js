@@ -24,7 +24,8 @@ const FALLBACK_CHANNELS = {
         QUERY_BY_NAME: 'backend:queryCourseByName',
         QUERY_BY_TEACHER: 'backend:queryCourseByTeacher',
         QUERY_BY_TIME: 'backend:queryCourseByTime',
-        GET_COURSE_CREDIT: 'backend:getCourseCredit'
+        GET_COURSE_CREDIT: 'backend:getCourseCredit',
+        GET_FULL_COURSE_INFO: 'backend:getFullCourseInfo'
     },
     DB: {
         ADD_TASK: 'db:addTask',
@@ -101,7 +102,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
         queryCourseByTime: (ddl_ym, ctl216) =>
             ipcRenderer.invoke(CHANNELS.BACKEND.QUERY_BY_TIME, { ddl_ym, ctl216 }),
         getCourseCredit: (year, smtr, cos_id, cos_class) =>
-            ipcRenderer.invoke(CHANNELS.BACKEND.GET_COURSE_CREDIT, { year, smtr, cos_id, cos_class })
+            ipcRenderer.invoke(CHANNELS.BACKEND.GET_COURSE_CREDIT, { year, smtr, cos_id, cos_class }),
+        getFullCourseInfo: (ddl_ym, cos_name, cos_id, cos_class) =>
+            ipcRenderer.invoke(CHANNELS.BACKEND.GET_FULL_COURSE_INFO, { ddl_ym, cos_name, cos_id, cos_class })
     },
 
     // ─── Database (SQLite) ────────────────────────────────────────

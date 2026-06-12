@@ -14,7 +14,8 @@ const CHANNELS = {
         QUERY_BY_NAME: 'backend:queryCourseByName',
         QUERY_BY_TEACHER: 'backend:queryCourseByTeacher',
         QUERY_BY_TIME: 'backend:queryCourseByTime',
-        GET_COURSE_CREDIT: 'backend:getCourseCredit'
+        GET_COURSE_CREDIT: 'backend:getCourseCredit',
+        GET_FULL_COURSE_INFO: 'backend:getFullCourseInfo'
     },
     DB: {
         ADD_TASK: 'db:addTask',

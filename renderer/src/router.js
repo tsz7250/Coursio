@@ -4,6 +4,7 @@
 import { createRouter, createWebHashHistory } from 'vue-router';
 import MainDashboard from './pages/MainDashboard.vue';
 import SchedulePage from './pages/SchedulePage.vue';
+import PreSchedulePage from './pages/PreSchedulePage.vue';
 import CourseQueryPage from './pages/CourseQueryPage.vue';
 import AutoSelectionPage from './pages/AutoSelectionPage.vue';
 import GradesPage from './pages/GradesPage.vue';
@@ -13,6 +14,7 @@ import AboutPage from './pages/AboutPage.vue';
 const routes = [
     { path: '/',               name: 'Main',          component: MainDashboard },
     { path: '/schedule',       name: 'Schedule',      component: SchedulePage },
+    { path: '/pre-schedule',   name: 'PreSchedule',   component: PreSchedulePage },
     { path: '/query',          name: 'CourseQuery',   component: CourseQueryPage },
     { path: '/auto-selection', name: 'AutoSelection', component: AutoSelectionPage },
     { path: '/grades',         name: 'Grades',        component: GradesPage },
@@ -34,6 +36,7 @@ router.afterEach((to) => {
     const sidebarMap = {
         'Main':          'Main-sidebar-item',
         'Schedule':      'Schedule-sidebar-item',
+        'PreSchedule':   'PreSchedule-sidebar-item',
         'CourseQuery':   'School-timetable-Query-sidebar-item',
         'AutoSelection': 'Auto-Selection-sidebar-item',
         'Settings':      'Settings-sidebar-item',

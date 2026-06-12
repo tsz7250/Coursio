@@ -14,18 +14,36 @@ class ScheduleParser {
             return cleanText.slice(0, MAX_TEACHER_NAME_LENGTH) + '…';
         }
         
+        // 支援多教師拆分處理（用頓號或全形逗號）
+        // 為了避免英文名字內部的逗號 (e.g. Chiu,Chieh-Sen) 被切斷，我們只用 `、` 與全形 `，` 來做主要切分
+        const teachers = cleanText.split(/[、，]/).map(t => t.trim()).filter(t => t);
+        
+        const processedTeachers = teachers.map(teacher => {
+            return ScheduleParser.processSingleTeacherName(teacher);
+        }).filter(t => t);
+        
+        return processedTeachers.join('、');
+    }
+
+    /**
+     * 處理單一教師名稱，移除空的括號和重複內容
+     * @param {string} cleanText - 原始教師名稱
+     * @returns {string} - 處理後的教師名稱
+     */
+    static processSingleTeacherName(cleanText) {
+        if (!cleanText) return '';
+
         // 處理缺少開頭括號的情況，例如: "廖建勛Chien-Shiun Liao)" -> "廖建勛(Chien-Shiun Liao)"
-        const missingBracketPattern = /^([\u4e00-\u9fff]+)([A-Za-z\s,]+)\)$/;
+        const missingBracketPattern = /^([\u4e00-\u9fff]+)([A-Za-z\s,-]+)\)$/;
         const missingBracketMatch = cleanText.match(missingBracketPattern);
         if (missingBracketMatch) {
             const chineseName = missingBracketMatch[1];
             const englishName = missingBracketMatch[2].trim();
             cleanText = `${chineseName}(${englishName})`;
-            return cleanText;
         }
         
         // 處理重複的括號內容
-        const duplicatePattern = /^([\u4e00-\u9fff]+)([A-Za-z\s,]+)\)\(([A-Za-z\s,]+)\)$/;
+        const duplicatePattern = /^([\u4e00-\u9fff]+)([A-Za-z\s,-]+)\)\(([A-Za-z\s,-]+)\)$/;
         const duplicateMatch = cleanText.match(duplicatePattern);
         if (duplicateMatch) {
             const chineseName = duplicateMatch[1];
@@ -37,7 +55,6 @@ class ScheduleParser {
             } else {
                 cleanText = `${chineseName}(${englishName})(${duplicateEnglishName})`;
             }
-            return cleanText;
         }
         
         if (cleanText.includes('(')) {
@@ -45,7 +62,9 @@ class ScheduleParser {
             const name = parts[0].trim();
             const bracketContent = parts.slice(1).join('(').trim();
             
-            if (!bracketContent || bracketContent === ')') {
+            // 清理括號內容只有右括號或空格的情況，例如 ")" 或 " )" 或 ""
+            const cleanContent = bracketContent.replace(/[)\s]/g, '');
+            if (!cleanContent) {
                 return name;
             }
             

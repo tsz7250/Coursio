@@ -12,7 +12,7 @@
     "build:win": "vite build --config vite.config.js && electron-builder --win",
     "lint": "eslint renderer/src/ main/ shared/ --ext .js,.vue,.mjs",
     "lint:fix": "eslint renderer/src/ main/ shared/ --ext .js,.vue,.mjs --fix",
-    "test": "npm run smoke",
+    "test": "npm run typecheck && npm run smoke",
     "typecheck": "node scripts/typecheck.js",
     "audit": "npm audit --omit=dev",
     "smoke": "node scripts/smoke-check.js"

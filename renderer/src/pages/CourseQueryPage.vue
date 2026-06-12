@@ -168,16 +168,8 @@
         </div>
       </div>
 
-      <!-- Results -->
-      <CourseResultsTable
-        :courses="paginatedCourses"
-        :is-logged-in="isLoggedIn"
-        :query-year="querySelectQueryYear"
-        :query-smtr="querySelectQuerySmt"
-        @show-detail="handleShowDetail"
-      />
-      <!-- 分頁控制 -->
-      <div v-if="totalPages > 1" class="flex items-center justify-center gap-x-3 mt-4 pb-4">
+      <!-- 上方分頁控制 -->
+      <div v-if="totalPages > 1" class="flex items-center justify-center gap-x-4 mb-4">
         <button class="btn btn-ghost btn-sm" :disabled="currentPage === 1" @click="currentPage--">
           <i data-lucide="chevron-left" class="icon-16"></i> 上一頁
         </button>
@@ -187,13 +179,48 @@
         <button class="btn btn-ghost btn-sm" :disabled="currentPage === totalPages" @click="currentPage++">
           下一頁 <i data-lucide="chevron-right" class="icon-16"></i>
         </button>
+        <div class="flex items-center gap-x-1 ml-2">
+          <select v-model="pageSize" class="form-select w-auto select-sm" style="padding: 4px 24px 4px 8px; font-size: 13px; height: 32px;">
+            <option :value="20">20 筆/頁</option>
+            <option :value="50">50 筆/頁</option>
+            <option :value="100">100 筆/頁</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Results -->
+      <CourseResultsTable
+        :courses="paginatedCourses"
+        :is-logged-in="isLoggedIn"
+        :query-year="querySelectQueryYear"
+        :query-smtr="querySelectQuerySmt"
+        @show-detail="handleShowDetail"
+      />
+      <!-- 下方分頁控制 -->
+      <div v-if="totalPages > 1" class="flex items-center justify-center gap-x-4 mt-4 pb-4">
+        <button class="btn btn-ghost btn-sm" :disabled="currentPage === 1" @click="currentPage--">
+          <i data-lucide="chevron-left" class="icon-16"></i> 上一頁
+        </button>
+        <span class="u-font-sm">
+          第 {{ currentPage }} / {{ totalPages }} 頁（共 {{ queryResultForList.length }} 筆）
+        </span>
+        <button class="btn btn-ghost btn-sm" :disabled="currentPage === totalPages" @click="currentPage++">
+          下一頁 <i data-lucide="chevron-right" class="icon-16"></i>
+        </button>
+        <div class="flex items-center gap-x-1 ml-2">
+          <select v-model="pageSize" class="form-select w-auto select-sm" style="padding: 4px 24px 4px 8px; font-size: 13px; height: 32px;">
+            <option :value="20">20 筆/頁</option>
+            <option :value="50">50 筆/頁</option>
+            <option :value="100">100 筆/頁</option>
+          </select>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { onMounted, nextTick } from 'vue';
+import { onMounted, nextTick, watch } from 'vue';
 import { Store } from '../store.js';
 import CourseResultsTable from '../components/course/CourseResultsTable.vue';
 import AppTopBar from '@/components/layout/AppTopBar.vue';
@@ -219,6 +246,7 @@ const {
     deptList,
     semesterList,
     currentPage,
+    pageSize,
     totalPages,
     paginatedCourses,
     formErrors,
@@ -245,6 +273,10 @@ onMounted(() => {
     querySelectSemesterForTeacher.value = latest;
     querySelectSemesterForTime.value = latest;
   }
+  nextTick(() => { if (typeof lucide !== 'undefined') lucide.createIcons(); });
+});
+
+watch([currentPage, totalPages, pageSize], () => {
   nextTick(() => { if (typeof lucide !== 'undefined') lucide.createIcons(); });
 });
 </script>

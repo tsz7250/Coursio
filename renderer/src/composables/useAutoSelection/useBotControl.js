@@ -20,9 +20,12 @@ export function useBotControl(yzuCourseBot, appendLog, envReadyRef) {
             const result = await yzuCourseBot.loadCoursesFromDatabase();
             if (result.success) {
                 taskList.value = result.courses || [];
+            } else {
+                taskList.value = [];
             }
         } catch (err) {
             console.error('載入任務失敗:', err);
+            taskList.value = [];
         }
     }
 
@@ -59,22 +62,40 @@ export function useBotControl(yzuCourseBot, appendLog, envReadyRef) {
     }
 
     async function deleteTask(id) {
-        if (!confirm('確定要刪除此課程嗎？')) return;
+        let confirmed;
+        try {
+            const confirmFn = window.customConfirm || ((msg) => Promise.resolve(window.confirm(msg)));
+            confirmed = await confirmFn('確定要刪除此課程嗎？', '刪除選課任務');
+        } catch (confirmError) {
+            console.error('確認視窗執行出錯:', confirmError);
+            return;
+        }
+        if (!confirmed) return;
+
         try {
             await window.electronAPI.db.deleteTask(id);
             appendLog('system', `🗑️ 已刪除任務 #${id}`);
-            loadTaskList();
+            await loadTaskList();
         } catch (err) {
             appendLog('error', '刪除失敗: ' + err.message);
         }
     }
 
     async function clearCompletedTasks() {
-        if (!confirm('確定要清除所有已完成的任務嗎？')) return;
+        let confirmed;
+        try {
+            const confirmFn = window.customConfirm || ((msg) => Promise.resolve(window.confirm(msg)));
+            confirmed = await confirmFn('確定要清除所有已完成的任務嗎？', '清除已完成任務');
+        } catch (confirmError) {
+            console.error('確認視窗執行出錯:', confirmError);
+            return;
+        }
+        if (!confirmed) return;
+
         try {
             await window.electronAPI.db.clearCompleted();
             appendLog('system', '✅ 已清除所有已完成的任務');
-            loadTaskList();
+            await loadTaskList();
         } catch (err) {
             appendLog('error', '清除失敗: ' + err.message);
         }
