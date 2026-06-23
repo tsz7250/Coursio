@@ -3,5 +3,7 @@ export default {
     loadingText: '',
     showUserMenu: false,
     isCourseDataLoading: false,
-    scheduleViewState: 'idle'
+    scheduleViewState: 'idle',
+    globalLoading: false,
+    globalLoadingText: ''
 };

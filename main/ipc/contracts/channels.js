@@ -23,7 +23,8 @@ const CHANNELS = {
         GET_ALL_TASKS: 'db:getAllTasks',
         DELETE_TASK: 'db:deleteTask',
         CLEAR_COMPLETED: 'db:clearCompleted',
-        CLEAR_ALL_TASKS: 'db:clearAllTasks'
+        CLEAR_ALL_TASKS: 'db:clearAllTasks',
+        SET_TASK_GROUP: 'db:setTaskGroup'
     },
     SETTINGS: {
         READ: 'settings:read',

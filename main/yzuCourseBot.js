@@ -132,7 +132,9 @@ class YzuCourseBot {
                     id: r.id, deptId: r.dept_id, courseId: r.cos_id,
                     classId: r.cos_class, name: r.name,
                     teacher_name: r.teacher_name, credit: r.credit,
-                    status: r.status, formatted: `${r.dept_id},${r.cos_id}${r.cos_class}`
+                    status: r.status, formatted: `${r.dept_id},${r.cos_id}${r.cos_class}`,
+                    groupId: r.group_id,
+                    time: r.time
                 }));
                 resolve({ success: true, courses });
             });
@@ -145,8 +147,27 @@ class YzuCourseBot {
             if (!result.success) return result;
             const { app } = require('electron');
             const coursesJsonPath = path.join(app.getPath('userData'), 'courses.json');
-            const formatted = result.courses.map(c => c.formatted);
-            await fs.promises.writeFile(coursesJsonPath, JSON.stringify(formatted, null, 2), 'utf8');
+            
+            const groupsMap = {};
+            const individual = [];
+            
+            result.courses.forEach(c => {
+                if (c.groupId !== null && c.groupId !== undefined && c.groupId !== '') {
+                    if (!groupsMap[c.groupId]) {
+                        groupsMap[c.groupId] = [];
+                    }
+                    groupsMap[c.groupId].push(c.formatted);
+                } else {
+                    individual.push(c.formatted);
+                }
+            });
+            
+            const coursesData = {
+                groups: Object.values(groupsMap),
+                individual
+            };
+            
+            await fs.promises.writeFile(coursesJsonPath, JSON.stringify(coursesData, null, 2), 'utf8');
             return { success: true, coursesCount: result.courses.length, courses: result.courses };
         } catch (e) {
             console.error('setupCoursesListFromDatabase 發生錯誤:', e);
@@ -199,6 +220,13 @@ class YzuCourseBot {
 
                 if (/Login\s*Failed|登入過程發生錯誤|重試|選課系統尚未開放/i.test(normalized)) {
                     this._send('yzuCourseBotStatus', { status: 'login_retry', message: normalized });
+                    return;
+                }
+
+                const skipMatch = normalized.match(/\[COURSE_SKIPPED\]\s*(.+)/);
+                if (skipMatch) {
+                    const courseKey = skipMatch[1].trim();
+                    this._send('yzuCourseBotStatus', { status: 'course_skipped', course: courseKey, message: '同群組已有其他課程加選成功，跳過此課程' });
                     return;
                 }
 

@@ -221,14 +221,16 @@ function getConflictMessageHtml(newCourseName, conflictingCourses) {
       <div class="conflict-warning-header">
         <span>⚠️ 時間衝突警告</span>
       </div>
-      <div>
+      <div class="conflict-sub-title">
         欲加入的課程<strong>「${escapeHtml(newCourseName)}」</strong>與預排課表中的課程存在時間重疊：
       </div>
       <div class="conflict-list">
         ${listItemsHtml}
       </div>
       <div class="conflict-prompt">
-        確定要移出上述衝突的課程，並將新課程加入預排課表嗎？
+        💡 <strong>選擇操作說明：</strong><br/>
+        • <strong>替換舊課：</strong>移出原本衝突的課程，僅排入此新課程。<br/>
+        • <strong>同時保留：</strong>新舊課程皆保留，並<strong>自動建立為「擇一選課群組」</strong>（機器人選課時，若其中一門成功即會自動跳過同組其餘課程）。
       </div>
     </div>
   `;
@@ -288,12 +290,13 @@ async function addToSchedule(event, course) {
     alert('錯誤：未傳入課程資料！');
     return;
   }
+  // ponytail: 開始全域 loading
+  Store.globalLoading = true;
+  Store.globalLoadingText = '正在處理中...';
   try {
     let courseToUse = { ...course };
     if (course.isFromTimeQuery) {
-      if (typeof M !== 'undefined' && M.toast) {
-        M.toast({ html: '🔍 正在取得課程完整時間教室資料...', displayLength: 2000 });
-      }
+      Store.globalLoadingText = '正在取得完整課程資料...';
       try {
         const ddl_ym = `${course.year},${course.smtr}`;
         const res = await requestQueue.enqueue(
@@ -307,14 +310,8 @@ async function addToSchedule(event, course) {
         );
         if (res && res.success && res.course) {
           courseToUse.time_room = res.course.time_room;
-          if (typeof M !== 'undefined' && M.toast) {
-            M.toast({ html: '✅ 成功取得完整課程時間！', displayLength: 2000 });
-          }
         } else {
           console.warn('無法取得完整時間資料:', res?.message);
-          if (typeof M !== 'undefined' && M.toast) {
-            M.toast({ html: '⚠️ 無法取得完整課程時間，將使用目前時間加入', displayLength: 3000 });
-          }
         }
       } catch (err) {
         console.error('補完完整課程時間失敗:', err);
@@ -346,6 +343,7 @@ async function addToSchedule(event, course) {
     const validation = validateCourseData(courseData);
     if (!validation.isValid) {
       if (typeof M !== 'undefined' && M.toast) M.toast({ html: '資料驗證失敗: ' + validation.errors.join(', '), displayLength: 4000 });
+      Store.globalLoading = false;
       return;
     }
     const existingCourse = await window.electronAPI.db.checkTaskExists(
@@ -353,6 +351,7 @@ async function addToSchedule(event, course) {
     );
     if (existingCourse) {
       if (typeof M !== 'undefined' && M.toast) M.toast({ html: `課程 ${courseData.cos_id}${courseData.cos_class} 已存在於選課清單中`, displayLength: 3000 });
+      Store.globalLoading = false;
       return;
     }
 
@@ -365,35 +364,70 @@ async function addToSchedule(event, course) {
       }
     }
 
-    let confirmed = false;
+    // ponytail: 彈出確認對話框時暫關 loading，避免遮擋使用者操作
+    Store.globalLoading = false;
+
+    let action = 'cancel';
     try {
-      const confirmFn = window.customConfirm || ((msg) => Promise.resolve(window.confirm(msg)));
       if (conflictingCourses.length > 0) {
         const msgHtml = getConflictMessageHtml(courseData.name, conflictingCourses);
-        confirmed = await confirmFn(msgHtml, '時間衝突警告');
+        if (window.customConflictConfirm) {
+          action = await window.customConflictConfirm(msgHtml, '時間衝突警告');
+        } else {
+          const confirmFn = window.customConfirm || ((msg) => Promise.resolve(window.confirm(msg)));
+          const replaceConfirmed = await confirmFn(msgHtml, '時間衝突 - 替換課程');
+          action = replaceConfirmed ? 'replace' : 'cancel';
+        }
       } else {
-        confirmed = await confirmFn(
+        const confirmFn = window.customConfirm || ((msg) => Promise.resolve(window.confirm(msg)));
+        const confirmed = await confirmFn(
           `確定要將「${courseData.name}」加入預排課表嗎？`,
           '加入課程確認'
         );
+        action = confirmed ? 'add' : 'cancel';
       }
     } catch (confirmError) {
       alert('確認視窗執行出錯: ' + (confirmError?.message || confirmError));
       return;
     }
 
-    if (!confirmed) {
+    if (action === 'cancel') {
       return;
     }
 
+    // ponytail: 確認執行，重新開啟 loading
+    Store.globalLoading = true;
+    Store.globalLoadingText = '正在加入課表...';
+
     // 若確認覆蓋，則完全移除衝突的舊課程
-    if (conflictingCourses.length > 0) {
+    if (action === 'replace' && conflictingCourses.length > 0) {
       for (const confCourse of conflictingCourses) {
         await window.electronAPI.db.deleteTask(confCourse.id);
       }
     }
 
     const result = await window.electronAPI.db.addTask(courseData);
+
+    // 如果是保留，自動將新課程與舊的衝突課程建立/加入同一個擇一選課群組
+    if (action === 'keep' && result && result.id && conflictingCourses.length > 0) {
+      try {
+        let targetGroupId = null;
+        const existingGroupId = conflictingCourses.find(c => c.group_id)?.group_id;
+        if (existingGroupId) {
+          targetGroupId = existingGroupId;
+        } else {
+          const maxGroupId = allTasks.reduce((max, t) => {
+            return (t.group_id && t.group_id > max) ? t.group_id : max;
+          }, 0);
+          targetGroupId = maxGroupId + 1;
+        }
+
+        const idsToGroup = [result.id, ...conflictingCourses.map(c => c.id)];
+        await window.electronAPI.db.setTaskGroup(idsToGroup, targetGroupId);
+      } catch (groupErr) {
+        console.error('自動建立選課群組失敗:', groupErr);
+      }
+    }
     
     // 更新全域狀態以利其他頁面即時反應
     try {
@@ -406,7 +440,11 @@ async function addToSchedule(event, course) {
     if (result && result.id) {
       let toastMsg = `已加入 ${courseData.cos_id}${courseData.cos_class} - ${courseData.name}`;
       if (conflictingCourses.length > 0) {
-        toastMsg += `（已替換 ${conflictingCourses.length} 門衝突課程）`;
+        if (action === 'replace') {
+          toastMsg += `（已替換 ${conflictingCourses.length} 門衝突課程）`;
+        } else if (action === 'keep') {
+          toastMsg += `（已保留並自動設定為同時段擇一選課群組）`;
+        }
       }
       if (typeof M !== 'undefined' && M.toast) {
         M.toast({ html: toastMsg, displayLength: 3000 });
@@ -417,6 +455,10 @@ async function addToSchedule(event, course) {
   } catch (error) {
     console.error('加入選課清單失敗:', error);
     if (typeof M !== 'undefined' && M.toast) M.toast({ html: '加入選課清單失敗: ' + error.message, displayLength: 4000 });
+  } finally {
+    // ponytail: 確保關閉全域 loading
+    Store.globalLoading = false;
+    Store.globalLoadingText = '';
   }
 }
 

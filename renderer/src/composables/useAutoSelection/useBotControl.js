@@ -111,6 +111,12 @@ export function useBotControl(yzuCourseBot, appendLog, envReadyRef) {
         if (data.status === 'login_retry') botStatusSub.value = '登入重試中...';
         if (data.status === 'logged_in') botStatusSub.value = '執行中: ' + data.message;
         if (data.status === 'course_selected') botStatusSub.value = '執行中: 持續選課中';
+        if (data.status === 'course_skipped') {
+            const target = taskList.value.find(t => t.formatted === data.course);
+            if (target) {
+                target.skipped = true;
+            }
+        }
         if (data.status === 'stopped') {
             isRunning.value = false;
             botStatusSub.value = '已停止: ' + data.message;

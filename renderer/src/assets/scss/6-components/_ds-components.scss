@@ -1137,29 +1137,3 @@
     color      : #94A3B8;
   }
 }
-
-// =============================================================================
-// GLOBAL TOAST
-// =============================================================================
-#wc-toast {
-  position: fixed;
-  bottom: 28px;
-  left: 50%;
-  transform: translateX(-50%) translateY(16px);
-  background: #0F172A;
-  color: #F8FAFC;
-  font-family: 'Open Sans', sans-serif;
-  font-size: 14px;
-  padding: 10px 24px;
-  border-radius: 8px;
-  box-shadow: 0 4px 20px rgba(0,0,0,.25);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity .25s, transform .25s;
-  z-index: 9999;
-
-  &.wc-toast-show {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
-  }
-}

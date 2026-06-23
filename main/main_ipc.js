@@ -83,12 +83,13 @@ function init(win) {
             "id" INTEGER PRIMARY KEY AUTOINCREMENT,
             "cos_id" TEXT, "cos_class" TEXT, "name" TEXT,
             "teacher_name" TEXT, "credit" INTEGER, "dept_id" TEXT,
-            "status" INTEGER
+            "status" INTEGER, "group_id" INTEGER DEFAULT NULL
         )`);
         // M-11: 防止重複加選同一門課程
         database.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_tasks_unique ON tasks(cos_id, cos_class)`);
         database.run(`ALTER TABLE tasks ADD COLUMN time TEXT`, () => { /* 忽略欄位已存在的錯誤 */ });
         database.run(`ALTER TABLE tasks ADD COLUMN room TEXT`, () => { /* 忽略欄位已存在的錯誤 */ });
+        database.run(`ALTER TABLE tasks ADD COLUMN group_id INTEGER DEFAULT NULL`, () => { /* 忽略欄位已存在的錯誤 */ });
     });
 
     registerAllHandlers({

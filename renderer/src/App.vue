@@ -116,6 +116,7 @@
 
       <div id="inner-content-panel">
         <router-view></router-view>
+        <LoadingOverlay />
       </div>
     </div> <!-- End of Content Panel -->
   </div>
@@ -124,6 +125,7 @@
 <script setup>
 import { useRouter } from 'vue-router';
 import { useAppShell } from './composables/useAppShell.js';
+import LoadingOverlay from '@/components/layout/LoadingOverlay.vue';
 
 const router = useRouter();
 const {

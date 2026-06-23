@@ -182,34 +182,103 @@ class CourseBot:
             except Exception as e:
                 self.log('載入部門 {} 課程資料失敗: {}'.format(dept, str(e)))
 
-    def selectCourses(self, coursesList, delay = 2.5):
+    def selectCourses(self, courses_data, delay = 2.5):
         # 從環境變數讀取最大循環次數（0 或未設定視為無上限）
         try:
             max_attempts_env = int(os.environ.get('MAX_ATTEMPTS', '0'))
         except Exception:
             max_attempts_env = 0
 
+        # 初始化 copies
+        individual_list = courses_data.get("individual", []).copy()
+        active_groups = [g.copy() for g in courses_data.get("groups", [])]
+
         attemptCount = 0
-        while len(coursesList) > 0:
-            for course in coursesList.copy():
+        while len(individual_list) > 0 or any(len(g) > 0 for g in active_groups):
+            # 1. 處理 groups 擇一
+            for group in active_groups.copy():
+                if len(group) == 0:
+                    continue
+                for course in list(group):
+                    tokens = course.split(',')
+                    dept = tokens[0]
+                    key  = tokens[1]
+
+                    if key not in self.coursesDB:
+                        self.log('{} is not a legal classID'.format(key))
+                        group.remove(course)
+                        continue
+
+                    if dept not in self.selectPayLoad:
+                        self.log('{} 部門資料未載入，跳過課程 {}'.format(dept, key))
+                        group.remove(course)
+                        continue
+
+                    try:
+                        html = self.session.post(self.courseListUrl, data=self.selectPayLoad[dept], timeout=(10, 30))
+                        parser = BeautifulSoup(html.text, 'lxml')
+
+                        selectPayLoad = {
+                            '__EVENTTARGET': '',
+                            '__EVENTARGUMENT': '',
+                            '__LASTFOCUS': '',
+                            '__VIEWSTATE': self._safe_select_val(parser, "#__VIEWSTATE"),
+                            '__VIEWSTATEGENERATOR': self._safe_select_val(parser, "#__VIEWSTATEGENERATOR"),
+                            '__VIEWSTATEENCRYPTED': '',
+                            '__EVENTVALIDATION': self._safe_select_val(parser, "#__EVENTVALIDATION"),
+                            'Hidden1': '',
+                            'Hid_SchTime': '',
+                            'DPL_DeptName': dept,
+                            'DPL_Degree': '6',
+                            self.coursesDB[key]['mUrl'] + '.x': '0',
+                            self.coursesDB[key]['mUrl'] + '.y': '0'
+                        }
+                        self.session.post(self.courseListUrl, data=selectPayLoad, timeout=(10, 30))
+
+                        html = self.session.get(self.courseSelectUrl + self.coursesDB[key]['mUrl'] + ' ,B,', timeout=(10, 30))
+
+                        parser = BeautifulSoup(html.text, 'lxml')
+                        script_els = parser.select("script")
+                        if not script_els or not script_els[0].string:
+                            self.log('{} 無法解析選課回應，稍後重試'.format(key))
+                            time.sleep(delay)
+                            continue
+                        alertMsg = script_els[0].string.split(';')[0]
+                        self.log('{} {}'.format(self.coursesDB[key]['name'], alertMsg[7:-2]))
+
+                        if "加選訊息：" in alertMsg or "已選過" in alertMsg:
+                            other_courses = [c for c in group if c != course]
+                            for other in other_courses:
+                                print("[COURSE_SKIPPED] {}".format(other))
+                            group.clear()
+                            break
+                        elif "please log on again!" in alertMsg:
+                            self.login()
+                        else:
+                            group.remove(course)
+
+                    except Exception as e:
+                        self.log('選課 {} 發生錯誤，稍後重試: {}'.format(key, str(e)))
+
+                    time.sleep(delay)
+
+            # 2. 處理 individual
+            for course in individual_list.copy():
                 tokens = course.split(',')
                 dept = tokens[0]
                 key  = tokens[1]
 
-                # check if the classID is legal
                 if key not in self.coursesDB:
                     self.log('{} is not a legal classID'.format(key))
-                    coursesList.remove(course)
+                    individual_list.remove(course)
                     continue
 
-                # check if dept payload is available
                 if dept not in self.selectPayLoad:
                     self.log('{} 部門資料未載入，跳過課程 {}'.format(dept, key))
-                    coursesList.remove(course)
+                    individual_list.remove(course)
                     continue
 
                 try:
-                    # simulate click button
                     html = self.session.post(self.courseListUrl, data=self.selectPayLoad[dept], timeout=(10, 30))
                     parser = BeautifulSoup(html.text, 'lxml')
 
@@ -230,10 +299,8 @@ class CourseBot:
                     }
                     self.session.post(self.courseListUrl, data=selectPayLoad, timeout=(10, 30))
 
-                    # select course
                     html = self.session.get(self.courseSelectUrl + self.coursesDB[key]['mUrl'] + ' ,B,', timeout=(10, 30))
 
-                    # check if successful
                     parser = BeautifulSoup(html.text, 'lxml')
                     script_els = parser.select("script")
                     if not script_els or not script_els[0].string:
@@ -244,7 +311,7 @@ class CourseBot:
                     self.log('{} {}'.format(self.coursesDB[key]['name'], alertMsg[7:-2]))
 
                     if "加選訊息：" in alertMsg or "已選過" in alertMsg:
-                        coursesList.remove(course)
+                        individual_list.remove(course)
                     elif "please log on again!" in alertMsg:
                         self.login()
 
@@ -260,31 +327,36 @@ class CourseBot:
         print(time.strftime("[%Y-%m-%d %H:%M:%S]", time.localtime()), msg)
 
 if __name__ == '__main__':
-    # 從環境變數取得帳密（由 Electron 主程序注入）
     Account = os.environ.get('PORTAL_ACCOUNT', '').strip()
     Password = os.environ.get('PORTAL_PASSWORD', '').strip()
     if not Account or not Password:
         print('錯誤：未設定 PORTAL_ACCOUNT / PORTAL_PASSWORD 環境變數。請在應用程式帳號設定頁面填入帳號密碼後再啟動機器人。')
         sys.exit(1)
 
-    # 從 courses.json 讀取課程清單（由 Electron 主程序寫出）
     import json as _json
     _courses_json = os.environ.get('COURSES_JSON_PATH') or os.path.join(os.path.dirname(os.path.abspath(__file__)), 'courses.json')
     if not os.path.exists(_courses_json):
         print('找不到 courses.json，請先將課程加入選課清單')
         exit(1)
     with open(_courses_json, 'r', encoding='utf-8') as _f:
-        coursesList = _json.load(_f)
+        raw_data = _json.load(_f)
+        if isinstance(raw_data, dict):
+            courses_data = raw_data
+        else:
+            courses_data = {"groups": [], "individual": raw_data}
 
-    # Time Parameter, sleep n seconds
     try:
         delay = float(os.environ.get('DELAY_INTERVAL', '2.5'))
     except Exception:
         delay = 2.5
     
-    depts = set([i.split(',')[0] for i in coursesList])
+    all_courses = []
+    for g in courses_data.get("groups", []):
+        all_courses.extend(g)
+    all_courses.extend(courses_data.get("individual", []))
+    depts = set([i.split(',')[0] for i in all_courses])
     
     myBot = CourseBot(Account, Password)
     myBot.login()
     myBot.getCourseDB(depts)
-    myBot.selectCourses(coursesList, delay)
+    myBot.selectCourses(courses_data, delay)

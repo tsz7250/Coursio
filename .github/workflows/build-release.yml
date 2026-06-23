@@ -36,6 +36,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Sync version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: node scripts/update-version.js ${{ github.ref_name }}
+
       - name: Lint
         run: npm run lint
 
@@ -53,6 +57,9 @@ jobs:
 
       - name: Build Electron App
         run: npm run build
+
+      - name: Rename Build Artifact
+        run: node scripts/rename-artifact.js ${{ matrix.os == 'windows-latest' && 'build/win' || 'build/mac' }} ${{ matrix.artifact_name }}-${{ github.ref_name }}
 
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
@@ -92,9 +99,9 @@ jobs:
             
             | 平台 | 下載檔案 | 適用機型 |
             |------|----------|------|
-            | **Windows** | `Coursio-*.zip` | 所有 Windows 電腦 |
-            | **macOS (Apple Silicon)** | `*.zip` | M1/M2/M3/M4 晶片的 Mac |
-            | **macOS (Intel)** | `*.zip` | Intel 晶片 Mac |
+            | **Windows** | `Coursio-Windows-${{ github.ref_name }}.zip` | 所有 Windows 電腦 |
+            | **macOS (Apple Silicon)** | `Coursio-macOS-AppleSilicon-${{ github.ref_name }}.zip` | M1/M2/M3/M4 晶片的 Mac |
+            | **macOS (Intel)** | `Coursio-macOS-Intel-${{ github.ref_name }}.zip` | Intel 晶片 Mac |
             
             ---
             

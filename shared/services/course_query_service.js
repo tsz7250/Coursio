@@ -447,6 +447,19 @@ class CourseQueryService {
 
             // 3. 根據查詢類型進行操作
             if (queryType === 'dept') {
+                // 確保切換至系所查詢 (RadioButton1)
+                const isRadio1Checked = await page.evaluate(() => {
+                    const rb = document.querySelector('input[value="RadioButton1"]');
+                    return rb ? rb.checked : false;
+                }).catch(() => false);
+                if (!isRadio1Checked) {
+                    await Promise.all([
+                        page.click('input[value="RadioButton1"]').catch(() => {}),
+                        page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 10000 }).catch(() => {})
+                    ]);
+                }
+                await page.waitForSelector('select[name="DDL_Dept"]', { timeout: 10000 });
+
                 // 選擇學年學期 (DDL_YM)
                 if (params.ddl_ym) {
                     let ymValue = params.ddl_ym;

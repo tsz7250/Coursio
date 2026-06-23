@@ -66,6 +66,12 @@
             <i data-lucide="list-checks" class="icon-clr-primary"></i>
             <span class="bot-card-title">選課任務列表</span>
             <span class="bot-task-count">{{ taskList.length }} 門待選</span>
+            <button @click="createGroup" class="btn btn-primary btn-sm u-ml-auto" :disabled="selectedTaskIds.length < 2">
+              建立群組 (擇一)
+            </button>
+            <button @click="removeGroup" class="btn btn-outline btn-sm" :disabled="!hasSelectedGroupTasks">
+              解除群組
+            </button>
             <button @click="loadTaskList" class="btn btn-outline btn-sm">
               <i data-lucide="refresh-cw"></i>
             </button>
@@ -75,6 +81,9 @@
             <table class="bot-task-table">
               <thead>
                 <tr>
+                  <th style="width: 40px; text-align: center;">
+                    <input type="checkbox" @change="toggleSelectAll" :checked="isAllSelected">
+                  </th>
                   <th class="btc-id">課程代號</th>
                   <th class="btc-name">課程名稱</th>
                   <th class="btc-teacher">教師</th>
@@ -85,7 +94,7 @@
               </thead>
               <tbody>
                 <tr v-if="taskList.length === 0" class="bot-task-empty-row">
-                  <td colspan="6">
+                  <td colspan="7">
                     <div class="bot-task-empty">
                       <i data-lucide="list-checks" class="icon-32 icon-clr-muted"></i>
                       <p>尚無待選課程</p>
@@ -94,13 +103,21 @@
                   </td>
                 </tr>
                 <tr v-for="task in taskList" :key="task.id">
-                  <td class="course-code">{{ task.courseId }}{{ task.classId }}</td>
+                  <td style="text-align: center;">
+                    <input type="checkbox" v-model="selectedTaskIds" :value="task.id" :disabled="task.status !== 0 && !task.skipped">
+                  </td>
+                  <td class="course-code">
+                    <span v-if="task.groupId" class="group-badge" :style="{ backgroundColor: getGroupColor(task.groupId).bg, color: getGroupColor(task.groupId).text }">
+                      群組 {{ task.groupId }}
+                    </span>
+                    {{ task.courseId }}{{ task.classId }}
+                  </td>
                   <td class="course-name" :title="task.name">{{ task.name }}</td>
                   <td class="teacher-name">{{ task.teacher_name || '-' }}</td>
                   <td class="credit">{{ task.credit || '-' }}</td>
                   <td>
-                    <span :class="['status-badge', getStatusBadgeClass(task.status)]">
-                      {{ getStatusText(task.status) }}
+                    <span :class="['status-badge', getStatusBadgeClass(task)]">
+                      {{ getStatusText(task) }}
                     </span>
                   </td>
                   <td class="actions">
@@ -109,6 +126,10 @@
                 </tr>
               </tbody>
             </table>
+          </div>
+          <div class="group-help-tip">
+            <i data-lucide="help-circle"></i>
+            <span>同時段選課教學：勾選 2 門或以上「待選」課程，點擊「建立群組 (擇一)」即可建立擇一選課群組（同群組課程若有一門選上，其餘會自動跳過）。</span>
           </div>
         </div>
 
@@ -181,7 +202,7 @@
 </template>
 
 <script setup>
-import { onMounted, nextTick } from 'vue';
+import { onMounted, nextTick, ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { Store } from '../store.js';
 import { YzuCourseBot } from '@shared/services/yzuCourseBot.js';
@@ -200,21 +221,211 @@ const pythonBot = new YzuCourseBot();
 const { logs, autoScroll, outputContainer, appendLog, clearOutput } = useBotOutputLog();
 const { envReady, envStatuses, checkEnvironment } = useEnvironmentCheck(pythonBot, appendLog);
 const { portalAccount, portalPassword, accountSetHint, saveAccount } = usePortalAccount(pythonBot, appendLog, envStatuses);
-const { taskList, selectionDelay, maxAttempts, isRunning, botStatusSub, loadTaskList, startBot, stopBot, deleteTask, clearCompletedTasks } = useBotControl(pythonBot, appendLog, envReady);
+const { taskList, selectionDelay, maxAttempts, isRunning, botStatusSub, loadTaskList: rawLoadTaskList, startBot, stopBot, deleteTask: rawDeleteTask, clearCompletedTasks: rawClearCompletedTasks } = useBotControl(pythonBot, appendLog, envReady);
+
+// --- Grouping States & Methods ---
+const selectedTaskIds = ref([]);
+
+const isAllSelected = computed(() => {
+  const pending = taskList.value.filter(t => t.status === 0);
+  return pending.length > 0 && selectedTaskIds.value.length === pending.length;
+});
+
+const hasSelectedGroupTasks = computed(() => {
+  return taskList.value.some(t => selectedTaskIds.value.includes(t.id) && t.groupId);
+});
+
+function toggleSelectAll(e) {
+  if (e.target.checked) {
+    selectedTaskIds.value = taskList.value.filter(t => t.status === 0 || t.skipped).map(t => t.id);
+  } else {
+    selectedTaskIds.value = [];
+  }
+}
+
+function getGroupColor(groupId) {
+  if (!groupId) return { bg: 'transparent', text: 'transparent' };
+  const hue = (groupId * 137.5) % 360;
+  return {
+    bg: `hsl(${hue}, 75%, 93%)`,
+    text: `hsl(${hue}, 75%, 25%)`
+  };
+}
+
+const loadTaskList = async () => {
+  selectedTaskIds.value = [];
+  await rawLoadTaskList();
+};
+
+const deleteTask = async (id) => {
+  await rawDeleteTask(id);
+  selectedTaskIds.value = selectedTaskIds.value.filter(taskId => taskId !== id);
+};
+
+const clearCompletedTasks = async () => {
+  await rawClearCompletedTasks();
+  selectedTaskIds.value = [];
+};
+
+async function createGroup() {
+  if (selectedTaskIds.value.length < 2) return;
+  const selectedTasks = taskList.value.filter(t => selectedTaskIds.value.includes(t.id));
+  const firstGroupId = selectedTasks[0].groupId;
+  if (firstGroupId && selectedTasks.every(t => t.groupId === firstGroupId)) {
+    const entireGroupTasks = taskList.value.filter(t => t.groupId === firstGroupId);
+    if (entireGroupTasks.length === selectedTasks.length) {
+      if (typeof M !== 'undefined' && M.toast) {
+        M.toast({ html: `ℹ️ 選擇的課程已是同一個選課群組 (群組 ${firstGroupId})，不需重複建立`, displayLength: 3000 });
+      }
+      selectedTaskIds.value = [];
+      return;
+    }
+  }
+  const maxGroupId = taskList.value.reduce((max, t) => {
+    return (t.groupId && t.groupId > max) ? t.groupId : max;
+  }, 0);
+  const nextGroupId = maxGroupId + 1;
+  try {
+    const rawIds = Array.from(selectedTaskIds.value);
+    await window.electronAPI.db.setTaskGroup(rawIds, nextGroupId);
+    if (typeof M !== 'undefined' && M.toast) {
+      M.toast({ html: `👥 已將任務設為同時段選課群組 (群組 ${nextGroupId})`, displayLength: 3000 });
+    }
+    selectedTaskIds.value = [];
+    await loadTaskList();
+  } catch (err) {
+    if (typeof M !== 'undefined' && M.toast) {
+      M.toast({ html: `❌ 建立群組失敗: ${err.message}`, displayLength: 3000 });
+    }
+  }
+}
+
+function getPeriodsSet(timeStr) {
+  const periods = new Set();
+  if (!timeStr || timeStr === '無課程資料' || timeStr === '時間待確認') {
+    return periods;
+  }
+  const timeCodes = [];
+  const segments = timeStr.split(/[;,]/);
+  segments.forEach(seg => {
+    const trimmed = seg.trim();
+    if (trimmed) {
+      if (trimmed.includes(':')) {
+        const parts = trimmed.split(':');
+        const t = parts[0] ? parts[0].trim() : '';
+        if (t) timeCodes.push(t);
+      } else {
+        timeCodes.push(trimmed);
+      }
+    }
+  });
+  timeCodes.forEach(code => {
+    if (code.length >= 3) {
+      const day = code.charAt(0);
+      const periodsStr = code.substring(1);
+      for (let i = 0; i < periodsStr.length; i += 2) {
+        const period = parseInt(periodsStr.substring(i, i + 2), 10);
+        if (!isNaN(period) && period >= 1 && period <= 13) {
+          periods.add(`${day}-${period}`);
+        }
+      }
+    }
+  });
+  return periods;
+}
+
+function hasConflict(timeStr1, timeStr2) {
+  const set1 = getPeriodsSet(timeStr1);
+  const set2 = getPeriodsSet(timeStr2);
+  for (const p of set1) {
+    if (set2.has(p)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+async function removeGroup() {
+  if (selectedTaskIds.value.length === 0) return;
+
+  // 1. 找出所有選中任務關聯的群組 ID
+  const selectedTasks = taskList.value.filter(t => selectedTaskIds.value.includes(t.id));
+  const associatedGroupIds = [...new Set(selectedTasks.map(t => t.groupId).filter(Boolean))];
+
+  // 2. 對於每個群組，檢查群組內部成員是否有時間衝突
+  let hasConflictGroup = false;
+  const conflictGroupIds = [];
+  
+  for (const gid of associatedGroupIds) {
+    const groupTasks = taskList.value.filter(t => t.groupId === gid);
+    let conflictFound = false;
+    for (let i = 0; i < groupTasks.length; i++) {
+      for (let j = i + 1; j < groupTasks.length; j++) {
+        if (hasConflict(groupTasks[i].time, groupTasks[j].time)) {
+          conflictFound = true;
+          break;
+        }
+      }
+      if (conflictFound) break;
+    }
+    if (conflictFound) {
+      hasConflictGroup = true;
+      conflictGroupIds.push(gid);
+    }
+  }
+
+  // 3. 如果有衝突群組，彈出提示並再次確認
+  if (hasConflictGroup) {
+    try {
+      const confirmFn = window.customConfirm || ((msg) => Promise.resolve(window.confirm(msg)));
+      const confirmed = await confirmFn(
+        `偵測到群組 [${conflictGroupIds.join(', ')}] 內含有時間衝突的課程。解除群組後，這些衝突課程將會同時出現在課表中。確認要解除群組關係嗎？`,
+        '解除群組警告'
+      );
+      if (!confirmed) {
+        if (typeof M !== 'undefined' && M.toast) {
+          M.toast({ html: 'ℹ️ 解除群組操作已取消', displayLength: 3000 });
+        }
+        return;
+      }
+    } catch (err) {
+      console.error('解除群組確認視窗執行出錯:', err);
+      return;
+    }
+  }
+
+  try {
+    const rawIds = Array.from(selectedTaskIds.value);
+    await window.electronAPI.db.setTaskGroup(rawIds, null);
+    if (typeof M !== 'undefined' && M.toast) {
+      M.toast({ html: '🔓 已解除選課任務的群組關係', displayLength: 3000 });
+    }
+    selectedTaskIds.value = [];
+    await loadTaskList();
+  } catch (err) {
+    if (typeof M !== 'undefined' && M.toast) {
+      M.toast({ html: `❌ 解除群組失敗: ${err.message}`, displayLength: 3000 });
+    }
+  }
+}
 
 // --- 導航與登出 ---
 function goToSettings() { router.push({ name: 'Settings' }); StoreRef.showUserMenu = false; }
 const { logout } = useLogout();
 
 // --- 模板輔助函式 ---
-function getStatusText(s) {
+function getStatusText(task) {
+  if (task.skipped) return '已跳過';
+  const s = task.status;
   if (s === 0) return '待選';
   if (s === 1) return '已選到';
   if (s === 2) return '已選過';
   return '狀態 ' + s;
 }
 
-function getStatusBadgeClass(s) {
+function getStatusBadgeClass(task) {
+  if (task.skipped) return 'status-skipped';
+  const s = task.status;
   if (s === 0) return 'status-pending';
   if (s === 1) return 'status-success';
   if (s === 2) return 'status-warning';
@@ -278,11 +489,40 @@ onMounted(() => {
   tbody tr { border-bottom: 1px solid #F1F5F9; &:hover { background: #F8FAFC; } }
   td { padding: 10px 12px; color: #334155; vertical-align: middle; }
 }
+.group-help-tip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 8px 12px;
+  background-color: #F8FAFC;
+  border: 1px dashed #E2E8F0;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #64748B;
+  
+  svg {
+    width: 14px;
+    height: 14px;
+    color: #0891B2;
+    flex-shrink: 0;
+  }
+}
 .status-badge { padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600;
   &.status-pending { background: #F1F5F9; color: #64748B; }
   &.status-success { background: #DCFCE7; color: #166534; }
   &.status-warning { background: #FEF3C7; color: #92400E; }
   &.status-info    { background: #E0F2FE; color: #075985; }
+  &.status-skipped { background: #E2E8F0; color: #475569; }
+}
+.group-badge {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  margin-right: 6px;
+  vertical-align: middle;
 }
 .bot-2col-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; @media (max-width: 680px) { grid-template-columns: 1fr; } }
 .bot-status-area { margin-bottom: 16px; padding: 12px 14px; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; }

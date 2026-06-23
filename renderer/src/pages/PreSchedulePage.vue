@@ -62,7 +62,12 @@
                 </td>
               </tr>
               <tr v-for="task in taskList" :key="task.id">
-                <td class="course-code">{{ task.cos_id }}{{ task.cos_class }}</td>
+                <td class="course-code">
+                  <span v-if="task.group_id" class="group-badge" :style="{ backgroundColor: getGroupColor(task.group_id).bg, color: getGroupColor(task.group_id).text }">
+                    群組 {{ task.group_id }}
+                  </span>
+                  {{ task.cos_id }}{{ task.cos_class }}
+                </td>
                 <td class="course-name" :title="task.name">{{ task.name }}</td>
                 <td>{{ task.teacher_name || '-' }}</td>
                 <td>{{ formatDisplayTime(task.time) }}</td>
@@ -166,7 +171,8 @@ function getCourseSubItems(task) {
       name: task.name,
       teacher_name: task.teacher_name,
       room: task.room || '未知教室',
-      time: ''
+      time: '',
+      groupId: task.group_id
     }];
   }
   
@@ -187,7 +193,8 @@ function getCourseSubItems(task) {
       name: task.name,
       teacher_name: task.teacher_name,
       room: roomName,
-      time: times.join(',')
+      time: times.join(','),
+      groupId: task.group_id
     });
   }
   return subItems;
@@ -219,6 +226,15 @@ const preScheduleData = computed(() => {
     course_list: taskList.value.flatMap(task => getCourseSubItems(task))
   };
 });
+
+function getGroupColor(groupId) {
+  if (!groupId) return { bg: 'transparent', text: 'transparent' };
+  const hue = (groupId * 137.5) % 360;
+  return {
+    bg: `hsl(${hue}, 75%, 93%)`,
+    text: `hsl(${hue}, 75%, 25%)`
+  };
+}
 
 onMounted(async () => {
   await loadTaskList();
@@ -306,6 +322,16 @@ onMounted(async () => {
 .course-code {
   font-weight: 600;
   color: #64748B;
+}
+
+.group-badge {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  margin-right: 6px;
+  vertical-align: middle;
 }
 
 .course-name {

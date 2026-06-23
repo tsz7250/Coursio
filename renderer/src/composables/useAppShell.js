@@ -301,6 +301,59 @@ export function useAppShell(router) {
             });
         };
 
+        window.customConflictConfirm = (message, title) => {
+            return new Promise((resolve) => {
+                const overlay = document.createElement('div');
+                overlay.className = 'custom-confirm-overlay';
+                overlay.innerHTML = `<div class="custom-confirm-dialog"><div class="custom-confirm-title">${title || '時間衝突警告'}</div><div class="custom-confirm-message">${message}</div><div class="custom-confirm-actions"><button class="btn btn-outline custom-confirm-cancel">取消加入</button><button class="btn btn-primary custom-confirm-keep">同時保留</button><button class="btn btn-danger custom-confirm-replace">替換舊課</button></div></div>`;
+                
+                // 套用樣式避免違反 CSP
+                const dialog = overlay.querySelector('.custom-confirm-dialog');
+                if (dialog) dialog.style.maxWidth = '480px';
+                
+                const actions = overlay.querySelector('.custom-confirm-actions');
+                if (actions) {
+                    actions.style.display = 'flex';
+                    actions.style.gap = '8px';
+                    actions.style.justifyContent = 'flex-end';
+                    actions.style.marginTop = '20px';
+                }
+                
+                const cancelBtn = overlay.querySelector('.custom-confirm-cancel');
+                if (cancelBtn) cancelBtn.style.marginRight = 'auto';
+
+                const prompt = overlay.querySelector('.conflict-prompt');
+                if (prompt) {
+                    prompt.style.marginTop = '14px';
+                    prompt.style.paddingTop = '10px';
+                    prompt.style.borderTop = '1px dashed #E2E8F0';
+                    prompt.style.fontSize = '12px';
+                    prompt.style.color = '#475569';
+                    prompt.style.lineHeight = '1.6';
+                }
+
+                const subTitle = overlay.querySelector('.conflict-sub-title');
+                if (subTitle) {
+                    subTitle.style.marginBottom = '10px';
+                }
+
+                document.body.appendChild(overlay);
+                
+                overlay.querySelector('.custom-confirm-replace').addEventListener('click', () => {
+                    document.body.removeChild(overlay); resolve('replace');
+                });
+                overlay.querySelector('.custom-confirm-keep').addEventListener('click', () => {
+                    document.body.removeChild(overlay); resolve('keep');
+                });
+                overlay.querySelector('.custom-confirm-cancel').addEventListener('click', () => {
+                    document.body.removeChild(overlay); resolve('cancel');
+                });
+                overlay.addEventListener('click', (e) => {
+                    if (e.target === overlay) { document.body.removeChild(overlay); resolve('cancel'); }
+                });
+            });
+        };
+
         try {
             const originalAlert = window.alert;
             const originalConfirm = window.confirm;

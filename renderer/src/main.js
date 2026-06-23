@@ -12,7 +12,7 @@ import {
   X, Activity, AlertCircle, AlertTriangle, Bug, Code, LogOut,
   ListChecks, PlayCircle, RefreshCw, RotateCcw, Trash2,
   Terminal, SlidersHorizontal, BarChart2, ChevronDown, ChevronLeft, ChevronRight, Lock,
-  Save, Key, FolderOpen, Award
+  Save, Key, FolderOpen, Award, HelpCircle
 } from 'lucide';
 const lucideIcons = {
   Bell, User, House, Calendar, CalendarRange, Search, Settings, Bot, Info,
@@ -20,7 +20,7 @@ const lucideIcons = {
   X, Activity, AlertCircle, AlertTriangle, Bug, Code, LogOut,
   ListChecks, PlayCircle, RefreshCw, RotateCcw, Trash2,
   Terminal, SlidersHorizontal, BarChart2, ChevronDown, ChevronLeft, ChevronRight, Lock,
-  Save, Key, FolderOpen, Award
+  Save, Key, FolderOpen, Award, HelpCircle
 };
 // 包裝 createIcons，自動注入 icons 物件，修復「Please provide an icons object」錯誤
 window.lucide = {
@@ -41,25 +41,14 @@ const app = createApp(App);
 app.use(router);
 app.mount('#app');
 
-// =====================================================================
-// Toast 通知工具
-window.showToast = function (msg = '', duration = 3000) {
-  let el = document.getElementById('wc-toast');
-  if (!el) {
-    el = document.createElement('div');
-    el.id = 'wc-toast';
-    document.body.appendChild(el);
-  }
-  el.textContent = msg;
-  el.classList.add('wc-toast-show');
-  clearTimeout(el._tid);
-  el._tid = setTimeout(() => el.classList.remove('wc-toast-show'), duration);
-};
-
 // 通知鈴 — 事件委派（不需修改各個頁面）
 document.addEventListener('click', e => {
   const bellSvg = e.target.closest('svg.lucide-bell');
-  if (bellSvg) window.showToast('🔔 目前無新通知');
+  if (bellSvg) {
+    if (typeof M !== 'undefined' && M.toast) {
+      M.toast({ html: '🔔 目前無新通知', displayLength: 3000 });
+    }
+  }
   // 點擊 .user-chip 以外的地方 → 關閉 dropdown
   if (!e.target.closest('.user-chip')) {
     Store.showUserMenu = false;

@@ -155,6 +155,8 @@ export function useCourseQuery() {
     async function _executeQuery({ fields, apiCallFn, semesterRef, deptStr = '', errorLabel, postFilter, isFromTimeQuery = false }) {
         if (!validateFormFields(fields)) return;
         Store.isCourseDataLoading = true;
+        Store.globalLoading = true;
+        Store.globalLoadingText = '查詢中...';
         requestQueue.clearLowQueue();
         try {
             const result = await requestQueue.enqueue(apiCallFn, 'high');
@@ -174,6 +176,8 @@ export function useCourseQuery() {
                 M.toast({ html: `${errorLabel}失敗: ` + (error.message || error), displayLength: 4000 });
         } finally {
             Store.isCourseDataLoading = false;
+            Store.globalLoading = false;
+            Store.globalLoadingText = '';
         }
     }
 
@@ -276,6 +280,8 @@ export function useCourseQuery() {
         if (Store.isCourseListLoading) return;
         Store.isCourseListLoading = true;
         Store.isCourseDataLoading = true;
+        Store.globalLoading = true;
+        Store.globalLoadingText = '載入課程清單中...';
 
         const year = querySelectQueryYear.value || year_now;
         const semester = querySelectQuerySmt.value || '1';
@@ -295,9 +301,13 @@ export function useCourseQuery() {
             }
             Store.isCourseListLoading = false;
             Store.isCourseDataLoading = false;
+            Store.globalLoading = false;
+            Store.globalLoadingText = '';
         }).catch((error) => {
             Store.isCourseListLoading = false;
             Store.isCourseDataLoading = false;
+            Store.globalLoading = false;
+            Store.globalLoadingText = '';
             console.error('課程資料載入失敗:', error);
         });
     }

@@ -33,7 +33,8 @@ const FALLBACK_CHANNELS = {
         GET_ALL_TASKS: 'db:getAllTasks',
         DELETE_TASK: 'db:deleteTask',
         CLEAR_COMPLETED: 'db:clearCompleted',
-        CLEAR_ALL_TASKS: 'db:clearAllTasks'
+        CLEAR_ALL_TASKS: 'db:clearAllTasks',
+        SET_TASK_GROUP: 'db:setTaskGroup'
     },
     SETTINGS: {
         READ: 'settings:read',
@@ -116,7 +117,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
         getAllTasks: () => ipcRenderer.invoke(CHANNELS.DB.GET_ALL_TASKS),
         deleteTask: (id) => ipcRenderer.invoke(CHANNELS.DB.DELETE_TASK, id),
         clearCompleted: () => ipcRenderer.invoke(CHANNELS.DB.CLEAR_COMPLETED),
-        clearAllTasks: () => ipcRenderer.invoke(CHANNELS.DB.CLEAR_ALL_TASKS)
+        clearAllTasks: () => ipcRenderer.invoke(CHANNELS.DB.CLEAR_ALL_TASKS),
+        setTaskGroup: (ids, group_id) => ipcRenderer.invoke(CHANNELS.DB.SET_TASK_GROUP, { ids, group_id })
     },
 
     // ─── Settings ─────────────────────────────────────────────────

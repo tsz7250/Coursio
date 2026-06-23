@@ -36,16 +36,36 @@ function registerDbHandlers(ipcMain, getDb) {
     ipcMain.handle(CHANNELS.DB.DELETE_TASK, async (e, id) => {
         if (!validateIpcSender(e)) throw new Error('未授權的 IPC sender');
         return new Promise((resolve, reject) => {
-            getDb().run('DELETE FROM tasks WHERE id = ?', [id],
-                function (err) { err ? reject(err.message) : resolve({ changes: this.changes }); });
+            const dbInstance = getDb();
+            let changes = 0;
+            dbInstance.serialize(() => {
+                dbInstance.run('BEGIN TRANSACTION');
+                dbInstance.run('DELETE FROM tasks WHERE id = ?', [id], function (err) {
+                    if (!err) changes = this.changes;
+                });
+                dbInstance.run('UPDATE tasks SET group_id = NULL WHERE group_id IN (SELECT group_id FROM tasks WHERE group_id IS NOT NULL GROUP BY group_id HAVING COUNT(*) < 2)');
+                dbInstance.run('COMMIT', (err) => {
+                    err ? reject(err.message) : resolve({ changes });
+                });
+            });
         });
     });
 
     ipcMain.handle(CHANNELS.DB.CLEAR_COMPLETED, async (e) => {
         if (!validateIpcSender(e)) throw new Error('未授權的 IPC sender');
         return new Promise((resolve, reject) => {
-            getDb().run('DELETE FROM tasks WHERE status != 0',
-                function (err) { err ? reject(err.message) : resolve({ changes: this.changes }); });
+            const dbInstance = getDb();
+            let changes = 0;
+            dbInstance.serialize(() => {
+                dbInstance.run('BEGIN TRANSACTION');
+                dbInstance.run('DELETE FROM tasks WHERE status != 0', function (err) {
+                    if (!err) changes = this.changes;
+                });
+                dbInstance.run('UPDATE tasks SET group_id = NULL WHERE group_id IN (SELECT group_id FROM tasks WHERE group_id IS NOT NULL GROUP BY group_id HAVING COUNT(*) < 2)');
+                dbInstance.run('COMMIT', (err) => {
+                    err ? reject(err.message) : resolve({ changes });
+                });
+            });
         });
     });
 
@@ -54,6 +74,26 @@ function registerDbHandlers(ipcMain, getDb) {
         return new Promise((resolve, reject) => {
             getDb().run('DELETE FROM tasks',
                 function (err) { err ? reject(err.message) : resolve({ changes: this.changes }); });
+        });
+    });
+
+    ipcMain.handle(CHANNELS.DB.SET_TASK_GROUP, async (e, { ids, group_id }) => {
+        if (!validateIpcSender(e)) throw new Error('未授權的 IPC sender');
+        return new Promise((resolve, reject) => {
+            const dbInstance = getDb();
+            dbInstance.serialize(() => {
+                dbInstance.run('BEGIN TRANSACTION');
+                const stmt = dbInstance.prepare('UPDATE tasks SET group_id = ? WHERE id = ?');
+                for (const id of ids) {
+                    stmt.run(group_id, id);
+                }
+                stmt.finalize();
+                // 清理剩餘少於2個待選的群組關係
+                dbInstance.run('UPDATE tasks SET group_id = NULL WHERE group_id IN (SELECT group_id FROM tasks WHERE group_id IS NOT NULL GROUP BY group_id HAVING COUNT(*) < 2)');
+                dbInstance.run('COMMIT', (err) => {
+                    err ? reject(err.message) : resolve({ success: true });
+                });
+            });
         });
     });
 }

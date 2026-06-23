@@ -201,6 +201,60 @@ $modal-content-z-index: $z-index-modal;
   color: #fff !important;
 }
 
+/* Materialize Toast 全域相容樣式 */
+#toast-container {
+  display: block !important;
+  position: fixed !important;
+  z-index: 10000 !important;
+  bottom: 24px !important;
+  right: 24px !important;
+  width: auto !important;
+  max-width: 350px !important;
+  top: auto !important;
+  left: auto !important;
+  pointer-events: none !important;
+
+  @media (max-width: 600px) {
+    left: 12px !important;
+    right: 12px !important;
+    bottom: 12px !important;
+    max-width: 100% !important;
+  }
+}
+
+.toast {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  background: rgba(15, 23, 42, 0.95) !important; /* sleek dark slate */
+  color: #F8FAFC !important;
+  padding: 12px 20px !important;
+  border-radius: 8px !important;
+  margin-top: 8px !important;
+  font-family: 'Open Sans', sans-serif !important;
+  font-size: 13.5px !important;
+  font-weight: 500 !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15), 0 1px 3px rgba(0, 0, 0, 0.1) !important;
+  pointer-events: auto !important;
+  transition: opacity 0.3s ease, transform 0.3s ease !important;
+  word-break: break-all !important;
+  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+
+  /* 強制有合理的初始進場動畫 */
+  animation: toastEntrance 0.3s cubic-bezier(0.215, 0.610, 0.355, 1) forwards !important;
+}
+
+@keyframes toastEntrance {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
 /* 自訂確認彈窗樣式 */
 .custom-confirm-overlay {
   position: fixed;
