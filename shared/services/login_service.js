@@ -124,8 +124,6 @@ class LoginService {
     }
 
     _encryptData(account, password) {
-        console.log('---------- Login');
-
         this._setSidSpwd(account, password);
 
         const key = new NodeRSA();

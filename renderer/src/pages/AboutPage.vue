@@ -42,9 +42,18 @@
             <div class="about-icon-box about-icon-box-primary">
               <i data-lucide="calendar" class="icon-22 icon-clr-primary"></i>
             </div>
-            <h4 class="about-feature-title">課表管理</h4>
+            <h4 class="about-feature-title">當前課表</h4>
           </div>
-          <p class="about-feature-desc">視覺化課表檢視，自動偵測衝堂與時間衝突</p>
+          <p class="about-feature-desc">整合匯入當前學期課表，提供清晰視覺化呈現</p>
+        </div>
+        <div class="about-feature-card">
+          <div class="about-feature-header">
+            <div class="about-icon-box about-icon-box-primary">
+              <i data-lucide="list-checks" class="icon-22 icon-clr-primary"></i>
+            </div>
+            <h4 class="about-feature-title">預排課表</h4>
+          </div>
+          <p class="about-feature-desc">規劃新學期預排課程、支援課程分組與自動統計學分</p>
         </div>
         <div class="about-feature-card">
           <div class="about-feature-header">
@@ -57,21 +66,21 @@
         </div>
         <div class="about-feature-card">
           <div class="about-feature-header">
-            <div class="about-icon-box about-icon-box-success">
-              <i data-lucide="shield-check" class="icon-22 icon-clr-success"></i>
-            </div>
-            <h4 class="about-feature-title">安全儲存</h4>
-          </div>
-          <p class="about-feature-desc">帳號密碼加密存放，確保資料安全</p>
-        </div>
-        <div class="about-feature-card">
-          <div class="about-feature-header">
             <div class="about-icon-box about-icon-box-info">
               <i data-lucide="award" class="icon-22 icon-clr-info"></i>
             </div>
             <h4 class="about-feature-title">成績查詢</h4>
           </div>
-          <p class="about-feature-desc">快速查詢歷年與各學期的成績與排名</p>
+          <p class="about-feature-desc">快速查詢歷年與各學期的成績與學期排名</p>
+        </div>
+        <div class="about-feature-card">
+          <div class="about-feature-header">
+            <div class="about-icon-box about-icon-box-success">
+              <i data-lucide="shield-check" class="icon-22 icon-clr-success"></i>
+            </div>
+            <h4 class="about-feature-title">安全儲存</h4>
+          </div>
+          <p class="about-feature-desc">帳號密碼加密存放，確保個人隱私資料安全</p>
         </div>
       </div>
 
@@ -228,8 +237,16 @@ onMounted(() => {
 // Feature Grid
 .about-feature-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(3, 1fr);
   gap: 16px;
+
+  @media (max-width: 992px) {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  @media (max-width: 576px) {
+    grid-template-columns: 1fr;
+  }
 }
 
 .about-feature-card {

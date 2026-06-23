@@ -9,7 +9,21 @@ function registerSettingsAndConfigHandlers(ipcMain, configManager, app, validate
 
     ipcMain.handle(CHANNELS.SETTINGS.WRITE, async (e, data) => {
         if (!validateIpcSender(e)) throw new Error('未授權的 IPC sender');
-        return configManager.writeSettings(data);
+        if (!data || typeof data !== 'object') return false;
+
+        const currentSettings = await configManager.readSettings();
+        if (Object.prototype.hasOwnProperty.call(data, 'interval')) {
+            const val = Number(data.interval);
+            if (!isNaN(val)) {
+                currentSettings.interval = val;
+            }
+        }
+        if (Object.prototype.hasOwnProperty.call(data, 'stage')) {
+            if (typeof data.stage === 'string') {
+                currentSettings.stage = data.stage;
+            }
+        }
+        return configManager.writeSettings(currentSettings);
     });
 
     ipcMain.handle(CHANNELS.CONFIG.GET_PATH, async (e) => {

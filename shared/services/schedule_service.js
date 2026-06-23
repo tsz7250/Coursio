@@ -218,8 +218,8 @@ class ScheduleService {
                         element.click();
                         if (element.onclick) {
                             element.onclick();
-                        } else if (typeof GoToURL === 'function') {
-                            GoToURL('App_', 'S5');
+                        } else if (typeof window.GoToURL === 'function') {
+                            window.GoToURL('App_', 'S5');
                         }
                     }
                 }, scheduleMenuFound);

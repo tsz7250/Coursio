@@ -62,7 +62,7 @@ class BackendService {
             "BackUID": "",
             "DeviceSerial": "123", // JBAXB7616580PZJ
             "APIkey": "YzuAppCall",
-            "Password": "!@#$_YzuApp_IS5201",
+            "Password": "!@#$_YzuApp_IS5201", // ponytail: 這是元智大學 Portal 官方 API 固定密鑰，非使用者密碼
 
             "PublicKeyXml": "",
 

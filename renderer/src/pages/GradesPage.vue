@@ -107,29 +107,29 @@ const {
     rankingRows, rankingStudentInfo,
     tabCornerClass,
     switchTab, selectSemester, fetchCurrentTab,
-    fetchGrades, _applyGradesData, _preloadBackgroundTabs,
+    fetchGrades, applyGradesData, preloadBackgroundTabs,
 } = useGrades();
 
 onMounted(() => {
     nextTick(() => {
         if (isLoggedIn.value) {
             if (Store.gradesData.history) {
-                _applyGradesData('history', Store.gradesData.history);
-                if (Store.gradesData.ranking) _applyGradesData('ranking', Store.gradesData.ranking);
-                _preloadBackgroundTabs();
+                applyGradesData('history', Store.gradesData.history);
+                if (Store.gradesData.ranking) applyGradesData('ranking', Store.gradesData.ranking);
+                preloadBackgroundTabs();
             } else if (Store.isLoadingGradesHistory) {
                 isLoading.value = true;
                 loadingText.value = '正在載入成績資料...';
                 const stopWatch = watch(() => Store.gradesData.history, (data) => {
                     if (data) {
                         stopWatch();
-                        _applyGradesData('history', data);
+                        applyGradesData('history', data);
                         isLoading.value = false;
-                        _preloadBackgroundTabs();
+                        preloadBackgroundTabs();
                     }
                 });
             } else {
-                fetchGrades('history').then(() => { _preloadBackgroundTabs(); });
+                fetchGrades('history').then(() => { preloadBackgroundTabs(); });
             }
         }
         if (typeof lucide !== 'undefined') lucide.createIcons();

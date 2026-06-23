@@ -189,7 +189,6 @@ async function clearAllTasks() {
   if (!await confirmFn('確定清除所有選課任務？此操作無法復原。')) return;
   try {
     await window.electronAPI.db.clearAllTasks();
-    Store.tasks = [];
     if (typeof M !== 'undefined' && M.toast) {
       M.toast({ html: '已清除所有選課任務', displayLength: 3000 });
     }

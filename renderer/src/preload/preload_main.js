@@ -67,8 +67,6 @@ const FALLBACK_CHANNELS = {
 
 let CHANNELS = FALLBACK_CHANNELS;
 try {
-    // 在非 sandbox preload 可直接共用主程序 IPC 契約。
-    // sandbox preload 可能禁止跨路徑 require，故保留 fallback。
     CHANNELS = require('../../../main/ipc/contracts/channels').CHANNELS;
 } catch {
     CHANNELS = FALLBACK_CHANNELS;

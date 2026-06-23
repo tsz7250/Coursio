@@ -12,6 +12,40 @@ export default [
     ],
   },
 
+  // ── 通用環境與全域變數 ──
+  {
+    files: ["**/*.js", "**/*.mjs", "**/*.vue"],
+    languageOptions: {
+      ecmaVersion: "latest",
+      sourceType: "module",
+      globals: {
+        // Node.js
+        require: "readonly",
+        module: "readonly",
+        process: "readonly",
+        __dirname: "readonly",
+        Buffer: "readonly",
+        setTimeout: "readonly",
+        clearTimeout: "readonly",
+        setInterval: "readonly",
+        clearInterval: "readonly",
+        console: "readonly",
+        URL: "readonly",
+        URLSearchParams: "readonly",
+        // Browser
+        window: "readonly",
+        document: "readonly",
+        navigator: "readonly",
+        M: "readonly",
+        lucide: "readonly",
+        confirm: "readonly",
+        alert: "readonly",
+        CustomEvent: "readonly",
+        Event: "readonly",
+      }
+    }
+  },
+
   // ── JS 通用規則 ──
   {
     files: ["**/*.js", "**/*.mjs"],
@@ -19,7 +53,7 @@ export default [
     rules: {
       ...js.configs.recommended.rules,
       "no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
-      "no-undef": "off",
+      "no-undef": "error",
       "no-empty": "warn",
       "no-console": "off",
       "no-prototype-builtins": "warn",
@@ -34,7 +68,7 @@ export default [
       "vue/multi-word-component-names": "off",
       "vue/no-unused-vars": "warn",
       "no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
-      "no-undef": "off",
+      "no-undef": "error",
     },
   })),
 ];

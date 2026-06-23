@@ -7,7 +7,7 @@
     </div>
 
     <!-- Login Panel -->
-    <div class="login-panel section">
+    <div class="login-panel section" :class="{ 'slide-up': Store.isShellReady }">
       <!-- 左側：漸層 Hero Panel -->
       <div class="hero-panel">
         <div class="hero-content">
@@ -64,7 +64,7 @@
     </div><!-- End of Login Panel -->
 
     <!-- Content Panel -->
-    <div class="content-panel section">
+    <div class="content-panel section" :class="{ 'is-visible': Store.isShellReady }">
       <div class="sidebar">
         <div class="sidebar-header header">
           <img class="sidebar-logo-img" src="./assets/icon.png" alt="Coursio">
@@ -72,43 +72,45 @@
         </div>
 
         <div class="sidebar-funcitonal-items point-it">
-          <div @click="navigateTo('Main')" id="Main-sidebar-item" class="sidebar-item">
+          <div @click="navigateTo('Main')" id="Main-sidebar-item" class="sidebar-item"
+            :class="{ active: currentRouteName === 'Main' }">
             <i data-lucide="house"></i>
             <span>首頁</span>
           </div>
           <div @click="navigateTo('Schedule')" id="Schedule-sidebar-item" class="sidebar-item point-it"
-            :class="!isLoggedIn ? 'guest-disabled' : ''">
+            :class="{ active: currentRouteName === 'Schedule', 'guest-disabled': !isLoggedIn }">
             <i data-lucide="calendar"></i>
             <span>我的課表</span>
           </div>
           <div @click="navigateTo('PreSchedule')" id="PreSchedule-sidebar-item" class="sidebar-item point-it"
-            :class="!isLoggedIn ? 'guest-disabled' : ''">
+            :class="{ active: currentRouteName === 'PreSchedule', 'guest-disabled': !isLoggedIn }">
             <i data-lucide="calendar-range"></i>
             <span>預排課表</span>
           </div>
-          <div @click="navigateTo('CourseQuery')" id="School-timetable-Query-sidebar-item"
-            class="sidebar-item point-it">
+          <div @click="navigateTo('CourseQuery')" id="School-timetable-Query-sidebar-item" class="sidebar-item point-it"
+            :class="{ active: currentRouteName === 'CourseQuery' }">
             <i data-lucide="search"></i>
             <span>課程查詢</span>
           </div>
           <div @click="navigateTo('AutoSelection')" id="Auto-Selection-sidebar-item" class="sidebar-item point-it"
-            :class="!isLoggedIn ? 'guest-disabled' : ''">
+            :class="{ active: currentRouteName === 'AutoSelection', 'guest-disabled': !isLoggedIn }">
             <i data-lucide="bot"></i>
             <span>自動選課</span>
           </div>
           <div @click="navigateTo('Grades')" id="Grades-sidebar-item" class="sidebar-item point-it"
-            :class="!isLoggedIn ? 'guest-disabled' : ''">
+            :class="{ active: currentRouteName === 'Grades', 'guest-disabled': !isLoggedIn }">
             <i data-lucide="bar-chart-2"></i>
             <span>成績查詢</span>
           </div>
           <div @click="navigateTo('Settings')" id="Settings-sidebar-item" class="sidebar-item point-it"
-            :class="!isLoggedIn ? 'guest-disabled' : ''">
+            :class="{ active: currentRouteName === 'Settings', 'guest-disabled': !isLoggedIn }">
             <i data-lucide="settings"></i>
             <span>設定</span>
           </div>
         </div>
 
-        <div id="About-sidebar-item" class="sidebar-item point-it" @click="navigateTo('About')">
+        <div id="About-sidebar-item" class="sidebar-item point-it" @click="navigateTo('About')"
+          :class="{ active: currentRouteName === 'About' }">
           <i data-lucide="info"></i>
           <span>關於</span>
         </div>
@@ -123,11 +125,14 @@
 </template>
 
 <script setup>
+import { computed } from 'vue';
 import { useRouter } from 'vue-router';
+import { Store } from './store.js';
 import { useAppShell } from './composables/useAppShell.js';
 import LoadingOverlay from '@/components/layout/LoadingOverlay.vue';
 
 const router = useRouter();
+const currentRouteName = computed(() => router.currentRoute.value?.name);
 const {
   sid,
   spwd,
@@ -157,7 +162,14 @@ const {
 
     &.is-visible {
         display: flex;
+        opacity: 1;
+        animation: fadeIn 0.4s ease-in-out forwards;
     }
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
 }
 
 #inner-content-panel {

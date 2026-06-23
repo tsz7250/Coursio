@@ -1,6 +1,6 @@
 import { ref, computed, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { Store, year_now, filterSemesterListForTime } from '../store.js';
+import { Store, year_now } from '../store.js';
 import { useLogout } from './useLogout.js';
 import { requestQueue } from '../utils/requestQueue.js';
 
@@ -286,11 +286,8 @@ export function useCourseQuery() {
         const year = querySelectQueryYear.value || year_now;
         const semester = querySelectQuerySmt.value || '1';
 
-        window.electronAPI.backend.getCourseList(`${year}`, `${semester}`).then((data) => {
-            Store.courseList = data.course_list;
-            if (data.dept_list && Array.isArray(data.dept_list)) Store.deptList = data.dept_list;
-            if (data.semester_list && Array.isArray(data.semester_list)) {
-                Store.semesterListForTime = filterSemesterListForTime(data.semester_list);
+        Store.getCourseList(year, semester).then((data) => {
+            if (data && data.semester_list && Array.isArray(data.semester_list)) {
                 if (Store.semesterListForTime.length > 0) {
                     const latest = Store.semesterListForTime[0].value;
                     querySelectSemester.value = latest;

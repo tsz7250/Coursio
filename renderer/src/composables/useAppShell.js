@@ -50,15 +50,9 @@ export function useAppShell(router) {
         const year = year_now;
         const semester = new Date().getMonth() >= 7 ? '1' : '2';
 
-        const promise = window.electronAPI.backend.getCourseList(`${year}`, semester).then((data) => {
-            if (storeInWindow) {
-                window.allCourseList = data.course_list;
-            } else {
-                Store.courseList = data.course_list;
-            }
-            if (data.dept_list && Array.isArray(data.dept_list)) Store.deptList = data.dept_list;
-            if (data.semester_list && Array.isArray(data.semester_list)) {
-                Store.semesterListForTime = filterSemesterListForTime(data.semester_list);
+        const promise = Store.getCourseList(year, semester).then((data) => {
+            if (storeInWindow && data && data.course_list) {
+                Store.allCourseList = data.course_list;
             }
             if (showLoading) {
                 isCourseListLoading = false;
@@ -71,7 +65,7 @@ export function useAppShell(router) {
             }
             if (storeInWindow) {
                 console.error('全校課程資料載入失敗:', error);
-                window.allCourseList = [];
+                Store.allCourseList = [];
             } else {
                 console.error('課程資料載入失敗:', error);
             }
@@ -88,12 +82,7 @@ export function useAppShell(router) {
         const year = year_now;
         const semester = new Date().getMonth() >= 7 ? '1' : '2';
 
-        window.electronAPI.backend.getCourseList(`${year}`, semester).then((data) => {
-            Store.courseList = data.course_list;
-            if (data.dept_list && Array.isArray(data.dept_list)) Store.deptList = data.dept_list;
-            if (data.semester_list && Array.isArray(data.semester_list)) {
-                Store.semesterListForTime = filterSemesterListForTime(data.semester_list);
-            }
+        Store.getCourseList(year, semester).then(() => {
             isCourseListLoading = false;
             Store.isCourseDataLoading = false;
         }).catch((error) => {
@@ -133,11 +122,6 @@ export function useAppShell(router) {
         loading_text.value = '正在驗證帳號密碼...';
         isLoading.value = true;
 
-        const loadingPanel = document.getElementById('loading-panel');
-        if (loadingPanel) {
-            loadingPanel.style.cssText = `position: fixed !important; top: 0 !important; left: 0 !important; width: 100% !important; height: 100% !important; z-index: 2000 !important; background: #ffffff !important; display: flex !important; flex-direction: column !important; align-items: center !important; justify-content: center !important; gap: 24px !important; transition: opacity 0.3s ease-in-out !important;`;
-        }
-
         let cleanupProgress = null;
         try {
             cleanupProgress = window.electronAPI.puppeteer.onProgress((step) => {
@@ -169,32 +153,15 @@ export function useAppShell(router) {
                 // ignore
             }
 
-            const loginPanel = document.querySelector('.login-panel');
-            const contentPanel = document.querySelector('.content-panel');
-
-            contentPanel.style.display = 'flex';
-            contentPanel.style.opacity = '0';
-            contentPanel.style.transition = 'opacity 0.3s ease-in-out';
-            loginPanel.classList.add('slide-up');
-
+            Store.isShellReady = true;
             setTimeout(() => {
-                contentPanel.style.opacity = '1';
                 router.push({ name: 'Main' });
             }, 400);
 
-            setTimeout(() => {
-                loginPanel.style.display = 'none';
-                loginPanel.classList.remove('slide-up');
-                contentPanel.style.transition = '';
-            }, 800);
+            isLoading.value = false;
+            loading_text.value = '';
 
-            if (loadingPanel) {
-                isLoading.value = false;
-                loading_text.value = '';
-                loadingPanel.style.cssText = '';
-            }
-
-            window.isBackgroundLoadingSchedule = true;
+            Store.isBackgroundLoadingSchedule = true;
             Store.isLoadingGradesHistory = true;
 
             (async () => {
@@ -215,31 +182,28 @@ export function useAppShell(router) {
                 (async () => {
                     const scheduleResult = await window.electronAPI.puppeteer.getSchedule();
                     if (scheduleResult?.success && scheduleResult.data) {
-                        window.courseScheduleData = scheduleResult.data;
+                        Store.courseScheduleData = scheduleResult.data;
                     } else {
-                        window.courseScheduleData = null;
+                        Store.courseScheduleData = null;
                         throw new Error(scheduleResult?.message || '課表載入失敗');
                     }
                 })(),
                 getCourseListForQuery({ showLoading: false, returnPromise: true, storeInWindow: true })
             ]).then(([scheduleResult]) => {
-                window.isBackgroundLoadingSchedule = false;
+                Store.isBackgroundLoadingSchedule = false;
                 if (scheduleResult.status !== 'fulfilled') {
                     Store.scheduleViewState = 'error';
                 } else if (Store.scheduleViewState === 'loading' && (Store.courseScheduleData?.course_list?.length ?? 0) > 0) {
                     Store.scheduleViewState = 'content';
                 }
             }).catch(() => {
-                window.isBackgroundLoadingSchedule = false;
+                Store.isBackgroundLoadingSchedule = false;
                 Store.scheduleViewState = 'error';
             });
         } catch (error) {
             console.error('登入失敗:', error);
-            if (loadingPanel) {
-                isLoading.value = false;
-                loading_text.value = '';
-                loadingPanel.style.cssText = '';
-            }
+            isLoading.value = false;
+            loading_text.value = '';
             showToastError(error.message || String(error));
         } finally {
             if (cleanupProgress) {
@@ -253,27 +217,13 @@ export function useAppShell(router) {
     function browseAsGuest() {
         isLoggedIn.value = false;
 
-        const loginPanel = document.querySelector('.login-panel');
-        const contentPanel = document.querySelector('.content-panel');
-
-        contentPanel.style.display = 'flex';
-        contentPanel.style.opacity = '0';
-        contentPanel.style.transition = 'opacity 0.3s ease-in-out';
-        loginPanel.classList.add('slide-up');
-
+        Store.isShellReady = true;
         setTimeout(() => {
-            contentPanel.style.opacity = '1';
             router.push({ name: 'CourseQuery' });
         }, 400);
 
-        setTimeout(() => {
-            loginPanel.style.display = 'none';
-            loginPanel.classList.remove('slide-up');
-            contentPanel.style.transition = '';
-        }, 800);
-
         if (Store.courseList.length === 0 && !isCourseListLoading) getCourseListSilent();
-        if (!window.allCourseList || window.allCourseList.length === 0) {
+        if (!Store.allCourseList || Store.allCourseList.length === 0) {
             getCourseListForQuery({ showLoading: false, returnPromise: true, storeInWindow: true });
         }
     }
@@ -287,7 +237,9 @@ export function useAppShell(router) {
             return new Promise((resolve) => {
                 const overlay = document.createElement('div');
                 overlay.className = 'custom-confirm-overlay';
-                overlay.innerHTML = `<div class="custom-confirm-dialog"><div class="custom-confirm-title">${title || '確認操作'}</div><div class="custom-confirm-message">${message}</div><div class="custom-confirm-actions"><button class="btn btn-outline custom-confirm-cancel">取消</button><button class="btn btn-danger custom-confirm-ok">確定</button></div></div>`;
+                const safeTitle = escapeHtml(title || '確認操作');
+                const safeMessage = escapeHtml(message);
+                overlay.innerHTML = `<div class="custom-confirm-dialog"><div class="custom-confirm-title">${safeTitle}</div><div class="custom-confirm-message">${safeMessage}</div><div class="custom-confirm-actions"><button class="btn btn-outline custom-confirm-cancel">取消</button><button class="btn btn-danger custom-confirm-ok">確定</button></div></div>`;
                 document.body.appendChild(overlay);
                 overlay.querySelector('.custom-confirm-ok').addEventListener('click', () => {
                     document.body.removeChild(overlay); resolve(true);
@@ -305,7 +257,9 @@ export function useAppShell(router) {
             return new Promise((resolve) => {
                 const overlay = document.createElement('div');
                 overlay.className = 'custom-confirm-overlay';
-                overlay.innerHTML = `<div class="custom-confirm-dialog"><div class="custom-confirm-title">${title || '時間衝突警告'}</div><div class="custom-confirm-message">${message}</div><div class="custom-confirm-actions"><button class="btn btn-outline custom-confirm-cancel">取消加入</button><button class="btn btn-primary custom-confirm-keep">同時保留</button><button class="btn btn-danger custom-confirm-replace">替換舊課</button></div></div>`;
+                const safeTitle = escapeHtml(title || '時間衝突警告');
+                const safeMessage = escapeHtml(message);
+                overlay.innerHTML = `<div class="custom-confirm-dialog"><div class="custom-confirm-title">${safeTitle}</div><div class="custom-confirm-message">${safeMessage}</div><div class="custom-confirm-actions"><button class="btn btn-outline custom-confirm-cancel">取消加入</button><button class="btn btn-primary custom-confirm-keep">同時保留</button><button class="btn btn-danger custom-confirm-replace">替換舊課</button></div></div>`;
                 
                 // 套用樣式避免違反 CSP
                 const dialog = overlay.querySelector('.custom-confirm-dialog');
@@ -380,17 +334,9 @@ export function useAppShell(router) {
         }
 
         window.addEventListener('yzu:login-failed', (ev) => {
-            try {
-                const loadingPanel = document.getElementById('loading-panel');
-                if (loadingPanel) {
-                    isLoading.value = false;
-                    loading_text.value = '';
-                    loadingPanel.style.cssText = '';
-                }
-                showToastError(ev?.detail?.message || '登入失敗');
-            } catch {
-                // ignore
-            }
+            isLoading.value = false;
+            loading_text.value = '';
+            showToastError(ev?.detail?.message || '登入失敗');
         });
 
         window.electronAPI.settings.read().then((s) => {
@@ -414,16 +360,7 @@ export function useAppShell(router) {
             // ignore
         }
 
-        if (!window._dbPollingInterval) {
-            window._dbPollingInterval = setInterval(async () => {
-                try {
-                    const allTasks = await window.electronAPI.db.getAllTasks();
-                    Store.tasks = allTasks || [];
-                } catch (error) {
-                    console.error('輪詢任務列表失敗:', error);
-                }
-            }, 5000);
-        }
+        // ponytail: 移除全域任務清單輪詢，因為 UI 頁面已有載入與事件處理機制
 
         nextTick(() => {
             if (typeof M !== 'undefined' && M?.Modal) {

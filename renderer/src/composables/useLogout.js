@@ -8,12 +8,20 @@ import { Store } from '../store.js';
 export function useLogout() {
     const router = useRouter();
 
-    function logout() {
+    async function logout() {
         Store.isLoggedIn = false;
+        Store.isShellReady = false;
         Store.sid = '';
         Store.spwd = '';
         Store.courseScheduleData = null;
         Store.showUserMenu = false;
+        try {
+            if (window.electronAPI && window.electronAPI.puppeteer && window.electronAPI.puppeteer.cleanup) {
+                await window.electronAPI.puppeteer.cleanup();
+            }
+        } catch (error) {
+            console.error('登出清理 Puppeteer 失敗:', error);
+        }
         router.push({ name: 'Main' });
     }
 

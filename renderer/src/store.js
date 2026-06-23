@@ -65,36 +65,19 @@ Store.loadSettings = async function () {
     } catch { /* 忽略 */ }
 };
 
-// 便利 getter，保持向後相容
-Object.defineProperty(window, 'courseScheduleData', {
-    get() { return Store.courseScheduleData; },
-    set(v) { Store.courseScheduleData = v; },
-    configurable: true,
-});
-
-// C-04: 不將密碼暴露於 window，僅保留 sid 供向後相容
-Object.defineProperty(window, 'storedCredentials', {
-    get() { return { account: Store.sid, sid: Store.sid }; },
-    set(v) {
-        if (v) { Store.sid = v.account || v.sid || ''; Store.spwd = v.password || v.spwd || ''; }
-    },
-    configurable: true,
-});
-
-Object.defineProperty(window, 'allCourseList', {
-    get() { return Store.allCourseList; },
-    set(v) { Store.allCourseList = v || []; },
-    configurable: true,
-});
-
-Object.defineProperty(window, 'isBackgroundLoadingSchedule', {
-    get() { return Store.isBackgroundLoadingSchedule; },
-    set(v) { Store.isBackgroundLoadingSchedule = v; },
-    configurable: true,
-});
-
-Object.defineProperty(window, 'isRefreshingSchedule', {
-    get() { return Store.isRefreshingSchedule; },
-    set(v) { Store.isRefreshingSchedule = v; },
-    configurable: true,
-});
+Store.getCourseList = async function (year, semester) {
+    try {
+        const data = await window.electronAPI.backend.getCourseList(`${year}`, semester);
+        if (data) {
+            if (data.course_list) Store.courseList = data.course_list;
+            if (data.dept_list && Array.isArray(data.dept_list)) Store.deptList = data.dept_list;
+            if (data.semester_list && Array.isArray(data.semester_list)) {
+                Store.semesterListForTime = filterSemesterListForTime(data.semester_list);
+            }
+        }
+        return data;
+    } catch (e) {
+        console.error('getCourseList 失敗:', e);
+        throw e;
+    }
+};

@@ -5,5 +5,6 @@ export default {
     isCourseDataLoading: false,
     scheduleViewState: 'idle',
     globalLoading: false,
-    globalLoadingText: ''
+    globalLoadingText: '',
+    isShellReady: false
 };

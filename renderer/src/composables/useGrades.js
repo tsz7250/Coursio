@@ -81,7 +81,7 @@ export function useGrades() {
     }
 
     // ── 套用成績資料（不觸動 isLoading，供背景預載使用）
-    function _applyGradesData(type, data) {
+    function applyGradesData(type, data) {
         if (type === 'semester') {
             semesterCourses.value = data.courses || [];
             semesterStats.value = data.stats || { totalCredits: 0, passedCredits: 0, average: 0 };
@@ -169,7 +169,7 @@ export function useGrades() {
             if (pendingRequestId[type] !== myId) return;
 
             if (result.success && result.data) {
-                _applyGradesData(type, result.data);
+                applyGradesData(type, result.data);
             } else {
                 showError.value = true;
                 errorMessage.value = result.message || '成績查詢失敗';
@@ -185,14 +185,14 @@ export function useGrades() {
     }
 
     // ── 背景靜默預載排名資料
-    async function _preloadBackgroundTabs() {
+    async function preloadBackgroundTabs() {
         if (!isLoggedIn.value || rankingRows.value.length > 0) return;
 
         if (Store.gradesData.ranking) {
-            _applyGradesData('ranking', Store.gradesData.ranking);
+            applyGradesData('ranking', Store.gradesData.ranking);
         } else if (Store.isLoadingGradesHistory) {
             const stopWatch = watch(() => Store.gradesData.ranking, (data) => {
-                if (data) { stopWatch(); _applyGradesData('ranking', data); }
+                if (data) { stopWatch(); applyGradesData('ranking', data); }
             }, { immediate: true });
         } else {
             if (isBackgroundLoading.value) return;
@@ -201,7 +201,7 @@ export function useGrades() {
                 const rankId = ++pendingRequestId.ranking;
                 const r = await window.electronAPI.puppeteer.getGrades({ type: 'ranking' });
                 if (r.success && r.data && pendingRequestId.ranking === rankId) {
-                    _applyGradesData('ranking', r.data);
+                    applyGradesData('ranking', r.data);
                 }
             } catch (e) {
                 console.warn('⚠️ 背景預載排名失敗:', e.message);
@@ -226,10 +226,10 @@ export function useGrades() {
             fetchGrades('history');
         } else if (tab === 'ranking' && rankingRows.value.length === 0 && isLoggedIn.value) {
             if (Store.gradesData.ranking) {
-                _applyGradesData('ranking', Store.gradesData.ranking);
+                applyGradesData('ranking', Store.gradesData.ranking);
             } else if (Store.isLoadingGradesHistory) {
                 const stopWatch = watch(() => Store.gradesData.ranking, (data) => {
-                    if (data) { stopWatch(); _applyGradesData('ranking', data); isLoading.value = false; }
+                    if (data) { stopWatch(); applyGradesData('ranking', data); isLoading.value = false; }
                 }, { immediate: true });
                 if (!Store.gradesData.ranking) {
                     isLoading.value = true;
@@ -273,6 +273,6 @@ export function useGrades() {
         tabCornerClass,
         // actions
         switchTab, selectSemester, fetchCurrentTab,
-        fetchGrades, _applyGradesData, _preloadBackgroundTabs,
+        fetchGrades, applyGradesData, preloadBackgroundTabs,
     };
 }

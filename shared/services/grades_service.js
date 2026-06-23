@@ -19,7 +19,7 @@ class GradesService {
             console.log("📊 開始導航至成績查詢頁面...");
 
             const hasGoToURL = await page.evaluate(() => {
-                return typeof GoToURL === 'function';
+                return typeof window.GoToURL === 'function';
             }).catch(() => false);
 
             if (hasGoToURL) {
@@ -58,7 +58,7 @@ class GradesService {
                 });
 
                 await page.evaluate(() => {
-                    GoToURL('App_', 'S6');
+                    window.GoToURL('App_', 'S6');
                 });
 
                 await navigationPromise;
@@ -205,8 +205,8 @@ class GradesService {
                     const select = document.getElementById('DropDownList2');
                     if (select && select.value !== val) {
                         select.value = val;
-                        if (typeof __doPostBack === 'function') {
-                            __doPostBack('DropDownList2', '');
+                        if (typeof window.__doPostBack === 'function') {
+                            window.__doPostBack('DropDownList2', '');
                             return true;
                         }
                     }

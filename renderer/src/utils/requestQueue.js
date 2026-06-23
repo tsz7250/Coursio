@@ -18,39 +18,30 @@ class RequestQueue {
         });
     }
 
-    async next() {
-        if (this.running >= this.concurrency) {
-            return;
-        }
-
-        // 優先處理 High 佇列
-        if (this.highQueue.length > 0) {
-            const item = this.highQueue.shift();
-            this.running++;
-            try {
-                const res = await item.fn();
-                item.resolve(res);
-            } catch (err) {
-                item.reject(err);
-            } finally {
-                this.running--;
-                this.next();
-            }
-            return;
-        }
-
-        // 只有當沒有任何等待的 High 任務時，才處理 Low 佇列
-        if (this.lowQueue.length > 0) {
-            const item = this.lowQueue.shift();
-            this.running++;
-            try {
-                const res = await item.fn();
-                item.resolve(res);
-            } catch (err) {
-                item.reject(err);
-            } finally {
-                this.running--;
-                this.next();
+    next() {
+        while (this.running < this.concurrency) {
+            if (this.highQueue.length > 0) {
+                const item = this.highQueue.shift();
+                this.running++;
+                item.fn()
+                    .then(res => item.resolve(res))
+                    .catch(err => item.reject(err))
+                    .finally(() => {
+                        this.running--;
+                        this.next();
+                    });
+            } else if (this.lowQueue.length > 0) {
+                const item = this.lowQueue.shift();
+                this.running++;
+                item.fn()
+                    .then(res => item.resolve(res))
+                    .catch(err => item.reject(err))
+                    .finally(() => {
+                        this.running--;
+                        this.next();
+                    });
+            } else {
+                break;
             }
         }
     }

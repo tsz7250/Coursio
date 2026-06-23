@@ -28,8 +28,6 @@ function createWindow() {
     MainWindow = new BrowserWindow({
         width: 1200,
         height: 900,
-        winWidth: 1000,
-        winHeight: 800,
         transparent: false,
         frame: true,
         icon: path.join(__dirname, "..", "assets", "icon.png"),
@@ -76,7 +74,10 @@ function createWindow() {
     });
 
     // 在主畫面關閉時清理資源
-    MainWindow.on("close", function () {
+    MainWindow.on("close", async function (e) {
+        if (MainWindow.isDestroyed()) return;
+        e.preventDefault();
+
         // 確保刪除登入 Token（同步寫入，程式退出前完成）
         try {
             const settings = configManager.readSettingsSync();
@@ -85,6 +86,15 @@ function createWindow() {
         } catch (error) {
             console.error("清理設定檔失敗:", error);
         }
+
+        // 清理 Puppeteer 瀏覽器行程
+        try {
+            await mainPuppeteer.cleanupSession();
+        } catch (error) {
+            console.error("關閉時清理 Puppeteer 失敗:", error);
+        }
+
+        MainWindow.destroy();
     })
 }
 
