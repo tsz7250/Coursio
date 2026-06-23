@@ -7,7 +7,7 @@ builder.build({
 
     projectDir: path.resolve(__dirname),  // 專案路徑 
 
-    win: isMac ? undefined : ['zip'],  // zip
+    win: isMac ? undefined : ['portable'],  // portable
     mac: isMac ? ['zip'] : undefined,
     config: {
         "appId": "com.tsz7250.coursio",

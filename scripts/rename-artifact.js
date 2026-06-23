@@ -16,15 +16,17 @@ if (!fs.existsSync(absoluteDir)) {
 }
 
 const files = fs.readdirSync(absoluteDir);
-const zipFiles = files.filter(f => f.endsWith('.zip'));
+const targetFiles = files.filter(f => f.endsWith('.zip') || f.endsWith('.exe'));
 
-if (zipFiles.length === 0) {
-  console.error(`No zip files found in ${absoluteDir}`);
+if (targetFiles.length === 0) {
+  console.error(`No zip or exe files found in ${absoluteDir}`);
   process.exit(1);
 }
 
-// 重新命名第一個找到的 zip 檔案
-const oldPath = path.join(absoluteDir, zipFiles[0]);
-const newPath = path.join(absoluteDir, `${newName}.zip`);
+// 重新命名第一個找到的檔案，保留原本的副檔名
+const targetFile = targetFiles[0];
+const ext = path.extname(targetFile);
+const oldPath = path.join(absoluteDir, targetFile);
+const newPath = path.join(absoluteDir, `${newName}${ext}`);
 fs.renameSync(oldPath, newPath);
 console.log(`Renamed ${oldPath} to ${newPath}`);

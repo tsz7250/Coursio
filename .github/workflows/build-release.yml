@@ -59,6 +59,13 @@ jobs:
       - name: Rename Build Artifact
         run: node scripts/rename-artifact.js ${{ matrix.os == 'windows-latest' && 'build/win' || 'build/mac' }} ${{ matrix.artifact_name }}-${{ github.ref_name }}
 
+      - name: Zip Windows Portable Executable
+        if: matrix.os == 'windows-latest'
+        run: |
+          Compress-Archive -Path build/win/*.exe -DestinationPath build/win/${{ matrix.artifact_name }}-${{ github.ref_name }}.zip
+          Remove-Item build/win/*.exe
+        shell: pwsh
+
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -105,7 +112,7 @@ jobs:
             
             ### 🪟 Windows 使用方式
             1. 下載並解壓縮 ZIP 檔案。
-            2. 雙擊執行資料夾中的 `Coursio.exe` 主程式。
+            2. 雙擊執行資料夾中的 `Coursio-Windows-${{ github.ref_name }}.exe` 主程式。
             
             ### 🍎 macOS 使用方式
             1. 下載對應版本的 ZIP 檔案。
